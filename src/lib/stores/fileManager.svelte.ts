@@ -6,7 +6,7 @@ import {
 	listTrash,
 } from "$lib/commands";
 import { errorMessage } from "$lib/errors";
-import { parentPath } from "$lib/utils";
+import { fuzzyMatch, parentPath } from "$lib/utils";
 
 function loadPreference<T>(key: string, fallback: T): T {
 	if (typeof window === "undefined") return fallback;
@@ -52,6 +52,9 @@ export function createFileManager() {
 		null,
 	);
 
+	// Filter state
+	let filterQuery = $state("");
+
 	// Open With state
 	let openWithApps = $state<
 		Array<{ name: string; desktop_id: string; icon: string }>
@@ -90,6 +93,11 @@ export function createFileManager() {
 		return sorted;
 	});
 
+	const filteredEntries = $derived.by(() => {
+		if (!filterQuery) return sortedEntries;
+		return sortedEntries.filter((e) => fuzzyMatch(filterQuery, e.name));
+	});
+
 	const isTrash = $derived(currentPath === "trash://");
 
 	// Actions
@@ -98,6 +106,7 @@ export function createFileManager() {
 		error = null;
 		selectedPath = null;
 		selectedEntry = null;
+		filterQuery = "";
 
 		try {
 			if (path === "trash://") {
@@ -244,6 +253,12 @@ export function createFileManager() {
 		get sortedEntries() {
 			return sortedEntries;
 		},
+		get filteredEntries() {
+			return filteredEntries;
+		},
+		get filterQuery() {
+			return filterQuery;
+		},
 		get isTrash() {
 			return isTrash;
 		},
@@ -273,6 +288,12 @@ export function createFileManager() {
 		},
 
 		// Actions
+		setFilterQuery(query: string) {
+			filterQuery = query;
+		},
+		clearFilter() {
+			filterQuery = "";
+		},
 		navigate,
 		goBack,
 		goForward,

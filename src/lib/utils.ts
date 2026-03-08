@@ -13,6 +13,16 @@ export function parentPath(path: string): string {
 	return `/${parts.join("/")}`;
 }
 
+export function fuzzyMatch(query: string, text: string): boolean {
+	const q = query.toLowerCase();
+	const t = text.toLowerCase();
+	let qi = 0;
+	for (let ti = 0; ti < t.length && qi < q.length; ti++) {
+		if (t[ti] === q[qi]) qi++;
+	}
+	return qi === q.length;
+}
+
 export function pathSegments(path: string): { name: string; path: string }[] {
 	const parts = path.split("/").filter(Boolean);
 	const segments: { name: string; path: string }[] = [{ name: "/", path: "/" }];

@@ -67,14 +67,14 @@ Get a working file browser with basic operations. The app should be usable (if u
 Make it fast and comfortable to navigate. Keyboard users should feel at home.
 
 ### Navigation
-- [ ] Editable path bar (click breadcrumb to browse, click again to type)
+- [x] Editable path bar with directory autocomplete
 - [x] Sidebar with bookmarks / pinned directories (XDG dirs via `dirs` crate)
 - [x] Back/forward history stack
 - [ ] Tabs (open multiple directories)
 - [ ] Fuzzy search / filter within current directory
 
 ### Views
-- [x] Grid/icon view (toggle between list and grid)
+- [x] ~~Grid/icon view~~ (removed — list view only)
 - [x] Sortable column headers in list view
 - [x] File size formatting (human-readable)
 - [x] Directory item counts

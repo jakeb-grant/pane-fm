@@ -1,9 +1,11 @@
 <script lang="ts">
-import { onDestroy, onMount } from "svelte";
+import { onDestroy, onMount, tick } from "svelte";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
 import ContextMenu from "$lib/components/ContextMenu.svelte";
 import FileList from "$lib/components/FileList.svelte";
+// biome-ignore lint/style/useImportType: component used in template
+import FilterBar from "$lib/components/FilterBar.svelte";
 import FolderPicker from "$lib/components/FolderPicker.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
@@ -15,11 +17,31 @@ import {
 	getContextMenuItems,
 } from "$lib/contextMenu";
 import * as ops from "$lib/fileOps";
+import { keybinds } from "$lib/keybinds";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { createFileManager } from "$lib/stores/fileManager.svelte";
 
 const fm = createFileManager();
 const dlg = createDialogManager(fm);
+
+let filterBarVisible = $state(false);
+let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
+
+async function handleWindowKeydown(e: KeyboardEvent) {
+	const tag = (e.target as HTMLElement)?.tagName;
+	if (tag === "INPUT" || tag === "TEXTAREA") return;
+	if (e.key === keybinds.filter) {
+		e.preventDefault();
+		filterBarVisible = true;
+		await tick();
+		filterBar?.focusInput();
+	}
+}
+
+function handleFilterClose() {
+	fm.clearFilter();
+	filterBarVisible = false;
+}
 
 // --- Context menu wiring ---
 
@@ -84,6 +106,8 @@ onDestroy(() => {
 });
 </script>
 
+<svelte:window onkeydown={handleWindowKeydown} />
+
 <div class="app">
 	<Toolbar
 		canGoBack={fm.historyIndex > 0}
@@ -122,10 +146,20 @@ onDestroy(() => {
 						{/if}
 					</div>
 				{/if}
+				{#if filterBarVisible}
+					<FilterBar
+						bind:this={filterBar}
+						query={fm.filterQuery}
+						matchCount={fm.filteredEntries.length}
+						totalCount={fm.sortedEntries.length}
+						onchange={(q) => fm.setFilterQuery(q)}
+						onclose={handleFilterClose}
+					/>
+				{/if}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div class="content" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}>
 				<FileList
-						entries={fm.sortedEntries}
+						entries={fm.filteredEntries}
 						selectedPath={fm.selectedPath}
 						renamingPath={fm.renamingPath}
 						creatingEntry={fm.creatingEntry}
