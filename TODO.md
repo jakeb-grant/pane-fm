@@ -1,28 +1,55 @@
 # Hyprfiles Refactoring TODO
 
+## Known Bugs (Fix Before Refactoring)
+
+### B.1 `icons.ts` NAME_ICONS case-sensitivity bug
+- [ ] `getIconForEntry()` lowercases the filename before lookup, but `NAME_ICONS` has mixed-case keys (`"Dockerfile"`, `"PKGBUILD"`, `".Xresources"`, etc.) that will never match
+- [ ] Fix: lowercase all keys in `NAME_ICONS`, or remove the `toLowerCase()` call and do case-insensitive comparison
+
+### B.2 `path_exists` only checks directories
+- [ ] `commands.rs` `path_exists()` uses `.is_dir()` instead of `.exists()` — returns false for existing files
+- [ ] Currently only used by Sidebar to check directory places, so behavior happens to be correct, but the function name is misleading
+- [ ] Fix: rename to `dir_exists` or change to use `.exists()`
+
+### B.3 `urlencoding` function name is backwards
+- [ ] The function at `commands.rs:738` performs URL *decoding* (percent-decoding), not encoding
+- [ ] Fix: rename to `urldecoding` or `percent_decode`
+
+### B.4 Type escape hatch in background context menu
+- [ ] `handleBgContextMenu` sets `contextMenu.entry` to `null as unknown as FileEntry`
+- [ ] Fix: model context menu state as a discriminated union (entry menu vs background menu)
+
+---
+
 ## Priority 1: Extract State & Logic from +page.svelte
 
-The main page component is 1,020 lines with ~40 state variables, 20+ handlers, and all app logic. It needs to be broken into a state management layer and focused handler modules.
+The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` values, ~22 handlers, and all app logic. It needs to be broken into a state management layer and focused handler modules.
 
 ### 1.1 Create a file manager store (`src/lib/stores/fileManager.svelte.ts`)
 - [ ] Extract navigation state: `currentPath`, `history`, `historyIndex`, `loading`, `error`
-- [ ] Extract file state: `entries`, `sortBy`, `sortAsc`, `showHidden`, `viewMode`
+- [ ] Extract file state: `entries`, `drives`, `sortBy`, `sortAsc`, `showHidden`, `viewMode`
 - [ ] Extract selection state: `selectedPath`, `selectedEntry`
+- [ ] Extract edit state: `renamingPath`, `creatingEntry`
 - [ ] Extract clipboard state: `clipboard` (entries + mode)
+- [ ] Extract app state: `openWithApps`
 - [ ] Extract derived state: `sortedEntries`, `isTrash`
 - [ ] Expose action methods: `navigate()`, `goBack()`, `goForward()`, `goUp()`, `refresh()`
 - [ ] Expose sort/filter methods: `handleSort()`, `toggleHidden()`
 - [ ] Initialize drives list on creation
+- [ ] Provide home dir to Sidebar (eliminate duplicate `getHomeDir()` IPC call)
 - [ ] Persist preferences (viewMode, showHidden, sortBy) to localStorage
 
 ### 1.2 Create file operations module (`src/lib/fileOps.ts`)
 - [ ] Extract `handleOpen()` — open file/directory
+- [ ] Extract `handleOpenWith()` — open with specific app
 - [ ] Extract `handleDelete()` — delete/trash entry
 - [ ] Extract `handleCopy()`, `handleCut()`, `handlePaste()` — clipboard operations
 - [ ] Extract `handleRename()`, `commitRename()` — rename flow
 - [ ] Extract `handleNewFolder()`, `handleNewFile()`, `commitCreate()` — create flow
 - [ ] Extract `handleMoveTo()`, `handleCopyTo()` — move/copy to destination
+- [ ] Extract `handleFolderPickerSelect()` — move/copy/extract after folder pick
 - [ ] Extract `handleRestore()`, `handleEmptyTrash()` — trash operations
+- [ ] Extract `handleSelect()`, `handleBgContextMenu()` — selection/context handlers
 - [ ] Each operation should accept the store as a parameter and call `refresh()` on success
 - [ ] Return typed errors instead of setting a string directly
 
@@ -31,14 +58,17 @@ The main page component is 1,020 lines with ~40 state variables, 20+ handlers, a
 - [ ] Methods: `open(type, data)`, `close(type)`, `closeAll()`
 - [ ] Guard against opening multiple dialogs simultaneously
 - [ ] Extract busy overlay state: `busyMessage`, `busyProgress`
-- [ ] Extract compress/extract orchestration: `handleCompressConfirm()`, `handleExtract()`, `handleExtractTo()`
+- [ ] Extract compress/extract orchestration: `handleCompressConfirm()`, `handleExtract()`, `handleExtractTo()`, `handleCancelOperation()`
 - [ ] Manage progress event listener lifecycle (subscribe/unsubscribe)
+
+**Note:** This module and 1.2 share a tight dependency on busy/progress state. Design the progress management interface before implementing either.
 
 ### 1.4 Extract context menu builder (`src/lib/contextMenu.ts`)
 - [ ] Move `getContextMenuItems()` out of +page.svelte
 - [ ] Accept current state (selectedEntry, clipboard, isTrash, openWithApps) as parameters
 - [ ] Move `archiveExtensions` regex to a shared constants file
 - [ ] Move background context menu items (new folder, new file, paste, properties) to separate builder
+- [ ] Model entry vs background context menu as a discriminated union (see B.4)
 
 ### 1.5 Extract CSS into component styles
 - [ ] Move toolbar styles into a `Toolbar.svelte` component
@@ -55,7 +85,7 @@ The main page component is 1,020 lines with ~40 state variables, 20+ handlers, a
 
 ## Priority 2: Split commands.rs into Modules
 
-`commands.rs` is 789 lines with 20 command handlers and 18 helpers mixing dispatch, business logic, I/O, and desktop integration.
+`commands.rs` is 789 lines with 21 `#[tauri::command]` handlers and 14 private helpers mixing dispatch, business logic, I/O, and desktop integration.
 
 ### 2.1 Create module structure
 - [ ] Create `src/commands/` directory with `mod.rs`
@@ -76,27 +106,29 @@ The main page component is 1,020 lines with ~40 state variables, 20+ handlers, a
 - [ ] Move: `extract_zip`, `unpack_tar`
 - [ ] Deduplicate `add_dir_to_zip` / `add_dir_to_tar` directory traversal into a shared iterator
 
+**Note:** This module will realistically be ~250 lines even after deduplication. That's acceptable given the complexity.
+
 ### 2.4 Extract app/desktop integration (`src/commands/apps.rs`)
 - [ ] Move: `open_default`, `list_apps_for_mime`, `open_with_app`
 - [ ] Move: `get_xdg_data_dirs`, `parse_desktop_file`
-- [ ] Move desktop-related code from `fs_ops.rs` into this module
 - [ ] Deduplicate Exec= line parsing (used in both `list_apps_for_mime` and `open_with_app`)
 
 ### 2.5 Extract trash operations (`src/commands/trash.rs`)
-- [ ] Move: `list_trash`, `restore_trash`, `empty_trash`
-- [ ] Move: `urlencoding` helper
-- [ ] Consolidate trash logic currently split between `commands.rs` and `fs_ops.rs`
+- [ ] Move: `list_trash` (from `fs_ops.rs`), `restore_trash`, `empty_trash` (from `commands.rs`)
+- [ ] Move: `urlencoding` helper (rename per B.3)
+- [ ] Consolidate all trash logic into this single module
 
 ### 2.6 Extract drive operations (`src/commands/drives.rs`)
-- [ ] Move: `list_drives`
-- [ ] Move related drive-detection logic from `fs_ops.rs`
+- [ ] Move: `list_drives` (bulk of logic is in `fs_ops.rs`)
+- [ ] Move: `is_removable` helper from `fs_ops.rs`
 
 ### 2.7 Clean up fs_ops.rs
-- [ ] After extractions, `fs_ops.rs` should only contain: `FileEntry` struct, `read_directory()`, `guess_mime_pub()`
+- [ ] After all extractions (2.2–2.6), `fs_ops.rs` should only contain: `FileEntry` struct, `DriveEntry` struct, `read_directory()`, `guess_mime()` (make public, drop the `guess_mime_pub` wrapper)
+- [ ] Remove the redundant Rust-side sort in `read_directory()` — the frontend re-sorts via `sortedEntries` anyway
 - [ ] Consider renaming to `models.rs` or splitting into `models.rs` + `fs.rs`
 
 ### 2.8 Target outcome
-- [ ] No single file exceeds 200 lines
+- [ ] No single file exceeds ~250 lines
 - [ ] Each module has a single responsibility
 - [ ] Adding a new archive format = editing only `archive.rs`
 - [ ] Adding a new command = adding to the relevant module + registering in `mod.rs`
@@ -112,6 +144,8 @@ FileList (301 lines) and FileGrid (234 lines) duplicate identical edit input log
 - [ ] Extract `editValue` / `editInput` state management
 - [ ] Extract `commitRenameForEntry()` and `commitCreateEntry()` wrappers
 - [ ] Extract the `$effect` blocks for auto-focusing rename/create inputs
+
+**Note:** Svelte 5 `$effect` blocks run in component context. Extracting them requires a factory/composable pattern — the shared module should return a setup function that each component calls.
 
 ### 3.2 Update FileList and FileGrid
 - [ ] Import shared logic instead of duplicating it
@@ -129,7 +163,7 @@ FileList (301 lines) and FileGrid (234 lines) duplicate identical edit input log
 
 All commands return `Result<T, String>` with no structured error information.
 
-### 4.1 Create error module (`src/error.rs` or `src/commands/error.rs`)
+### 4.1 Create error module (`src/commands/error.rs`)
 - [ ] Define `AppError` enum with variants: `Io`, `NotFound`, `PermissionDenied`, `Cancelled`, `Archive`, `Desktop`, `Trash`
 - [ ] Implement `From<std::io::Error>` for automatic conversion
 - [ ] Implement `Into<String>` or `Serialize` for Tauri command compatibility
@@ -154,7 +188,7 @@ All commands return `Result<T, String>` with no structured error information.
 
 ## Priority 5: Add Unit Tests
 
-Zero tests exist in the backend. No safe refactoring without them.
+Zero tests exist in the backend. No safe refactoring without them. Consider writing tests for archive/trash/desktop parsing *before* the Priority 2 module split to catch regressions during extraction.
 
 ### 5.1 Archive tests (`src/commands/archive.rs` or `tests/`)
 - [ ] Test zip compression roundtrip (compress → extract → compare)
@@ -202,4 +236,4 @@ These are architectural notes for when roadmap features are implemented:
 - **Drag & drop**: Will need drag state management. Benefits from Priority 1 store separation.
 - **File watching**: Will need Rust event infrastructure (channels, notify crate). Benefits from Priority 2 module split.
 - **Undo/redo**: Will need operation history in the store. Requires Priority 1 + Priority 4.
-- **Theming**: Will need config file handling in Rust + theme store in frontend. Mostly independent.
+- **Theming**: Will need config file handling in Rust + theme store in frontend. CSS custom properties are already in place (`app.css`). Mostly independent.
