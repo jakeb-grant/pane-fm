@@ -71,7 +71,7 @@ Make it fast and comfortable to navigate. Keyboard users should feel at home.
 - [x] Sidebar with bookmarks / pinned directories (XDG dirs via `dirs` crate)
 - [x] Back/forward history stack
 - [ ] Tabs (open multiple directories)
-- [ ] Fuzzy search / filter within current directory
+- [x] Fuzzy search / filter within current directory
 
 ### Views
 - [x] ~~Grid/icon view~~ (removed — list view only)
