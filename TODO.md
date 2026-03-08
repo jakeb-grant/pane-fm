@@ -130,50 +130,50 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 `commands.rs` is 789 lines with 21 `#[tauri::command]` handlers and 14 private helpers mixing dispatch, business logic, I/O, and desktop integration.
 
 ### 2.1 Create module structure
-- [ ] Create `src/commands/` directory with `mod.rs`
-- [ ] Re-export all `#[tauri::command]` functions from `mod.rs`
-- [ ] Update `lib.rs` imports (should still use `commands::function_name`)
+- [x] Create `src/commands/` directory with `mod.rs`
+- [x] Re-export all `#[tauri::command]` functions from `mod.rs`
+- [x] Update `lib.rs` imports (should still use `commands::function_name`)
 
 ### 2.2 Extract file operations (`src/commands/file_ops.rs`)
-- [ ] Move: `list_directory`, `get_home_dir`, `create_directory`, `create_file`
-- [ ] Move: `rename_entry`, `delete_entry`, `copy_entry`, `move_entry`
-- [ ] Move: `path_exists`
-- [ ] Move: `get_properties`, `get_dir_stats`, `get_properties_sync`
-- [ ] Move: `dir_size_and_count`
+- [x] Move: `list_directory`, `get_home_dir`, `create_directory`, `create_file`
+- [x] Move: `rename_entry`, `delete_entry`, `copy_entry`, `move_entry`
+- [x] Move: `path_exists`
+- [x] Move: `get_properties`, `get_dir_stats`, `get_properties_sync`
+- [x] Move: `dir_size_and_count`
 
 ### 2.3 Extract archive operations (`src/commands/archive.rs`)
-- [ ] Move: `compress`, `extract`, `cancel_operation`
-- [ ] Move: `ProgressWriter`, `ProgressReader`, `ProgressPayload`, `CANCEL_OPERATION`
-- [ ] Move: `compress_zip`, `add_dir_to_zip`, `compress_tar`, `write_tar`, `add_dir_to_tar`
-- [ ] Move: `extract_zip`, `unpack_tar`
+- [x] Move: `compress`, `extract`, `cancel_operation`
+- [x] Move: `ProgressWriter`, `ProgressReader`, `ProgressPayload`, `CANCEL_OPERATION`
+- [x] Move: `compress_zip`, `add_dir_to_zip`, `compress_tar`, `write_tar`, `add_dir_to_tar`
+- [x] Move: `extract_zip`, `unpack_tar`
 - [ ] Deduplicate `add_dir_to_zip` / `add_dir_to_tar` directory traversal into a shared iterator
 
 **Note:** This module will realistically be ~250 lines even after deduplication. That's acceptable given the complexity.
 
 ### 2.4 Extract app/desktop integration (`src/commands/apps.rs`)
-- [ ] Move: `open_default`, `list_apps_for_mime`, `open_with_app`
-- [ ] Move: `get_xdg_data_dirs`, `parse_desktop_file`
+- [x] Move: `open_default`, `list_apps_for_mime`, `open_with_app`
+- [x] Move: `get_xdg_data_dirs`, `parse_desktop_file`
 - [ ] Deduplicate Exec= line parsing (used in both `list_apps_for_mime` and `open_with_app`)
 
 ### 2.5 Extract trash operations (`src/commands/trash.rs`)
-- [ ] Move: `list_trash` (from `fs_ops.rs`), `restore_trash`, `empty_trash` (from `commands.rs`)
-- [ ] Move: `urlencoding` helper (rename per B.3)
-- [ ] Consolidate all trash logic into this single module
+- [x] Move: `list_trash` (from `fs_ops.rs`), `restore_trash`, `empty_trash` (from `commands.rs`)
+- [x] Move: `percent_decode` helper
+- [x] Consolidate all trash logic into this single module
 
 ### 2.6 Extract drive operations (`src/commands/drives.rs`)
-- [ ] Move: `list_drives` (bulk of logic is in `fs_ops.rs`)
-- [ ] Move: `is_removable` helper from `fs_ops.rs`
+- [x] Move: `list_drives` (bulk of logic is in `fs_ops.rs`)
+- [x] Move: `is_removable` helper from `fs_ops.rs`
 
 ### 2.7 Clean up fs_ops.rs
-- [ ] After all extractions (2.2–2.6), `fs_ops.rs` should only contain: `FileEntry` struct, `DriveEntry` struct, `read_directory()`, `guess_mime()` (make public, drop the `guess_mime_pub` wrapper)
-- [ ] Remove the redundant Rust-side sort in `read_directory()` — the frontend re-sorts via `sortedEntries` anyway
+- [x] After all extractions (2.2–2.6), `fs_ops.rs` should only contain: `FileEntry` struct, `DriveEntry` struct, `read_directory()`, `guess_mime()` (make public, drop the `guess_mime_pub` wrapper)
+- [x] Remove the redundant Rust-side sort in `read_directory()` — the frontend re-sorts via `sortedEntries` anyway
 - [ ] Consider renaming to `models.rs` or splitting into `models.rs` + `fs.rs`
 
 ### 2.8 Target outcome
-- [ ] No single file exceeds ~250 lines
-- [ ] Each module has a single responsibility
-- [ ] Adding a new archive format = editing only `archive.rs`
-- [ ] Adding a new command = adding to the relevant module + registering in `mod.rs`
+- [x] No single file exceeds ~250 lines
+- [x] Each module has a single responsibility
+- [x] Adding a new archive format = editing only `archive.rs`
+- [x] Adding a new command = adding to the relevant module + registering in `lib.rs`
 
 ---
 
