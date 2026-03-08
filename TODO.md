@@ -163,12 +163,12 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 - [x] Move: `is_removable` helper from `fs_ops.rs`
 
 ### 2.7 Clean up fs_ops.rs
-- [x] After all extractions (2.2–2.6), `fs_ops.rs` should only contain: `FileEntry` struct, `DriveEntry` struct, `read_directory()`, `guess_mime()` (make public, drop the `guess_mime_pub` wrapper)
+- [x] After all extractions (2.2–2.6), `fs_ops.rs` contains: `FileEntry` struct, `DriveEntry` struct, `read_directory()`, `guess_mime()` (now public), plus low-level file op implementations (`create_directory`, `create_file`, `rename_entry`, `delete_entry`, `copy_entry`, `copy_dir_recursive`, `move_entry`) that `commands/file_ops.rs` delegates to
 - [x] Remove the redundant Rust-side sort in `read_directory()` — the frontend re-sorts via `sortedEntries` anyway
 ~~Rename to `models.rs` — skipped, file still contains logic (`read_directory`, file ops), not just models~~
 
 ### 2.8 Target outcome
-- [x] No single file exceeds ~250 lines
+- [x] No single file exceeds ~250 lines (except `archive.rs` at ~354 lines due to 5 format handlers + progress wrappers)
 - [x] Each module has a single responsibility
 - [x] Adding a new archive format = editing only `archive.rs`
 - [x] Adding a new command = adding to the relevant module + registering in `lib.rs`
