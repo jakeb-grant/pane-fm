@@ -1,14 +1,6 @@
 <script lang="ts">
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { onDestroy, onMount } from "svelte";
-import {
-	cancelOperation,
-	compress,
-	extract,
-	type FileEntry,
-	type FileProperties,
-	openWithApp,
-} from "$lib/commands";
+import type { FileEntry } from "$lib/commands";
 import Breadcrumb from "$lib/components/Breadcrumb.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
 import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
@@ -19,168 +11,44 @@ import FolderPicker from "$lib/components/FolderPicker.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
 import * as ops from "$lib/fileOps";
+import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { createFileManager } from "$lib/stores/fileManager.svelte";
-import { formatSize, parentPath } from "$lib/utils";
+import { formatSize } from "$lib/utils";
 
 const fm = createFileManager();
-
-// Properties dialog state
-let propertiesData = $state<FileProperties | null>(null);
-
-// Folder picker state
-let folderPicker = $state<{
-	mode: "move" | "copy" | "extract";
-	entry: FileEntry;
-} | null>(null);
-
-// Compress dialog state
-let compressEntry = $state<FileEntry | null>(null);
-
-// Background operation indicator
-let busyMessage = $state<string | null>(null);
-let busyProgress = $state<{ processed: number; total: number } | null>(null);
-let progressUnlisten: UnlistenFn | null = null;
+const dlg = createDialogManager(fm);
 
 const archiveExtensions = /\.(zip|tar|tar\.gz|tgz|tar\.xz|tar\.bz2|tar\.zst)$/i;
-function formatBusyProgress(processed: number, total: number): string {
-	return formatSize(processed) + " / " + formatSize(total);
-}
 
 function isArchive(entry: FileEntry): boolean {
 	return !entry.is_dir && archiveExtensions.test(entry.name);
 }
 
-// Context menu state
-let contextMenu = $state<{
-	x: number;
-	y: number;
-	entry: FileEntry | null;
-} | null>(null);
-
-function setContextMenu(menu: {
-	x: number;
-	y: number;
-	entry: FileEntry | null;
-}) {
-	contextMenu = menu;
-}
-
-function setFolderPicker(v: {
-	mode: "move" | "copy" | "extract";
-	entry: FileEntry;
-}) {
-	folderPicker = v;
-}
-
-function setPropertiesData(v: FileProperties) {
-	propertiesData = v;
-}
-
-// --- Handlers that still live here (busy/progress/dialog orchestration — will move to 1.3) ---
-
-async function handleExtract() {
-	if (!fm.selectedEntry || busyMessage) return;
-	const entry = fm.selectedEntry;
-	const dest = parentPath(entry.path);
-	busyMessage = "Extracting\u2026";
-	busyProgress = null;
-	try {
-		await extract(entry.path, dest);
-	} catch (e) {
-		const msg = String(e);
-		if (msg !== "Cancelled") {
-			fm.setError("Failed to extract: " + msg);
-		}
-	}
-	busyMessage = null;
-	busyProgress = null;
-	await fm.refresh();
-}
-
-function handleExtractTo() {
-	if (!fm.selectedEntry) return;
-	folderPicker = { mode: "extract", entry: fm.selectedEntry };
-}
-
-function handleCompress() {
-	if (!fm.selectedEntry) return;
-	compressEntry = fm.selectedEntry;
-}
-
-async function handleCompressConfirm(archiveName: string) {
-	if (!compressEntry || busyMessage) return;
-	const entry = compressEntry;
-	compressEntry = null;
-	const dest =
-		fm.currentPath === "/"
-			? "/" + archiveName
-			: fm.currentPath + "/" + archiveName;
-	busyMessage = "Compressing\u2026";
-	busyProgress = null;
-	try {
-		await compress([entry.path], dest);
-	} catch (e) {
-		const msg = String(e);
-		if (msg !== "Cancelled") {
-			fm.setError("Failed to compress: " + msg);
-		}
-	}
-	busyMessage = null;
-	busyProgress = null;
-	await fm.refresh();
-}
-
-async function handleCancelOperation() {
-	await cancelOperation();
-}
-
-async function handleFolderPickerSelectWrapper(destDir: string) {
-	if (!folderPicker) return;
-	const fp = folderPicker;
-	folderPicker = null;
-
-	if (fp.mode === "extract") {
-		busyMessage = "Extracting\u2026";
-		busyProgress = null;
-		try {
-			await extract(fp.entry.path, destDir);
-		} catch (e) {
-			const msg = String(e);
-			if (msg !== "Cancelled") {
-				fm.setError("Failed to extract: " + msg);
-			}
-		}
-		busyMessage = null;
-		busyProgress = null;
-		await fm.refresh();
-		return;
-	}
-
-	await ops.handleFolderPickerSelect(fm, fp, destDir);
+function formatBusyProgress(processed: number, total: number): string {
+	return `${formatSize(processed)} / ${formatSize(total)}`;
 }
 
 // --- Context menu builder ---
 
 function getContextMenuItems(): MenuEntry[] {
-	if (!contextMenu) return [];
+	if (!dlg.contextMenu) return [];
 
 	// "Open with" submenu items
 	if (fm.openWithApps.length > 0) {
-		const items: MenuEntry[] = fm.openWithApps.map((app) => ({
+		return fm.openWithApps.map((app) => ({
 			label: app.name,
 			action: () => {
 				ops.launchOpenWithApp(
 					fm,
-					contextMenu?.entry?.path ?? "",
+					dlg.contextMenu?.entry?.path ?? "",
 					app.desktop_id,
 				);
 			},
 		}));
-		return items;
 	}
 
 	if (fm.isTrash) {
-		if (contextMenu.entry) {
+		if (dlg.contextMenu.entry) {
 			return [
 				{ label: "Restore", action: () => ops.handleRestore(fm) },
 				{
@@ -199,8 +67,8 @@ function getContextMenuItems(): MenuEntry[] {
 		];
 	}
 
-	if (contextMenu.entry) {
-		const entry = contextMenu.entry;
+	if (dlg.contextMenu.entry) {
+		const entry = dlg.contextMenu.entry;
 		const items: MenuEntry[] = [
 			{ label: "Open", action: () => ops.handleOpen(fm, entry) },
 			{
@@ -209,8 +77,8 @@ function getContextMenuItems(): MenuEntry[] {
 					ops.handleOpenWith(
 						fm,
 						entry,
-						{ x: contextMenu?.x ?? 0, y: contextMenu?.y ?? 0 },
-						setContextMenu,
+						{ x: dlg.contextMenu?.x ?? 0, y: dlg.contextMenu?.y ?? 0 },
+						(menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry),
 					),
 			},
 			{ separator: true },
@@ -218,11 +86,13 @@ function getContextMenuItems(): MenuEntry[] {
 			{ label: "Copy", action: () => ops.handleCopy(fm) },
 			{
 				label: "Move to\u2026",
-				action: () => ops.handleMoveTo(fm, setFolderPicker),
+				action: () =>
+					ops.handleMoveTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entry)),
 			},
 			{
 				label: "Copy to\u2026",
-				action: () => ops.handleCopyTo(fm, setFolderPicker),
+				action: () =>
+					ops.handleCopyTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entry)),
 			},
 			{ label: "Rename", action: () => ops.handleRename(fm) },
 			{ separator: true },
@@ -230,13 +100,13 @@ function getContextMenuItems(): MenuEntry[] {
 
 		if (isArchive(entry)) {
 			items.push(
-				{ label: "Extract Here", action: handleExtract },
-				{ label: "Extract to Folder\u2026", action: handleExtractTo },
+				{ label: "Extract Here", action: dlg.handleExtract },
+				{ label: "Extract to Folder\u2026", action: dlg.handleExtractTo },
 			);
 		}
 
 		items.push(
-			{ label: "Compress\u2026", action: handleCompress },
+			{ label: "Compress\u2026", action: dlg.handleCompress },
 			{ separator: true },
 			{
 				label: "Move to Trash",
@@ -244,10 +114,7 @@ function getContextMenuItems(): MenuEntry[] {
 				danger: true,
 			},
 			{ separator: true },
-			{
-				label: "Properties",
-				action: () => ops.handleProperties(fm, setPropertiesData),
-			},
+			{ label: "Properties", action: dlg.handleProperties },
 		);
 
 		return items;
@@ -258,8 +125,8 @@ function getContextMenuItems(): MenuEntry[] {
 	if (fm.clipboard) {
 		const pasteLabel =
 			fm.clipboard.entries.length === 1
-				? "Paste \u201C" + fm.clipboard.entries[0].name + "\u201D"
-				: "Paste " + fm.clipboard.entries.length + " items";
+				? `Paste \u201C${fm.clipboard.entries[0].name}\u201D`
+				: `Paste ${fm.clipboard.entries.length} items`;
 		items.push(
 			{ label: pasteLabel, action: () => ops.handlePaste(fm) },
 			{ separator: true },
@@ -279,17 +146,11 @@ function getContextMenuItems(): MenuEntry[] {
 
 onMount(async () => {
 	await fm.init();
-
-	progressUnlisten = await listen<{ processed: number; total: number }>(
-		"compress-progress",
-		(event) => {
-			busyProgress = event.payload;
-		},
-	);
+	await dlg.subscribeProgress();
 });
 
 onDestroy(() => {
-	progressUnlisten?.();
+	dlg.unsubscribeProgress();
 });
 </script>
 
@@ -353,7 +214,7 @@ onDestroy(() => {
 					</div>
 				{/if}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="content" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, setContextMenu)}>
+				<div class="content" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}>
 				{#if fm.viewMode === "list"}
 					<FileList
 						entries={fm.sortedEntries}
@@ -366,7 +227,7 @@ onDestroy(() => {
 						sortAsc={fm.sortAsc}
 						onopen={(entry) => ops.handleOpen(fm, entry)}
 						onselect={fm.select}
-						oncontextmenu={(e, entry) => ops.handleContextMenu(fm, e, entry, setContextMenu)}
+						oncontextmenu={(e, entry) => ops.handleContextMenu(fm, e, entry, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}
 						onsort={fm.handleSort}
 						onrename={(entry, name) => ops.commitRename(fm, entry, name)}
 						oncreate={(name) => ops.commitCreate(fm, name)}
@@ -381,7 +242,7 @@ onDestroy(() => {
 						clipboardMode={fm.clipboard?.mode ?? null}
 						onopen={(entry) => ops.handleOpen(fm, entry)}
 						onselect={fm.select}
-						oncontextmenu={(e, entry) => ops.handleContextMenu(fm, e, entry, setContextMenu)}
+						oncontextmenu={(e, entry) => ops.handleContextMenu(fm, e, entry, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}
 						onrename={(entry, name) => ops.commitRename(fm, entry, name)}
 						oncreate={(name) => ops.commitCreate(fm, name)}
 					/>
@@ -400,52 +261,52 @@ onDestroy(() => {
 		</div>
 	{/if}
 
-	{#if contextMenu}
+	{#if dlg.contextMenu}
 		<ContextMenu
-			x={contextMenu.x}
-			y={contextMenu.y}
+			x={dlg.contextMenu.x}
+			y={dlg.contextMenu.y}
 			items={getContextMenuItems()}
-			onclose={() => { contextMenu = null; fm.openWithApps = []; }}
+			onclose={dlg.closeContextMenu}
 		/>
 	{/if}
 
-	{#if propertiesData}
+	{#if dlg.propertiesData}
 		<PropertiesDialog
-			properties={propertiesData}
-			onclose={() => (propertiesData = null)}
+			properties={dlg.propertiesData}
+			onclose={dlg.closeProperties}
 		/>
 	{/if}
 
-	{#if folderPicker}
+	{#if dlg.folderPicker}
 		<FolderPicker
-			title={folderPicker.mode === "move" ? "Move to\u2026" : folderPicker.mode === "extract" ? "Extract to\u2026" : "Copy to\u2026"}
-			onselect={handleFolderPickerSelectWrapper}
-			onclose={() => (folderPicker = null)}
+			title={dlg.folderPicker.mode === "move" ? "Move to\u2026" : dlg.folderPicker.mode === "extract" ? "Extract to\u2026" : "Copy to\u2026"}
+			onselect={dlg.handleFolderPickerSelect}
+			onclose={dlg.closeFolderPicker}
 		/>
 	{/if}
 
-	{#if compressEntry}
+	{#if dlg.compressEntry}
 		<CompressDialog
-			defaultName={compressEntry.name}
-			onconfirm={(name) => handleCompressConfirm(name)}
-			onclose={() => (compressEntry = null)}
+			defaultName={dlg.compressEntry.name}
+			onconfirm={dlg.handleCompressConfirm}
+			onclose={dlg.closeCompress}
 		/>
 	{/if}
 
-	{#if busyMessage}
+	{#if dlg.busyMessage}
 		<div class="busy-overlay">
 			<div class="busy-card">
 				<div class="busy-header">
 					<div class="busy-spinner"></div>
-					<span class="busy-text">{busyMessage}</span>
+					<span class="busy-text">{dlg.busyMessage}</span>
 				</div>
-				{#if busyProgress && busyProgress.total > 0}
+				{#if dlg.busyProgress && dlg.busyProgress.total > 0}
 					<div class="busy-progress-track">
-						<div class="busy-progress-bar" style="width: {Math.min(100, (busyProgress.processed / busyProgress.total) * 100)}%"></div>
+						<div class="busy-progress-bar" style="width: {Math.min(100, (dlg.busyProgress.processed / dlg.busyProgress.total) * 100)}%"></div>
 					</div>
-					<span class="busy-detail">{formatBusyProgress(busyProgress.processed, busyProgress.total)}</span>
+					<span class="busy-detail">{formatBusyProgress(dlg.busyProgress.processed, dlg.busyProgress.total)}</span>
 				{/if}
-				<button class="busy-cancel" onclick={handleCancelOperation}>Cancel</button>
+				<button class="busy-cancel" onclick={dlg.handleCancelOperation}>Cancel</button>
 			</div>
 		</div>
 	{/if}

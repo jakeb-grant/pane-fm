@@ -24,7 +24,7 @@ export async function handleOpen(fm: FileManager, entry: FileEntry) {
 	try {
 		await openDefault(entry.path);
 	} catch (e) {
-		fm.setError("Failed to open: " + String(e));
+		fm.setError(`Failed to open: ${String(e)}`);
 	}
 }
 
@@ -47,7 +47,7 @@ export async function handleOpenWith(
 		fm.openWithApps = apps;
 		setContextMenu({ x: position.x, y: position.y, entry });
 	} catch (e) {
-		fm.setError("Failed to list applications: " + String(e));
+		fm.setError(`Failed to list applications: ${String(e)}`);
 	}
 }
 
@@ -179,7 +179,7 @@ export async function handleFolderPickerSelect(
 	const mode = folderPicker.mode;
 
 	// Extract mode is handled by 1.3 (dialog/busy state) — this only handles move/copy
-	const dest = destDir === "/" ? "/" + src.name : destDir + "/" + src.name;
+	const dest = destDir === "/" ? `/${src.name}` : `${destDir}/${src.name}`;
 	try {
 		if (mode === "move") {
 			await moveEntry(src.path, dest);
@@ -188,7 +188,7 @@ export async function handleFolderPickerSelect(
 		}
 		await fm.refresh();
 	} catch (e) {
-		fm.setError("Failed to " + mode + ": " + String(e));
+		fm.setError(`Failed to ${mode}: ${String(e)}`);
 	}
 }
 
@@ -222,7 +222,7 @@ export async function handleProperties(
 		const data = await getProperties(fm.selectedEntry.path);
 		setPropertiesData(data);
 	} catch (e) {
-		fm.setError("Failed to get properties: " + String(e));
+		fm.setError(`Failed to get properties: ${String(e)}`);
 	}
 }
 

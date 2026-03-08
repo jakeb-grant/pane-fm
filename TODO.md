@@ -96,12 +96,12 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 - [ ] Return typed errors instead of setting a string directly
 
 ### 1.3 Create dialog/modal manager (`src/lib/stores/dialogs.svelte.ts`)
-- [ ] Unified state for all dialogs: properties, folderPicker, compress, contextMenu, busy
-- [ ] Methods: `open(type, data)`, `close(type)`, `closeAll()`
-- [ ] Guard against opening multiple dialogs simultaneously
-- [ ] Extract busy overlay state: `busyMessage`, `busyProgress`
-- [ ] Extract compress/extract orchestration: `handleCompressConfirm()`, `handleExtract()`, `handleExtractTo()`, `handleCancelOperation()`
-- [ ] Manage progress event listener lifecycle (subscribe/unsubscribe)
+- [x] Unified state for all dialogs: properties, folderPicker, compress, contextMenu, busy
+- [x] Methods: `open(type, data)`, `close(type)`, `closeAll()`
+- [x] Guard against opening multiple dialogs simultaneously
+- [x] Extract busy overlay state: `busyMessage`, `busyProgress`
+- [x] Extract compress/extract orchestration: `handleCompressConfirm()`, `handleExtract()`, `handleExtractTo()`, `handleCancelOperation()`
+- [x] Manage progress event listener lifecycle (subscribe/unsubscribe)
 
 **Note:** This module and 1.2 share a tight dependency on busy/progress state. Design the progress management interface before implementing either.
 
