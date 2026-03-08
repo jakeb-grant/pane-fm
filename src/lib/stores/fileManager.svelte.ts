@@ -1,11 +1,11 @@
 import {
-	type DriveEntry,
 	type FileEntry,
 	getHomeDir,
 	listDirectory,
 	listDrives,
 	listTrash,
 } from "$lib/commands";
+import { errorMessage } from "$lib/errors";
 import { parentPath } from "$lib/utils";
 
 function loadPreference<T>(key: string, fallback: T): T {
@@ -113,7 +113,7 @@ export function createFileManager() {
 				historyIndex = history.length - 1;
 			}
 		} catch (e) {
-			error = String(e);
+			error = errorMessage(e) ?? String(e);
 		} finally {
 			loading = false;
 		}

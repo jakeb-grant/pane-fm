@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri_plugin_opener::OpenerExt;
@@ -10,10 +11,12 @@ pub struct AppEntry {
 }
 
 #[tauri::command]
-pub fn open_default(path: String, app: tauri::AppHandle) -> Result<(), String> {
+pub fn open_default(path: String, app: tauri::AppHandle) -> Result<(), AppError> {
     app.opener()
-        .open_path(path, None::<&str>)
-        .map_err(|e| format!("Failed to open: {e}"))
+        .open_path(&path, None::<&str>)
+        .map_err(|e| AppError::Desktop {
+            message: format!("Failed to open: {e}"),
+        })
 }
 
 #[tauri::command]
@@ -50,7 +53,7 @@ pub fn list_apps_for_mime(mime_type: String) -> Vec<AppEntry> {
 }
 
 #[tauri::command]
-pub fn open_with_app(path: String, desktop_id: String) -> Result<(), String> {
+pub fn open_with_app(path: String, desktop_id: String) -> Result<(), AppError> {
     let data_dirs = get_xdg_data_dirs();
 
     // Find and parse the .desktop file
@@ -70,7 +73,9 @@ pub fn open_with_app(path: String, desktop_id: String) -> Result<(), String> {
         }
     }
 
-    let exec = exec_line.ok_or_else(|| format!("Could not find Exec in {desktop_id}"))?;
+    let exec = exec_line.ok_or_else(|| AppError::Desktop {
+        message: format!("Could not find Exec in {desktop_id}"),
+    })?;
 
     // Replace field codes with the file path
     let cmd = exec
@@ -95,7 +100,9 @@ pub fn open_with_app(path: String, desktop_id: String) -> Result<(), String> {
 
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     if parts.is_empty() {
-        return Err("Empty Exec line".to_string());
+        return Err(AppError::Desktop {
+            message: "Empty Exec line".to_string(),
+        });
     }
 
     std::process::Command::new(parts[0])
@@ -103,7 +110,9 @@ pub fn open_with_app(path: String, desktop_id: String) -> Result<(), String> {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
-        .map_err(|e| format!("Failed to launch: {e}"))?;
+        .map_err(|e| AppError::Desktop {
+            message: format!("Failed to launch {}: {e}", parts[0]),
+        })?;
 
     Ok(())
 }

@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use chrono::{DateTime, Local};
 use serde::Serialize;
 use std::fs;
@@ -25,16 +26,14 @@ pub struct DriveEntry {
     pub removable: bool,
 }
 
-pub fn read_directory(path: &Path) -> Result<Vec<FileEntry>, String> {
-    let entries = fs::read_dir(path).map_err(|e| format!("Failed to read directory: {e}"))?;
+pub fn read_directory(path: &Path) -> Result<Vec<FileEntry>, AppError> {
+    let entries = fs::read_dir(path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
 
     let mut files: Vec<FileEntry> = Vec::new();
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
-        let metadata = entry
-            .metadata()
-            .map_err(|e| format!("Failed to read metadata: {e}"))?;
+        let entry = entry?;
+        let metadata = entry.metadata()?;
 
         let name = entry.file_name().to_string_lossy().to_string();
         let path_buf = entry.path();
@@ -104,57 +103,61 @@ pub fn guess_mime(path: &Path) -> String {
     "application/octet-stream".to_string()
 }
 
-pub fn create_directory(path: &Path) -> Result<(), String> {
-    fs::create_dir_all(path).map_err(|e| format!("Failed to create directory: {e}"))
+pub fn create_directory(path: &Path) -> Result<(), AppError> {
+    fs::create_dir_all(path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))
 }
 
-pub fn create_file(path: &Path) -> Result<(), String> {
+pub fn create_file(path: &Path) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create parent directory: {e}"))?;
+            .map_err(|e| AppError::io_with_path(e, parent.display().to_string()))?;
     }
-    fs::File::create(path).map_err(|e| format!("Failed to create file: {e}"))?;
+    fs::File::create(path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
     Ok(())
 }
 
-pub fn rename_entry(from: &Path, to: &Path) -> Result<(), String> {
-    fs::rename(from, to).map_err(|e| format!("Failed to rename: {e}"))
+pub fn rename_entry(from: &Path, to: &Path) -> Result<(), AppError> {
+    fs::rename(from, to).map_err(|e| AppError::io_with_path(e, from.display().to_string()))
 }
 
-pub fn delete_entry(path: &Path) -> Result<(), String> {
-    trash::delete(path).map_err(|e| format!("Failed to move to trash: {e}"))
+pub fn delete_entry(path: &Path) -> Result<(), AppError> {
+    trash::delete(path).map_err(|e| AppError::Trash {
+        message: format!("Failed to move to trash: {e}"),
+    })
 }
 
-pub fn copy_entry(from: &Path, to: &Path) -> Result<(), String> {
+pub fn copy_entry(from: &Path, to: &Path) -> Result<(), AppError> {
     if from.is_dir() {
         copy_dir_recursive(from, to)
     } else {
         fs::copy(from, to)
             .map(|_| ())
-            .map_err(|e| format!("Failed to copy file: {e}"))
+            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))
     }
 }
 
-fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), String> {
-    fs::create_dir_all(to).map_err(|e| format!("Failed to create directory: {e}"))?;
+fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), AppError> {
+    fs::create_dir_all(to).map_err(|e| AppError::io_with_path(e, to.display().to_string()))?;
 
-    let entries = fs::read_dir(from).map_err(|e| format!("Failed to read directory: {e}"))?;
+    let entries =
+        fs::read_dir(from).map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
+        let entry = entry?;
         let dest = to.join(entry.file_name());
 
         if entry.path().is_dir() {
             copy_dir_recursive(&entry.path(), &dest)?;
         } else {
-            fs::copy(entry.path(), &dest).map_err(|e| format!("Failed to copy file: {e}"))?;
+            fs::copy(entry.path(), &dest)
+                .map_err(|e| AppError::io_with_path(e, entry.path().display().to_string()))?;
         }
     }
 
     Ok(())
 }
 
-pub fn move_entry(from: &Path, to: &Path) -> Result<(), String> {
+pub fn move_entry(from: &Path, to: &Path) -> Result<(), AppError> {
     // Try rename first (same filesystem, instant)
     if fs::rename(from, to).is_ok() {
         return Ok(());
@@ -162,9 +165,11 @@ pub fn move_entry(from: &Path, to: &Path) -> Result<(), String> {
     // Fall back to copy + delete (cross-filesystem)
     copy_entry(from, to)?;
     if from.is_dir() {
-        fs::remove_dir_all(from).map_err(|e| format!("Failed to remove source directory: {e}"))?;
+        fs::remove_dir_all(from)
+            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
     } else {
-        fs::remove_file(from).map_err(|e| format!("Failed to remove source file: {e}"))?;
+        fs::remove_file(from)
+            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
     }
     Ok(())
 }

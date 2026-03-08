@@ -1,29 +1,34 @@
+use crate::error::AppError;
 use crate::fs_ops::{self, FileEntry};
 use chrono::{DateTime, Local};
 use std::path::PathBuf;
 
 #[tauri::command]
-pub fn list_trash() -> Result<Vec<FileEntry>, String> {
+pub fn list_trash() -> Result<Vec<FileEntry>, AppError> {
     let trash_files = dirs::data_dir()
-        .ok_or("Could not find data directory")?
+        .ok_or(AppError::Trash {
+            message: "Could not find data directory".to_string(),
+        })?
         .join("Trash/files");
 
     let trash_info = dirs::data_dir()
-        .ok_or("Could not find data directory")?
+        .ok_or(AppError::Trash {
+            message: "Could not find data directory".to_string(),
+        })?
         .join("Trash/info");
 
     if !trash_files.exists() {
         return Ok(Vec::new());
     }
 
-    let entries =
-        std::fs::read_dir(&trash_files).map_err(|e| format!("Failed to read trash: {e}"))?;
+    let entries = std::fs::read_dir(&trash_files)
+        .map_err(|e| AppError::io_with_path(e, trash_files.display().to_string()))?;
 
     let mut files: Vec<FileEntry> = Vec::new();
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
-        let metadata = entry.metadata().map_err(|e| format!("Failed to read metadata: {e}"))?;
+        let entry = entry?;
+        let metadata = entry.metadata()?;
         let name = entry.file_name().to_string_lossy().to_string();
         let path_buf = entry.path();
 
@@ -84,31 +89,37 @@ pub fn list_trash() -> Result<Vec<FileEntry>, String> {
 }
 
 #[tauri::command]
-pub fn restore_trash(name: String) -> Result<(), String> {
-    let data_dir = dirs::data_dir().ok_or("Could not find data directory")?;
+pub fn restore_trash(name: String) -> Result<(), AppError> {
+    let data_dir = dirs::data_dir().ok_or(AppError::Trash {
+        message: "Could not find data directory".to_string(),
+    })?;
     let trash_file = data_dir.join("Trash/files").join(&name);
     let info_file = data_dir.join("Trash/info").join(format!("{name}.trashinfo"));
 
     // Read original path from .trashinfo
     let info = std::fs::read_to_string(&info_file)
-        .map_err(|e| format!("Failed to read trash info: {e}"))?;
+        .map_err(|e| AppError::io_with_path(e, info_file.display().to_string()))?;
 
     let original_path = info
         .lines()
         .find(|l| l.starts_with("Path="))
         .map(|l| l.trim_start_matches("Path="))
-        .ok_or("Could not find original path in trash info")?;
+        .ok_or(AppError::Trash {
+            message: "Could not find original path in trash info".to_string(),
+        })?;
 
     // URL-decode the path
     let decoded = percent_decode(original_path);
     let dest = PathBuf::from(&decoded);
 
     if dest.exists() {
-        return Err(format!("Destination already exists: {decoded}"));
+        return Err(AppError::Trash {
+            message: format!("Destination already exists: {decoded}"),
+        });
     }
 
     std::fs::rename(&trash_file, &dest)
-        .map_err(|e| format!("Failed to restore: {e}"))?;
+        .map_err(|e| AppError::io_with_path(e, trash_file.display().to_string()))?;
 
     // Remove the .trashinfo file
     let _ = std::fs::remove_file(&info_file);
@@ -117,30 +128,34 @@ pub fn restore_trash(name: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn empty_trash() -> Result<(), String> {
-    let data_dir = dirs::data_dir().ok_or("Could not find data directory")?;
+pub fn empty_trash() -> Result<(), AppError> {
+    let data_dir = dirs::data_dir().ok_or(AppError::Trash {
+        message: "Could not find data directory".to_string(),
+    })?;
     let trash_files = data_dir.join("Trash/files");
     let trash_info = data_dir.join("Trash/info");
 
     if trash_files.exists() {
         for entry in std::fs::read_dir(&trash_files)
-            .map_err(|e| format!("Failed to read trash: {e}"))?
+            .map_err(|e| AppError::io_with_path(e, trash_files.display().to_string()))?
         {
-            let entry = entry.map_err(|e| format!("{e}"))?;
+            let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                std::fs::remove_dir_all(&path).map_err(|e| format!("{e}"))?;
+                std::fs::remove_dir_all(&path)
+                    .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
             } else {
-                std::fs::remove_file(&path).map_err(|e| format!("{e}"))?;
+                std::fs::remove_file(&path)
+                    .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
             }
         }
     }
 
     if trash_info.exists() {
         for entry in std::fs::read_dir(&trash_info)
-            .map_err(|e| format!("Failed to read trash info: {e}"))?
+            .map_err(|e| AppError::io_with_path(e, trash_info.display().to_string()))?
         {
-            let entry = entry.map_err(|e| format!("{e}"))?;
+            let entry = entry?;
             let _ = std::fs::remove_file(entry.path());
         }
     }

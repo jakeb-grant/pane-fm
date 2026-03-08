@@ -13,6 +13,7 @@ import {
 	renameEntry,
 	restoreTrash,
 } from "$lib/commands";
+import { errorMessage } from "$lib/errors";
 import type { FileManager } from "$lib/stores/fileManager.svelte";
 import { parentPath } from "$lib/utils";
 
@@ -24,7 +25,7 @@ export async function handleOpen(fm: FileManager, entry: FileEntry) {
 	try {
 		await openDefault(entry.path);
 	} catch (e) {
-		fm.setError(`Failed to open: ${String(e)}`);
+		fm.setError(errorMessage(e) ?? "Failed to open file");
 	}
 }
 
@@ -47,7 +48,7 @@ export async function handleOpenWith(
 		fm.openWithApps = apps;
 		setContextMenu({ x: position.x, y: position.y, entry });
 	} catch (e) {
-		fm.setError(`Failed to list applications: ${String(e)}`);
+		fm.setError(errorMessage(e) ?? "Failed to list applications");
 	}
 }
 
@@ -58,7 +59,7 @@ export async function handleDelete(fm: FileManager) {
 		await deleteEntry(fm.selectedEntry.path);
 		await fm.refresh();
 	} catch (e) {
-		fm.setError(`Failed to delete ${name}: ${e}`);
+		fm.setError(errorMessage(e) ?? `Failed to delete ${name}`);
 	}
 }
 
@@ -91,7 +92,7 @@ export async function handlePaste(fm: FileManager) {
 		if (isCut) fm.clipboard = null;
 		await fm.refresh();
 	} catch (e) {
-		fm.setError(`Failed to ${isCut ? "move" : "paste"}: ${e}`);
+		fm.setError(errorMessage(e) ?? `Failed to ${isCut ? "move" : "paste"}`);
 	}
 }
 
@@ -115,7 +116,7 @@ export async function commitRename(
 		await renameEntry(entry.path, newPath);
 		await fm.refresh();
 	} catch (e) {
-		fm.setError(`Failed to rename: ${e}`);
+		fm.setError(errorMessage(e) ?? "Failed to rename");
 	}
 }
 
@@ -143,7 +144,8 @@ export async function commitCreate(fm: FileManager, name: string) {
 		await fm.refresh();
 	} catch (e) {
 		fm.setError(
-			`Failed to create ${type === "directory" ? "folder" : "file"}: ${e}`,
+			errorMessage(e) ??
+				`Failed to create ${type === "directory" ? "folder" : "file"}`,
 		);
 	}
 }
@@ -188,7 +190,7 @@ export async function handleFolderPickerSelect(
 		}
 		await fm.refresh();
 	} catch (e) {
-		fm.setError(`Failed to ${mode}: ${String(e)}`);
+		fm.setError(errorMessage(e) ?? `Failed to ${mode}`);
 	}
 }
 
@@ -198,7 +200,7 @@ export async function handleRestore(fm: FileManager) {
 		await restoreTrash(fm.selectedEntry.name);
 		await fm.refresh();
 	} catch (e) {
-		fm.setError(`Failed to restore: ${e}`);
+		fm.setError(errorMessage(e) ?? "Failed to restore");
 	}
 }
 
@@ -207,7 +209,7 @@ export async function handleEmptyTrash(fm: FileManager) {
 		await emptyTrash();
 		await fm.refresh();
 	} catch (e) {
-		fm.setError(`Failed to empty trash: ${e}`);
+		fm.setError(errorMessage(e) ?? "Failed to empty trash");
 	}
 }
 
@@ -222,7 +224,7 @@ export async function handleProperties(
 		const data = await getProperties(fm.selectedEntry.path);
 		setPropertiesData(data);
 	} catch (e) {
-		fm.setError(`Failed to get properties: ${String(e)}`);
+		fm.setError(errorMessage(e) ?? "Failed to get properties");
 	}
 }
 

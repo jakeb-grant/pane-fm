@@ -1,12 +1,15 @@
+use crate::error::AppError;
 use crate::fs_ops::{self, FileEntry};
 use serde::Serialize;
 use std::path::PathBuf;
 
 #[tauri::command]
-pub fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>, String> {
+pub fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>, AppError> {
     let path = PathBuf::from(&path);
     if !path.is_dir() {
-        return Err(format!("Not a directory: {}", path.display()));
+        return Err(AppError::NotFound {
+            path: path.display().to_string(),
+        });
     }
 
     let entries = fs_ops::read_directory(&path)?;
@@ -19,39 +22,42 @@ pub fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>,
 }
 
 #[tauri::command]
-pub fn get_home_dir() -> Result<String, String> {
+pub fn get_home_dir() -> Result<String, AppError> {
     dirs::home_dir()
         .map(|p| p.to_string_lossy().to_string())
-        .ok_or_else(|| "Could not determine home directory".to_string())
+        .ok_or_else(|| AppError::Io {
+            message: "Could not determine home directory".to_string(),
+            path: None,
+        })
 }
 
 #[tauri::command]
-pub fn create_directory(path: String) -> Result<(), String> {
+pub fn create_directory(path: String) -> Result<(), AppError> {
     fs_ops::create_directory(&PathBuf::from(path))
 }
 
 #[tauri::command]
-pub fn create_file(path: String) -> Result<(), String> {
+pub fn create_file(path: String) -> Result<(), AppError> {
     fs_ops::create_file(&PathBuf::from(path))
 }
 
 #[tauri::command]
-pub fn rename_entry(from: String, to: String) -> Result<(), String> {
+pub fn rename_entry(from: String, to: String) -> Result<(), AppError> {
     fs_ops::rename_entry(&PathBuf::from(from), &PathBuf::from(to))
 }
 
 #[tauri::command]
-pub fn delete_entry(path: String) -> Result<(), String> {
+pub fn delete_entry(path: String) -> Result<(), AppError> {
     fs_ops::delete_entry(&PathBuf::from(path))
 }
 
 #[tauri::command]
-pub fn copy_entry(from: String, to: String) -> Result<(), String> {
+pub fn copy_entry(from: String, to: String) -> Result<(), AppError> {
     fs_ops::copy_entry(&PathBuf::from(from), &PathBuf::from(to))
 }
 
 #[tauri::command]
-pub fn move_entry(from: String, to: String) -> Result<(), String> {
+pub fn move_entry(from: String, to: String) -> Result<(), AppError> {
     fs_ops::move_entry(&PathBuf::from(from), &PathBuf::from(to))
 }
 
@@ -67,34 +73,48 @@ pub struct DirStats {
 }
 
 #[tauri::command]
-pub async fn get_dir_stats(path: String) -> Result<DirStats, String> {
+pub async fn get_dir_stats(path: String) -> Result<DirStats, AppError> {
     tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&path);
-        let (size, contents_count) = dir_size_and_count(&path)
-            .map_err(|e| format!("Failed to scan directory: {e}"))?;
-        Ok(DirStats { size, contents_count })
+        let (size, contents_count) =
+            dir_size_and_count(&path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+        Ok(DirStats {
+            size,
+            contents_count,
+        })
     })
     .await
-    .map_err(|e| format!("Task failed: {e}"))?
+    .map_err(|e| AppError::Io {
+        message: format!("Task failed: {e}"),
+        path: None,
+    })?
 }
 
 #[tauri::command]
-pub async fn get_properties(path: String) -> Result<FileProperties, String> {
+pub async fn get_properties(path: String) -> Result<FileProperties, AppError> {
     tokio::task::spawn_blocking(move || get_properties_sync(&path))
         .await
-        .map_err(|e| format!("Task failed: {e}"))?
+        .map_err(|e| AppError::Io {
+            message: format!("Task failed: {e}"),
+            path: None,
+        })?
 }
 
-fn get_properties_sync(path: &str) -> Result<FileProperties, String> {
+fn get_properties_sync(path: &str) -> Result<FileProperties, AppError> {
     let path = PathBuf::from(path);
     let metadata = std::fs::metadata(&path)
-        .map_err(|e| format!("Failed to read metadata: {e}"))?;
+        .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
 
     let symlink_meta = std::fs::symlink_metadata(&path).ok();
-    let is_symlink = symlink_meta.as_ref().map(|m| m.file_type().is_symlink()).unwrap_or(false);
+    let is_symlink = symlink_meta
+        .as_ref()
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false);
 
     let link_target = if is_symlink {
-        std::fs::read_link(&path).ok().map(|p| p.to_string_lossy().to_string())
+        std::fs::read_link(&path)
+            .ok()
+            .map(|p| p.to_string_lossy().to_string())
     } else {
         None
     };
@@ -135,14 +155,13 @@ fn get_properties_sync(path: &str) -> Result<FileProperties, String> {
     #[cfg(not(unix))]
     let (permissions, owner, group) = ("".to_string(), "".to_string(), "".to_string());
 
-    let size = if metadata.is_dir() {
-        0
-    } else {
-        metadata.len()
-    };
+    let size = if metadata.is_dir() { 0 } else { metadata.len() };
 
     Ok(FileProperties {
-        name: path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
         path: path.to_string_lossy().to_string(),
         size,
         is_dir: metadata.is_dir(),

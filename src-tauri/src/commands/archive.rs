@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -78,11 +79,13 @@ impl<R: std::io::Read + std::io::Seek> std::io::Seek for ProgressReader<R> {
 }
 
 #[tauri::command]
-pub async fn compress(paths: Vec<String>, dest: String, app: AppHandle) -> Result<(), String> {
+pub async fn compress(paths: Vec<String>, dest: String, app: AppHandle) -> Result<(), AppError> {
     CANCEL_OPERATION.store(false, Ordering::Relaxed);
     tokio::task::spawn_blocking(move || compress_sync(&paths, &dest, &app))
         .await
-        .map_err(|e| format!("Task failed: {e}"))?
+        .map_err(|e| AppError::Archive {
+            message: format!("Task failed: {e}"),
+        })?
 }
 
 #[tauri::command]
@@ -90,7 +93,7 @@ pub fn cancel_operation() {
     CANCEL_OPERATION.store(true, Ordering::Relaxed);
 }
 
-fn compress_sync(paths: &[String], dest: &str, app: &AppHandle) -> Result<(), String> {
+fn compress_sync(paths: &[String], dest: &str, app: &AppHandle) -> Result<(), AppError> {
     let dest_path = PathBuf::from(dest);
     let name = dest_path
         .file_name()
@@ -119,23 +122,25 @@ fn compress_sync(paths: &[String], dest: &str, app: &AppHandle) -> Result<(), St
     } else if name.ends_with(".tar.bz2") {
         compress_tar(paths, dest, "bz2", total, app)
     } else {
-        Err(format!("Unsupported archive format: {name}"))
+        Err(AppError::Archive {
+            message: format!("Unsupported archive format: {name}"),
+        })
     };
 
     // Clean up partial file on cancel
     if result.is_err() && CANCEL_OPERATION.load(Ordering::Relaxed) {
         let _ = std::fs::remove_file(dest);
-        return Err("Cancelled".to_string());
+        return Err(AppError::Cancelled);
     }
 
     result
 }
 
-fn compress_zip(paths: &[String], dest: &str, total: u64, app: &AppHandle) -> Result<(), String> {
+fn compress_zip(paths: &[String], dest: &str, total: u64, app: &AppHandle) -> Result<(), AppError> {
     use zip::write::SimpleFileOptions;
 
     let file = std::fs::File::create(dest)
-        .map_err(|e| format!("Failed to create archive: {e}"))?;
+        .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
     let pw = ProgressWriter { inner: file, processed: 0, total, app: app.clone() };
     let mut zip = zip::ZipWriter::new(pw);
     let options = SimpleFileOptions::default()
@@ -148,15 +153,15 @@ fn compress_zip(paths: &[String], dest: &str, total: u64, app: &AppHandle) -> Re
         } else {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             zip.start_file(name, options)
-                .map_err(|e| format!("Zip error: {e}"))?;
+                .map_err(|e| AppError::Archive { message: e.to_string() })?;
             let mut f = std::fs::File::open(&path)
-                .map_err(|e| format!("Failed to read {p}: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, p.clone()))?;
             std::io::copy(&mut f, &mut zip)
-                .map_err(|e| format!("Zip write error: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, p.clone()))?;
         }
     }
 
-    zip.finish().map_err(|e| format!("Zip finish error: {e}"))?;
+    zip.finish().map_err(|e| AppError::Archive { message: e.to_string() })?;
     Ok(())
 }
 
@@ -165,12 +170,12 @@ fn add_dir_to_zip<W: std::io::Write + std::io::Seek>(
     root: &PathBuf,
     dir: &PathBuf,
     options: zip::write::SimpleFileOptions,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let base = root.parent().unwrap_or(root);
 
-    for entry in std::fs::read_dir(dir).map_err(|e| format!("Failed to read dir: {e}"))? {
-        let entry = entry.map_err(|e| format!("{e}"))?;
-        let meta = entry.metadata().map_err(|e| format!("{e}"))?;
+    for entry in std::fs::read_dir(dir).map_err(|e| AppError::io_with_path(e, dir.display().to_string()))? {
+        let entry = entry?;
+        let meta = entry.metadata()?;
         if meta.file_type().is_symlink() {
             continue;
         }
@@ -180,23 +185,23 @@ fn add_dir_to_zip<W: std::io::Write + std::io::Seek>(
 
         if meta.is_dir() {
             zip.add_directory(&name, options)
-                .map_err(|e| format!("Zip error: {e}"))?;
+                .map_err(|e| AppError::Archive { message: e.to_string() })?;
             add_dir_to_zip(zip, root, &path, options)?;
         } else {
             zip.start_file(&name, options)
-                .map_err(|e| format!("Zip error: {e}"))?;
+                .map_err(|e| AppError::Archive { message: e.to_string() })?;
             let mut f = std::fs::File::open(&path)
-                .map_err(|e| format!("Failed to read file: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
             std::io::copy(&mut f, zip)
-                .map_err(|e| format!("Zip write error: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
         }
     }
     Ok(())
 }
 
-fn compress_tar(paths: &[String], dest: &str, compression: &str, total: u64, app: &AppHandle) -> Result<(), String> {
+fn compress_tar(paths: &[String], dest: &str, compression: &str, total: u64, app: &AppHandle) -> Result<(), AppError> {
     let file = std::fs::File::create(dest)
-        .map_err(|e| format!("Failed to create archive: {e}"))?;
+        .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
     let pw = ProgressWriter { inner: file, processed: 0, total, app: app.clone() };
 
     match compression {
@@ -210,7 +215,7 @@ fn compress_tar(paths: &[String], dest: &str, compression: &str, total: u64, app
         }
         "zst" => {
             let enc = zstd::Encoder::new(pw, 3)
-                .map_err(|e| format!("Zstd error: {e}"))?
+                .map_err(|e| AppError::Archive { message: e.to_string() })?
                 .auto_finish();
             write_tar(enc, paths)
         }
@@ -218,11 +223,13 @@ fn compress_tar(paths: &[String], dest: &str, compression: &str, total: u64, app
             let enc = bzip2::write::BzEncoder::new(pw, bzip2::Compression::default());
             write_tar(enc, paths)
         }
-        _ => Err(format!("Unsupported compression: {compression}")),
+        _ => Err(AppError::Archive {
+            message: format!("Unsupported compression: {compression}"),
+        }),
     }
 }
 
-fn write_tar<W: std::io::Write>(writer: W, paths: &[String]) -> Result<(), String> {
+fn write_tar<W: std::io::Write>(writer: W, paths: &[String]) -> Result<(), AppError> {
     let mut tar = tar::Builder::new(writer);
     tar.follow_symlinks(false);
     for p in paths {
@@ -232,12 +239,12 @@ fn write_tar<W: std::io::Write>(writer: W, paths: &[String]) -> Result<(), Strin
             add_dir_to_tar(&mut tar, &path, name)?;
         } else {
             let mut f = std::fs::File::open(&path)
-                .map_err(|e| format!("Failed to read {p}: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, p.clone()))?;
             tar.append_file(name, &mut f)
-                .map_err(|e| format!("Tar error: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, p.clone()))?;
         }
     }
-    tar.finish().map_err(|e| format!("Tar finish error: {e}"))?;
+    tar.finish().map_err(|e| AppError::Archive { message: e.to_string() })?;
     Ok(())
 }
 
@@ -245,10 +252,10 @@ fn add_dir_to_tar<W: std::io::Write>(
     tar: &mut tar::Builder<W>,
     dir: &PathBuf,
     prefix: &str,
-) -> Result<(), String> {
-    for entry in std::fs::read_dir(dir).map_err(|e| format!("Failed to read dir: {e}"))? {
-        let entry = entry.map_err(|e| format!("{e}"))?;
-        let meta = entry.metadata().map_err(|e| format!("{e}"))?;
+) -> Result<(), AppError> {
+    for entry in std::fs::read_dir(dir).map_err(|e| AppError::io_with_path(e, dir.display().to_string()))? {
+        let entry = entry?;
+        let meta = entry.metadata()?;
         if meta.file_type().is_symlink() {
             continue;
         }
@@ -258,27 +265,29 @@ fn add_dir_to_tar<W: std::io::Write>(
 
         if meta.is_dir() {
             tar.append_dir(&archive_name, &path)
-                .map_err(|e| format!("Tar error: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
             add_dir_to_tar(tar, &path, &archive_name)?;
         } else {
             let mut f = std::fs::File::open(&path)
-                .map_err(|e| format!("Failed to read file: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
             tar.append_file(&archive_name, &mut f)
-                .map_err(|e| format!("Tar error: {e}"))?;
+                .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
         }
     }
     Ok(())
 }
 
 #[tauri::command]
-pub async fn extract(archive: String, dest: String, app: AppHandle) -> Result<(), String> {
+pub async fn extract(archive: String, dest: String, app: AppHandle) -> Result<(), AppError> {
     CANCEL_OPERATION.store(false, Ordering::Relaxed);
     tokio::task::spawn_blocking(move || extract_sync(&archive, &dest, &app))
         .await
-        .map_err(|e| format!("Task failed: {e}"))?
+        .map_err(|e| AppError::Archive {
+            message: format!("Task failed: {e}"),
+        })?
 }
 
-fn extract_sync(archive: &str, dest: &str, app: &AppHandle) -> Result<(), String> {
+fn extract_sync(archive: &str, dest: &str, app: &AppHandle) -> Result<(), AppError> {
     let archive_path = PathBuf::from(archive);
     let name = archive_path
         .file_name()
@@ -292,10 +301,10 @@ fn extract_sync(archive: &str, dest: &str, app: &AppHandle) -> Result<(), String
 
     let dest_path = PathBuf::from(dest);
     std::fs::create_dir_all(&dest_path)
-        .map_err(|e| format!("Failed to create destination: {e}"))?;
+        .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
 
     let file = std::fs::File::open(archive)
-        .map_err(|e| format!("Failed to open archive: {e}"))?;
+        .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
     let pr = ProgressReader { inner: file, processed: 0, total, app: app.clone() };
 
     let result = if name.ends_with(".zip") {
@@ -308,7 +317,7 @@ fn extract_sync(archive: &str, dest: &str, app: &AppHandle) -> Result<(), String
         unpack_tar(dec, &dest_path)
     } else if name.ends_with(".tar.zst") {
         let dec = zstd::Decoder::new(pr)
-            .map_err(|e| format!("Zstd error: {e}"))?;
+            .map_err(|e| AppError::Archive { message: e.to_string() })?;
         unpack_tar(dec, &dest_path)
     } else if name.ends_with(".tar.bz2") {
         let dec = bzip2::read::BzDecoder::new(pr);
@@ -316,27 +325,29 @@ fn extract_sync(archive: &str, dest: &str, app: &AppHandle) -> Result<(), String
     } else if name.ends_with(".tar") {
         unpack_tar(pr, &dest_path)
     } else {
-        Err(format!("Unsupported archive format: {name}"))
+        Err(AppError::Archive {
+            message: format!("Unsupported archive format: {name}"),
+        })
     };
 
     if result.is_err() && CANCEL_OPERATION.load(Ordering::Relaxed) {
-        return Err("Cancelled".to_string());
+        return Err(AppError::Cancelled);
     }
 
     result
 }
 
-fn extract_zip<R: std::io::Read + std::io::Seek>(reader: R, dest: &PathBuf) -> Result<(), String> {
+fn extract_zip<R: std::io::Read + std::io::Seek>(reader: R, dest: &PathBuf) -> Result<(), AppError> {
     let mut zip = zip::ZipArchive::new(reader)
-        .map_err(|e| format!("Invalid zip: {e}"))?;
+        .map_err(|e| AppError::Archive { message: format!("Invalid zip: {e}") })?;
     zip.extract(dest)
-        .map_err(|e| format!("Extract error: {e}"))?;
+        .map_err(|e| AppError::Archive { message: format!("Extract error: {e}") })?;
     Ok(())
 }
 
-fn unpack_tar<R: std::io::Read>(reader: R, dest: &PathBuf) -> Result<(), String> {
+fn unpack_tar<R: std::io::Read>(reader: R, dest: &PathBuf) -> Result<(), AppError> {
     let mut tar = tar::Archive::new(reader);
     tar.unpack(dest)
-        .map_err(|e| format!("Tar extract error: {e}"))?;
+        .map_err(|e| AppError::io_with_path(e, dest.display().to_string()))?;
     Ok(())
 }

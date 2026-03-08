@@ -6,6 +6,7 @@ import {
 	type FileEntry,
 	type FileProperties,
 } from "$lib/commands";
+import { errorMessage, isCancelled } from "$lib/errors";
 import * as ops from "$lib/fileOps";
 import type { FileManager } from "$lib/stores/fileManager.svelte";
 import { parentPath } from "$lib/utils";
@@ -101,10 +102,10 @@ export function createDialogManager(fm: FileManager) {
 		try {
 			await operation();
 		} catch (e) {
-			const msg = String(e);
-			if (msg !== "Cancelled") {
+			if (!isCancelled(e)) {
+				const msg = errorMessage(e);
 				fm.setError(
-					`Failed to ${label.toLowerCase().replace("…", "")}: ${msg}`,
+					msg ?? `Failed to ${label.toLowerCase().replace("\u2026", "")}`,
 				);
 			}
 		}

@@ -201,28 +201,28 @@ FileList (301 lines) and FileGrid (234 lines) duplicate identical edit input log
 
 ## Priority 4: Define Rust Error Types
 
-All commands return `Result<T, String>` with no structured error information.
+All commands now use `Result<T, AppError>` with structured error types (was `Result<T, String>`).
 
-### 4.1 Create error module (`src/commands/error.rs`)
-- [ ] Define `AppError` enum with variants: `Io`, `NotFound`, `PermissionDenied`, `Cancelled`, `Archive`, `Desktop`, `Trash`
-- [ ] Implement `From<std::io::Error>` for automatic conversion
-- [ ] Implement `Into<String>` or `Serialize` for Tauri command compatibility
-- [ ] Include source error context (file path, operation attempted)
+### 4.1 Create error module (`src-tauri/src/error.rs`)
+- [x] Define `AppError` enum with variants: `Io`, `NotFound`, `PermissionDenied`, `Cancelled`, `Archive`, `Desktop`, `Trash`
+- [x] Implement `From<std::io::Error>` for automatic conversion
+- [x] Implement `Into<String>` or `Serialize` for Tauri command compatibility
+- [x] Include source error context (file path, operation attempted)
 
 ### 4.2 Migrate commands to use `AppError`
-- [ ] Replace all `format!("Failed to...")` error strings
-- [ ] Replace all `.map_err(|e| format!(...))` chains with `?` operator
-- [ ] Handle `Cancelled` variant explicitly (not as a string match on frontend)
+- [x] Replace all `format!("Failed to...")` error strings
+- [x] Replace all `.map_err(|e| format!(...))` chains with `?` operator
+- [x] Handle `Cancelled` variant explicitly (not as a string match on frontend)
 
 ### 4.3 Update frontend error handling
-- [ ] Parse structured errors from backend instead of displaying raw strings
-- [ ] Show appropriate messages: "Permission denied" vs "File not found" vs "Operation cancelled"
-- [ ] Silently handle `Cancelled` errors without showing error bar
+- [x] Parse structured errors from backend instead of displaying raw strings
+- [x] Show appropriate messages: "Permission denied" vs "File not found" vs "Operation cancelled"
+- [x] Silently handle `Cancelled` errors without showing error bar
 
 ### 4.4 Target outcome
-- [ ] Errors carry context (which file, which operation)
-- [ ] Frontend can make decisions based on error type, not string matching
-- [ ] `Cancelled` is a first-class variant, not a string comparison
+- [x] Errors carry context (which file, which operation)
+- [x] Frontend can make decisions based on error type, not string matching
+- [x] `Cancelled` is a first-class variant, not a string comparison
 
 ---
 

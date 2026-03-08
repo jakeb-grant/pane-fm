@@ -1,4 +1,5 @@
 mod commands;
+mod error;
 mod fs_ops;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
