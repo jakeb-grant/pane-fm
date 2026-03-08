@@ -26,7 +26,7 @@ struct ProgressWriter<W: std::io::Write> {
 impl<W: std::io::Write> std::io::Write for ProgressWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         if CANCEL_OPERATION.load(Ordering::Relaxed) {
-            return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Cancelled"));
+            return Err(std::io::Error::other("Cancelled"));
         }
         let n = self.inner.write(buf)?;
         self.processed += n as u64;
@@ -60,7 +60,7 @@ struct ProgressReader<R: std::io::Read> {
 impl<R: std::io::Read> std::io::Read for ProgressReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         if CANCEL_OPERATION.load(Ordering::Relaxed) {
-            return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "Cancelled"));
+            return Err(std::io::Error::other("Cancelled"));
         }
         let n = self.inner.read(buf)?;
         self.processed += n as u64;

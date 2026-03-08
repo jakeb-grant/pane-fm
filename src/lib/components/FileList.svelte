@@ -46,60 +46,31 @@ const edit = createEditLogic({
 
 function sortIndicator(column: string): string {
 	if (sortBy !== column) return "";
-	return sortAsc ? " ▲" : " ▼";
+	return sortAsc ? "▲" : "▼";
 }
 </script>
 
 <div class="file-list">
-	<div class="header">
-		<button class="col col-icon" disabled aria-label="Icon column">&nbsp;</button>
-		<button class="col col-name" onclick={() => onsort("name")}>
-			Name{sortIndicator("name")}
-		</button>
-		<button class="col col-size" onclick={() => onsort("size")}>
-			Size{sortIndicator("size")}
-		</button>
-		<button class="col col-modified" onclick={() => onsort("modified")}>
-			Modified{sortIndicator("modified")}
-		</button>
-	</div>
-
-	<div class="entries">
-		{#if creatingEntry}
-			<div class="row creating" class:directory={creatingEntry === "directory"}>
-				<span class="col col-icon">{creatingEntry === "directory" ? "\uF07B" : "\uF15B"}</span>
-				<span class="col col-name">
-					<!-- svelte-ignore a11y_autofocus -->
-					<input
-						class="rename-input"
-						type="text"
-						bind:value={edit.editValue}
-						bind:this={edit.editInput}
-						onkeydown={(e) => {
-							if (e.key === "Enter") { e.preventDefault(); edit.commitCreateEntry(); }
-							if (e.key === "Escape") { e.preventDefault(); oncreate(""); }
-						}}
-						onblur={edit.commitCreateEntry}
-					/>
-				</span>
-				<span class="col col-size"></span>
-				<span class="col col-modified"></span>
-			</div>
-		{/if}
-
-		{#each entries as entry (entry.path)}
-			<button
-				class="row"
-				class:selected={selectedPath === entry.path}
-				class:directory={entry.is_dir}
-				class:cut={clipboardPaths?.has(entry.path) && clipboardMode === "cut"}
-				ondblclick={() => { if (renamingPath !== entry.path) onopen(entry); }}
-				onclick={() => { if (renamingPath !== entry.path) onselect(entry); }}
-				oncontextmenu={(e) => { e.preventDefault(); oncontextmenu(e, entry); }}
-			>
-				<span class="col col-icon">{getIconForEntry(entry)}</span>
-				<span class="col col-name">
-					{#if renamingPath === entry.path}
+	<table>
+		<thead>
+			<tr>
+				<th class="th-icon"></th>
+				<th class="th-name" onclick={() => onsort("name")}>
+					<span class="th-content">Name {#if sortBy === "name"}<span class="sort-icon">{sortIndicator("name")}</span>{/if}</span>
+				</th>
+				<th class="th-size" onclick={() => onsort("size")}>
+					<span class="th-content">Size {#if sortBy === "size"}<span class="sort-icon">{sortIndicator("size")}</span>{/if}</span>
+				</th>
+				<th class="th-modified" onclick={() => onsort("modified")}>
+					<span class="th-content">Modified {#if sortBy === "modified"}<span class="sort-icon">{sortIndicator("modified")}</span>{/if}</span>
+				</th>
+			</tr>
+		</thead>
+		<tbody>
+			{#if creatingEntry}
+				<tr class="creating" class:directory={creatingEntry === "directory"}>
+					<td class="td-icon">{creatingEntry === "directory" ? "\uF07B" : "\uF15B"}</td>
+					<td class="td-name">
 						<!-- svelte-ignore a11y_autofocus -->
 						<input
 							class="rename-input"
@@ -107,29 +78,60 @@ function sortIndicator(column: string): string {
 							bind:value={edit.editValue}
 							bind:this={edit.editInput}
 							onkeydown={(e) => {
-								if (e.key === "Enter") { e.preventDefault(); edit.commitRenameForEntry(entry); }
-								if (e.key === "Escape") { e.preventDefault(); onrename(entry, entry.name); }
+								if (e.key === "Enter") { e.preventDefault(); edit.commitCreateEntry(); }
+								if (e.key === "Escape") { e.preventDefault(); oncreate(""); }
 							}}
-							onblur={() => edit.commitRenameForEntry(entry)}
-							onclick={(e) => e.stopPropagation()}
-							ondblclick={(e) => e.stopPropagation()}
+							onblur={edit.commitCreateEntry}
 						/>
-					{:else}
-						{entry.name}
-						{#if entry.is_symlink}
-							<span class="symlink-badge">link</span>
-						{/if}
-					{/if}
-				</span>
-				<span class="col col-size">{entry.is_dir ? `${entry.children_count ?? 0} items` : formatSize(entry.size)}</span>
-				<span class="col col-modified">{entry.modified}</span>
-			</button>
-		{/each}
+					</td>
+					<td class="td-size"></td>
+					<td class="td-modified"></td>
+				</tr>
+			{/if}
 
-		{#if entries.length === 0 && !creatingEntry}
-			<div class="empty">Empty directory</div>
-		{/if}
-	</div>
+			{#each entries as entry (entry.path)}
+				<tr
+					class:selected={selectedPath === entry.path}
+					class:directory={entry.is_dir}
+					class:cut={clipboardPaths?.has(entry.path) && clipboardMode === "cut"}
+					ondblclick={() => { if (renamingPath !== entry.path) onopen(entry); }}
+					onclick={() => { if (renamingPath !== entry.path) onselect(entry); }}
+					oncontextmenu={(e) => { e.preventDefault(); oncontextmenu(e, entry); }}
+				>
+					<td class="td-icon">{getIconForEntry(entry)}</td>
+					<td class="td-name">
+						{#if renamingPath === entry.path}
+							<!-- svelte-ignore a11y_autofocus -->
+							<input
+								class="rename-input"
+								type="text"
+								bind:value={edit.editValue}
+								bind:this={edit.editInput}
+								onkeydown={(e) => {
+									if (e.key === "Enter") { e.preventDefault(); edit.commitRenameForEntry(entry); }
+									if (e.key === "Escape") { e.preventDefault(); onrename(entry, entry.name); }
+								}}
+								onblur={() => edit.commitRenameForEntry(entry)}
+								onclick={(e) => e.stopPropagation()}
+								ondblclick={(e) => e.stopPropagation()}
+							/>
+						{:else}
+							{entry.name}
+							{#if entry.is_symlink}
+								<span class="symlink-badge">link</span>
+							{/if}
+						{/if}
+					</td>
+					<td class="td-size">{entry.is_dir ? `${entry.children_count ?? 0} items` : formatSize(entry.size)}</td>
+					<td class="td-modified">{entry.modified}</td>
+				</tr>
+			{/each}
+		</tbody>
+	</table>
+
+	{#if entries.length === 0 && !creatingEntry}
+		<div class="empty">Empty directory</div>
+	{/if}
 </div>
 
 <style>
@@ -137,102 +139,123 @@ function sortIndicator(column: string): string {
 		display: flex;
 		flex-direction: column;
 		flex: 1;
-		overflow: hidden;
-	}
-
-	.header {
-		display: flex;
-		border-bottom: 1px solid var(--border);
-		background: var(--bg-secondary);
-		position: sticky;
-		top: 0;
-	}
-
-	.header button {
-		background: none;
-		border: none;
-		color: var(--text-muted);
-		font-size: 11px;
-		font-family: var(--font-sans);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		padding: 6px 12px;
-		cursor: pointer;
-		text-align: left;
-	}
-
-	.header button:hover:not(:disabled) {
-		color: var(--text-primary);
-	}
-
-	.entries {
-		flex: 1;
 		overflow-y: auto;
 	}
 
-	.row {
-		display: flex;
+	table {
 		width: 100%;
-		background: none;
-		border: none;
-		color: var(--text-primary);
-		font-size: 13px;
+		border-collapse: collapse;
+		table-layout: fixed;
+	}
+
+	/* Header */
+	thead {
+		position: sticky;
+		top: 0;
+		z-index: 1;
+	}
+
+	th {
+		background: var(--bg-secondary);
+		border-bottom: 1px solid var(--border);
+		color: var(--text-muted);
+		font-size: 11px;
+		font-weight: 500;
 		font-family: var(--font-sans);
-		padding: 0;
-		cursor: pointer;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		padding: 4px 12px;
 		text-align: left;
+		cursor: pointer;
+		white-space: nowrap;
+		line-height: 1;
 	}
 
-	.row:hover {
-		background: var(--bg-surface);
+	th:hover {
+		color: var(--text-primary);
 	}
 
-	.row.selected {
-		background: var(--bg-hover);
-	}
-
-	.row.cut {
-		opacity: 0.45;
-	}
-
-	.row.creating {
+	.th-icon {
+		width: 40px;
 		cursor: default;
 	}
 
-	.col {
+	.th-name {
+		/* takes remaining space */
+	}
+
+	.th-size {
+		width: 100px;
+	}
+
+	.th-modified {
+		width: 150px;
+	}
+
+	.th-content {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+
+	.sort-icon {
+		font-size: 8px;
+	}
+
+	/* Rows */
+	tbody tr {
+		cursor: pointer;
+	}
+
+	tbody tr:hover {
+		background: var(--bg-surface);
+	}
+
+	tr.selected {
+		background: var(--bg-hover);
+	}
+
+	tr.cut {
+		opacity: 0.45;
+	}
+
+	tr.creating {
+		cursor: default;
+	}
+
+	td {
 		padding: 6px 12px;
+		font-size: 13px;
+		font-family: var(--font-sans);
+		color: var(--text-primary);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	.col-icon {
-		width: 40px;
-		flex-shrink: 0;
+	.td-icon {
 		text-align: center;
 		font-family: var(--font-icon);
 		font-size: 16px;
 	}
 
-	.col-name {
-		flex: 1;
-		min-width: 0;
+	.td-name {
+		/* takes remaining space */
 	}
 
-	.col-size {
-		width: 100px;
-		flex-shrink: 0;
-		text-align: right;
+	.td-size {
 		color: var(--text-secondary);
 	}
 
-	.col-modified {
-		width: 150px;
-		flex-shrink: 0;
+	.td-modified {
 		color: var(--text-secondary);
 	}
 
-	.directory .col-name {
+	.directory .td-name {
+		color: var(--accent);
+	}
+
+	.directory .td-icon {
 		color: var(--accent);
 	}
 

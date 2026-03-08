@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::fs_ops::{self, FileEntry};
 use serde::Serialize;
 use std::path::PathBuf;
+use tauri::{AppHandle, Emitter};
 
 #[tauri::command]
 pub fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>, AppError> {
@@ -73,15 +74,17 @@ pub struct DirStats {
 }
 
 #[tauri::command]
-pub async fn get_dir_stats(path: String) -> Result<DirStats, AppError> {
+pub async fn get_dir_stats(path: String, app: AppHandle) -> Result<DirStats, AppError> {
     tokio::task::spawn_blocking(move || {
         let path = PathBuf::from(&path);
-        let (size, contents_count) =
-            dir_size_and_count(&path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
-        Ok(DirStats {
-            size,
-            contents_count,
-        })
+        let mut size = 0u64;
+        let mut contents_count = 0u64;
+        let mut since_emit = 0u64;
+        dir_size_and_count_progressive(&path, &mut size, &mut contents_count, &mut since_emit, &app)
+            .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+        // Final emit to ensure frontend gets the exact total
+        let _ = app.emit("dir-stats-progress", DirStats { size, contents_count });
+        Ok(DirStats { size, contents_count })
     })
     .await
     .map_err(|e| AppError::Io {
@@ -212,6 +215,31 @@ pub fn dir_size_and_count(path: &PathBuf) -> Result<(u64, u64), std::io::Error> 
         }
     }
     Ok((size, count))
+}
+
+fn dir_size_and_count_progressive(
+    path: &PathBuf,
+    size: &mut u64,
+    count: &mut u64,
+    since_emit: &mut u64,
+    app: &AppHandle,
+) -> Result<(), std::io::Error> {
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let meta = entry.metadata()?;
+        *count += 1;
+        *since_emit += 1;
+        if meta.is_dir() {
+            dir_size_and_count_progressive(&entry.path(), size, count, since_emit, app).unwrap_or(());
+        } else {
+            *size += meta.len();
+        }
+        if *since_emit >= 100 {
+            *since_emit = 0;
+            let _ = app.emit("dir-stats-progress", DirStats { size: *size, contents_count: *count });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

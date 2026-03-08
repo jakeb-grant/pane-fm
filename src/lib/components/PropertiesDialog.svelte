@@ -1,6 +1,7 @@
 <script lang="ts">
-import { onMount } from "svelte";
-import { type FileProperties, getDirStats } from "$lib/commands";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { onDestroy, onMount } from "svelte";
+import { type DirStats, type FileProperties, getDirStats } from "$lib/commands";
 import { getIconForEntry } from "$lib/icons";
 import { formatSize } from "$lib/utils";
 
@@ -15,6 +16,7 @@ let {
 let dirSize = $state<number | null>(null);
 let dirCount = $state<number | null>(null);
 let dirStatsLoading = $state(false);
+let unlisten: UnlistenFn | null = null;
 
 const iconEntry = {
 	name: properties.name,
@@ -29,9 +31,13 @@ const iconEntry = {
 	children_count: null,
 };
 
-onMount(() => {
+onMount(async () => {
 	if (properties.is_dir) {
 		dirStatsLoading = true;
+		unlisten = await listen<DirStats>("dir-stats-progress", (event) => {
+			dirSize = event.payload.size;
+			dirCount = event.payload.contents_count;
+		});
 		getDirStats(properties.path)
 			.then((stats) => {
 				dirSize = stats.size;
@@ -42,6 +48,10 @@ onMount(() => {
 				dirStatsLoading = false;
 			});
 	}
+});
+
+onDestroy(() => {
+	unlisten?.();
 });
 </script>
 
@@ -70,7 +80,7 @@ onMount(() => {
 				<span class="value">
 					{#if properties.is_dir}
 						{#if dirSize != null}
-							{formatSize(dirSize)}
+							{formatSize(dirSize)}{#if dirStatsLoading}<span class="calculating"> …</span>{/if}
 						{:else}
 							<span class="calculating">Calculating…</span>
 						{/if}
@@ -84,7 +94,7 @@ onMount(() => {
 					<span class="label">Contents</span>
 					<span class="value">
 						{#if dirCount != null}
-							{dirCount.toLocaleString()} items
+							{dirCount.toLocaleString()} items{#if dirStatsLoading}<span class="calculating"> …</span>{/if}
 						{:else}
 							<span class="calculating">Calculating…</span>
 						{/if}

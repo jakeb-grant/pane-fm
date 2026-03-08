@@ -10,7 +10,7 @@ export function parentPath(path: string): string {
 	const parts = path.split("/").filter(Boolean);
 	if (parts.length <= 1) return "/";
 	parts.pop();
-	return "/" + parts.join("/");
+	return `/${parts.join("/")}`;
 }
 
 export function pathSegments(path: string): { name: string; path: string }[] {
@@ -18,7 +18,7 @@ export function pathSegments(path: string): { name: string; path: string }[] {
 	const segments: { name: string; path: string }[] = [{ name: "/", path: "/" }];
 	let current = "";
 	for (const part of parts) {
-		current += "/" + part;
+		current += `/${part}`;
 		segments.push({ name: part, path: current });
 	}
 	return segments;

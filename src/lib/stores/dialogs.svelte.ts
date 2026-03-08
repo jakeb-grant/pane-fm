@@ -118,6 +118,7 @@ export function createDialogManager(fm: FileManager) {
 		if (!fm.selectedEntry) return;
 		const entry = fm.selectedEntry;
 		const dest = parentPath(entry.path);
+		// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
 		await runBusyOperation("Extracting\u2026", () => extract(entry.path, dest));
 	}
 
@@ -139,6 +140,7 @@ export function createDialogManager(fm: FileManager) {
 			fm.currentPath === "/"
 				? `/${archiveName}`
 				: `${fm.currentPath}/${archiveName}`;
+		// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
 		await runBusyOperation("Compressing\u2026", () =>
 			compress([entry.path], dest),
 		);
@@ -154,6 +156,7 @@ export function createDialogManager(fm: FileManager) {
 		closeFolderPicker();
 
 		if (fp.mode === "extract") {
+			// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
 			await runBusyOperation("Extracting\u2026", () =>
 				extract(fp.entry.path, destDir),
 			);

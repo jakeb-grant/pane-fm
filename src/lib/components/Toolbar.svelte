@@ -9,11 +9,6 @@ let {
 	ongoup,
 	currentPath,
 	onnavigate,
-	sortBy,
-	sortAsc,
-	onsort,
-	viewMode,
-	onviewtoggle,
 	showHidden,
 	ontogglehidden,
 }: {
@@ -24,11 +19,6 @@ let {
 	ongoup: () => void;
 	currentPath: string;
 	onnavigate: (path: string) => void;
-	sortBy: string;
-	sortAsc: boolean;
-	onsort: (column: string) => void;
-	viewMode: "list" | "grid";
-	onviewtoggle: () => void;
 	showHidden: boolean;
 	ontogglehidden: () => void;
 } = $props();
@@ -45,21 +35,9 @@ let {
 	<div class="breadcrumb-wrapper">
 		<Breadcrumb path={currentPath} onnavigate={onnavigate} />
 	</div>
-	<div class="toolbar-group">
-		<div class="sort-control">
-			{#each [["name", "Name"], ["size", "Size"], ["modified", "Date"]] as [key, label] (key)}
-				<button class="sort-btn" class:active={sortBy === key} onclick={() => onsort(key)}>
-					{label}<span class="sort-arrow" class:visible={sortBy === key}>{sortAsc ? "\u25b2" : "\u25bc"}</span>
-				</button>
-			{/each}
-		</div>
-		<button class="nav-btn icon" class:active={viewMode === "grid"} onclick={onviewtoggle} title="Toggle view mode">
-			{viewMode === "list" ? "\uf00a" : "\uf00b"}
-		</button>
-		<button class="nav-btn icon" class:active={showHidden} onclick={ontogglehidden} title="Toggle hidden files">
-			{showHidden ? "\uf06e" : "\uf070"}
-		</button>
-	</div>
+	<button class="nav-btn icon" class:active={showHidden} onclick={ontogglehidden} title="Toggle hidden files">
+		{showHidden ? "\uf06e" : "\uf070"}
+	</button>
 </div>
 
 <style>
@@ -67,23 +45,20 @@ let {
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		padding: 6px 8px;
+		padding: 6px 24px 6px 16px;
 		background: var(--bg-secondary);
 		border-bottom: 1px solid var(--border);
 	}
 
 	.nav-btn {
 		background: none;
-		border: 1px solid transparent;
-		color: var(--text-secondary);
-		font-size: 16px;
-		width: 32px;
-		height: 32px;
-		border-radius: var(--radius);
+		border: none;
+		color: var(--text-muted);
+		font-size: 22px;
+		padding: 4px 6px;
 		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		flex-shrink: 0;
+		transition: color 0.15s;
 	}
 
 	.nav-btn.icon {
@@ -91,7 +66,6 @@ let {
 	}
 
 	.nav-btn:hover:not(:disabled) {
-		background: var(--bg-surface);
 		color: var(--text-primary);
 	}
 
@@ -102,56 +76,6 @@ let {
 
 	.nav-btn.active {
 		color: var(--accent);
-	}
-
-	.toolbar-group {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.sort-control {
-		display: flex;
-		align-items: center;
-		background: var(--bg-primary);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		overflow: hidden;
-	}
-
-	.sort-btn {
-		background: none;
-		border: none;
-		color: var(--text-muted);
-		font-size: 11px;
-		font-family: var(--font-sans);
-		padding: 5px 10px;
-		cursor: pointer;
-		transition: color 0.15s, background 0.15s;
-		letter-spacing: 0.03em;
-		white-space: nowrap;
-	}
-
-	.sort-btn:hover {
-		color: var(--text-primary);
-		background: var(--bg-surface);
-	}
-
-	.sort-btn.active {
-		color: var(--accent);
-		background: var(--bg-surface);
-	}
-
-	.sort-arrow {
-		font-size: 8px;
-		margin-left: 3px;
-		opacity: 0;
-		display: inline-block;
-		width: 8px;
-	}
-
-	.sort-arrow.visible {
-		opacity: 0.7;
 	}
 
 	.breadcrumb-wrapper {

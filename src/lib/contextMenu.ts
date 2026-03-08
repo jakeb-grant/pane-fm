@@ -106,6 +106,7 @@ function buildEntryItems(
 	}
 
 	items.push(
+		// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
 		{ label: "Compress\u2026", action: actions.compress },
 		{ separator: true },
 		{ label: "Move to Trash", action: actions.delete, danger: true },

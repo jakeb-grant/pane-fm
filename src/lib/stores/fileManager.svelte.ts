@@ -38,7 +38,6 @@ export function createFileManager() {
 	let sortBy = $state(loadPreference("sortBy", "name"));
 	let sortAsc = $state(loadPreference("sortAsc", true));
 	let showHidden = $state(loadPreference("showHidden", false));
-	let viewMode = $state<"list" | "grid">(loadPreference("viewMode", "list"));
 
 	// Selection state
 	let selectedPath = $state<string | null>(null);
@@ -161,11 +160,6 @@ export function createFileManager() {
 		navigate(currentPath, false);
 	}
 
-	function setViewMode(mode: "list" | "grid") {
-		viewMode = mode;
-		savePreference("viewMode", viewMode);
-	}
-
 	function select(entry: FileEntry) {
 		selectedPath = entry.path;
 		selectedEntry = entry;
@@ -219,9 +213,6 @@ export function createFileManager() {
 		},
 		get showHidden() {
 			return showHidden;
-		},
-		get viewMode() {
-			return viewMode;
 		},
 		get loading() {
 			return loading;
@@ -289,7 +280,6 @@ export function createFileManager() {
 		refresh,
 		handleSort,
 		toggleHidden,
-		setViewMode,
 		select,
 		clearSelection,
 		setError,

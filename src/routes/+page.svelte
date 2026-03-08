@@ -3,7 +3,6 @@ import { onDestroy, onMount } from "svelte";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
 import ContextMenu from "$lib/components/ContextMenu.svelte";
-import FileGrid from "$lib/components/FileGrid.svelte";
 import FileList from "$lib/components/FileList.svelte";
 import FolderPicker from "$lib/components/FolderPicker.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
@@ -94,11 +93,6 @@ onDestroy(() => {
 		ongoup={fm.goUp}
 		currentPath={fm.currentPath}
 		onnavigate={fm.navigate}
-		sortBy={fm.sortBy}
-		sortAsc={fm.sortAsc}
-		onsort={fm.handleSort}
-		viewMode={fm.viewMode}
-		onviewtoggle={() => fm.setViewMode(fm.viewMode === "list" ? "grid" : "list")}
 		showHidden={fm.showHidden}
 		ontogglehidden={fm.toggleHidden}
 	/>
@@ -130,8 +124,7 @@ onDestroy(() => {
 				{/if}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div class="content" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}>
-				{#if fm.viewMode === "list"}
-					<FileList
+				<FileList
 						entries={fm.sortedEntries}
 						selectedPath={fm.selectedPath}
 						renamingPath={fm.renamingPath}
@@ -147,21 +140,6 @@ onDestroy(() => {
 						onrename={(entry, name) => ops.commitRename(fm, entry, name)}
 						oncreate={(name) => ops.commitCreate(fm, name)}
 					/>
-				{:else}
-					<FileGrid
-						entries={fm.sortedEntries}
-						selectedPath={fm.selectedPath}
-						renamingPath={fm.renamingPath}
-						creatingEntry={fm.creatingEntry}
-						clipboardPaths={fm.clipboard ? new Set(fm.clipboard.entries.map(e => e.path)) : null}
-						clipboardMode={fm.clipboard?.mode ?? null}
-						onopen={(entry) => ops.handleOpen(fm, entry)}
-						onselect={fm.select}
-						oncontextmenu={(e, entry) => ops.handleContextMenu(fm, e, entry, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}
-						onrename={(entry, name) => ops.commitRename(fm, entry, name)}
-						oncreate={(name) => ops.commitCreate(fm, name)}
-					/>
-				{/if}
 				</div>
 			</div>
 		{/if}
@@ -171,46 +149,47 @@ onDestroy(() => {
 		<StatusBar text={clipboardText()} onclear={() => fm.clipboard = null} />
 	{/if}
 
-	{#if dlg.contextMenu}
-		<ContextMenu
-			x={dlg.contextMenu.x}
-			y={dlg.contextMenu.y}
-			items={buildMenuItems()}
-			onclose={dlg.closeContextMenu}
-		/>
-	{/if}
-
-	{#if dlg.propertiesData}
-		<PropertiesDialog
-			properties={dlg.propertiesData}
-			onclose={dlg.closeProperties}
-		/>
-	{/if}
-
-	{#if dlg.folderPicker}
-		<FolderPicker
-			title={dlg.folderPicker.mode === "move" ? "Move to\u2026" : dlg.folderPicker.mode === "extract" ? "Extract to\u2026" : "Copy to\u2026"}
-			onselect={dlg.handleFolderPickerSelect}
-			onclose={dlg.closeFolderPicker}
-		/>
-	{/if}
-
-	{#if dlg.compressEntry}
-		<CompressDialog
-			defaultName={dlg.compressEntry.name}
-			onconfirm={dlg.handleCompressConfirm}
-			onclose={dlg.closeCompress}
-		/>
-	{/if}
-
-	{#if dlg.busyMessage}
-		<BusyOverlay
-			message={dlg.busyMessage}
-			progress={dlg.busyProgress}
-			oncancel={dlg.handleCancelOperation}
-		/>
-	{/if}
 </div>
+
+{#if dlg.contextMenu}
+	<ContextMenu
+		x={dlg.contextMenu.x}
+		y={dlg.contextMenu.y}
+		items={buildMenuItems()}
+		onclose={dlg.closeContextMenu}
+	/>
+{/if}
+
+{#if dlg.propertiesData}
+	<PropertiesDialog
+		properties={dlg.propertiesData}
+		onclose={dlg.closeProperties}
+	/>
+{/if}
+
+{#if dlg.folderPicker}
+	<FolderPicker
+		title={dlg.folderPicker.mode === "move" ? "Move to\u2026" : dlg.folderPicker.mode === "extract" ? "Extract to\u2026" : "Copy to\u2026"}
+		onselect={dlg.handleFolderPickerSelect}
+		onclose={dlg.closeFolderPicker}
+	/>
+{/if}
+
+{#if dlg.compressEntry}
+	<CompressDialog
+		defaultName={dlg.compressEntry.name}
+		onconfirm={dlg.handleCompressConfirm}
+		onclose={dlg.closeCompress}
+	/>
+{/if}
+
+{#if dlg.busyMessage}
+	<BusyOverlay
+		message={dlg.busyMessage}
+		progress={dlg.busyProgress}
+		oncancel={dlg.handleCancelOperation}
+	/>
+{/if}
 
 <style>
 	.app {
@@ -238,9 +217,11 @@ onDestroy(() => {
 	}
 
 	.main {
-		flex: 1;
+		flex: 1 1 0;
 		display: flex;
 		overflow: hidden;
+		background: var(--bg-secondary);
+		min-height: 0;
 	}
 
 	.loading {
@@ -249,6 +230,7 @@ onDestroy(() => {
 		align-items: center;
 		justify-content: center;
 		color: var(--text-muted);
+		background: var(--bg-primary);
 	}
 
 	.content-wrapper {
@@ -256,6 +238,7 @@ onDestroy(() => {
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
+		background: var(--bg-primary);
 	}
 
 	.content {

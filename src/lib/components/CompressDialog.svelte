@@ -23,7 +23,7 @@ let selectedFormat = $state("zip");
 let baseName = $state(defaultName);
 let nameInput: HTMLInputElement | undefined = $state();
 
-let fullName = $derived(baseName + "." + selectedFormat);
+let fullName = $derived(`${baseName}.${selectedFormat}`);
 
 tick().then(() => {
 	if (nameInput) {

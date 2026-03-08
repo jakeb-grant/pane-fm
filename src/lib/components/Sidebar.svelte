@@ -1,5 +1,4 @@
 <script lang="ts">
-import { onMount } from "svelte";
 import { pathExists } from "$lib/commands";
 
 let {
@@ -16,19 +15,23 @@ let {
 
 let places = $state<{ label: string; icon: string; path: string }[]>([]);
 
-onMount(async () => {
+$effect(() => {
+	const dir = homeDir;
+	if (dir === "/") return;
+
 	const candidates = [
-		{ label: "Home", icon: "\uF015", path: homeDir },
-		{ label: "Desktop", icon: "\uF108", path: `${homeDir}/Desktop` },
-		{ label: "Documents", icon: "\uF07B", path: `${homeDir}/Documents` },
-		{ label: "Downloads", icon: "\uF019", path: `${homeDir}/Downloads` },
-		{ label: "Pictures", icon: "\uF03E", path: `${homeDir}/Pictures` },
-		{ label: "Music", icon: "\uF001", path: `${homeDir}/Music` },
-		{ label: "Videos", icon: "\uF008", path: `${homeDir}/Videos` },
+		{ label: "Home", icon: "\uF015", path: dir },
+		{ label: "Desktop", icon: "\uF108", path: `${dir}/Desktop` },
+		{ label: "Documents", icon: "\uF07B", path: `${dir}/Documents` },
+		{ label: "Downloads", icon: "\uF019", path: `${dir}/Downloads` },
+		{ label: "Pictures", icon: "\uF03E", path: `${dir}/Pictures` },
+		{ label: "Music", icon: "\uF001", path: `${dir}/Music` },
+		{ label: "Videos", icon: "\uF008", path: `${dir}/Videos` },
 	];
 
-	const checks = await Promise.all(candidates.map((c) => pathExists(c.path)));
-	places = candidates.filter((_, i) => checks[i]);
+	Promise.all(candidates.map((c) => pathExists(c.path))).then((checks) => {
+		places = candidates.filter((_, i) => checks[i]);
+	});
 });
 
 const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
