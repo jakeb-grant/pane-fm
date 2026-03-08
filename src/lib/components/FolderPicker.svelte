@@ -1,8 +1,8 @@
 <script lang="ts">
-import { listDirectory, getHomeDir, pathExists } from "$lib/commands";
-import type { FileEntry } from "$lib/commands";
-import { parentPath, pathSegments } from "$lib/utils";
 import { onMount } from "svelte";
+import type { FileEntry } from "$lib/commands";
+import { getHomeDir, listDirectory, pathExists } from "$lib/commands";
+import { parentPath, pathSegments } from "$lib/utils";
 
 let {
 	title,

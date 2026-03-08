@@ -1,44 +1,37 @@
 <script lang="ts">
-import { getHomeDir, pathExists } from "$lib/commands";
 import { onMount } from "svelte";
+import { pathExists } from "$lib/commands";
 
 let {
 	currentPath,
 	onnavigate,
 	drives,
+	homeDir,
 }: {
 	currentPath: string;
 	onnavigate: (path: string) => void;
 	drives: { name: string; path: string; icon: string }[];
+	homeDir: string;
 } = $props();
 
 let places = $state<{ label: string; icon: string; path: string }[]>([]);
 
 onMount(async () => {
-	let homePath: string;
-	try {
-		homePath = await getHomeDir();
-	} catch {
-		homePath = "/home";
-	}
-
 	const candidates = [
-		{ label: "Home", icon: "\uF015", path: homePath },
-		{ label: "Desktop", icon: "\uF108", path: `${homePath}/Desktop` },
-		{ label: "Documents", icon: "\uF07B", path: `${homePath}/Documents` },
-		{ label: "Downloads", icon: "\uF019", path: `${homePath}/Downloads` },
-		{ label: "Pictures", icon: "\uF03E", path: `${homePath}/Pictures` },
-		{ label: "Music", icon: "\uF001", path: `${homePath}/Music` },
-		{ label: "Videos", icon: "\uF008", path: `${homePath}/Videos` },
+		{ label: "Home", icon: "\uF015", path: homeDir },
+		{ label: "Desktop", icon: "\uF108", path: `${homeDir}/Desktop` },
+		{ label: "Documents", icon: "\uF07B", path: `${homeDir}/Documents` },
+		{ label: "Downloads", icon: "\uF019", path: `${homeDir}/Downloads` },
+		{ label: "Pictures", icon: "\uF03E", path: `${homeDir}/Pictures` },
+		{ label: "Music", icon: "\uF001", path: `${homeDir}/Music` },
+		{ label: "Videos", icon: "\uF008", path: `${homeDir}/Videos` },
 	];
 
 	const checks = await Promise.all(candidates.map((c) => pathExists(c.path)));
 	places = candidates.filter((_, i) => checks[i]);
 });
 
-const system = [
-	{ label: "Trash", icon: "\uF1F8", path: "trash://" },
-];
+const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 </script>
 
 <aside class="sidebar">

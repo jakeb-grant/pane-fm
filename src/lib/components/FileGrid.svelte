@@ -1,7 +1,7 @@
 <script lang="ts">
+import { tick } from "svelte";
 import type { FileEntry } from "$lib/commands";
 import { getIconForEntry } from "$lib/icons";
-import { tick } from "svelte";
 
 let {
 	entries,

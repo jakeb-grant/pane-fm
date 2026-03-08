@@ -32,13 +32,15 @@ const iconEntry = {
 onMount(() => {
 	if (properties.is_dir) {
 		dirStatsLoading = true;
-		getDirStats(properties.path).then((stats) => {
-			dirSize = stats.size;
-			dirCount = stats.contents_count;
-			dirStatsLoading = false;
-		}).catch(() => {
-			dirStatsLoading = false;
-		});
+		getDirStats(properties.path)
+			.then((stats) => {
+				dirSize = stats.size;
+				dirCount = stats.contents_count;
+				dirStatsLoading = false;
+			})
+			.catch(() => {
+				dirStatsLoading = false;
+			});
 	}
 });
 </script>

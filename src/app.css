@@ -13,7 +13,8 @@
 	--success: #a6e3a1;
 	--warning: #f9e2af;
 	--radius: 6px;
-	--font-mono: "JetBrains Mono Nerd Font", "JetBrainsMono Nerd Font", "FiraCode Nerd Font",
+	--font-mono:
+		"JetBrains Mono Nerd Font", "JetBrainsMono Nerd Font", "FiraCode Nerd Font",
 		"Hack Nerd Font", monospace;
 	--font-icon: var(--font-mono);
 	--font-sans: "Inter", sans-serif;

@@ -1,6 +1,6 @@
 <script lang="ts">
-import { onMount, onDestroy } from "svelte";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { onDestroy, onMount } from "svelte";
 import {
 	cancelOperation,
 	compress,
@@ -10,15 +10,10 @@ import {
 	deleteEntry,
 	emptyTrash,
 	extract,
-	type DriveEntry,
 	type FileEntry,
 	type FileProperties,
-	getHomeDir,
 	getProperties,
 	listAppsForMime,
-	listDirectory,
-	listDrives,
-	listTrash,
 	moveEntry,
 	openDefault,
 	openWithApp,
@@ -26,45 +21,27 @@ import {
 	restoreTrash,
 } from "$lib/commands";
 import Breadcrumb from "$lib/components/Breadcrumb.svelte";
-import ContextMenu from "$lib/components/ContextMenu.svelte";
-import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
+import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
+import ContextMenu from "$lib/components/ContextMenu.svelte";
 import FileGrid from "$lib/components/FileGrid.svelte";
 import FileList from "$lib/components/FileList.svelte";
 import FolderPicker from "$lib/components/FolderPicker.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
+import { createFileManager } from "$lib/stores/fileManager.svelte";
 import { formatSize, parentPath } from "$lib/utils";
 
-let currentPath = $state("/");
-let entries = $state<FileEntry[]>([]);
-let drives = $state<{ name: string; path: string; icon: string }[]>([]);
-let showHidden = $state(false);
-let loading = $state(true);
-let error = $state<string | null>(null);
-let selectedPath = $state<string | null>(null);
-let selectedEntry = $state<FileEntry | null>(null);
-
-// Sort state
-let sortBy = $state("name");
-let sortAsc = $state(true);
-let viewMode = $state<"list" | "grid">("list");
-
-// Rename / inline create state
-let renamingPath = $state<string | null>(null);
-let creatingEntry = $state<"file" | "directory" | null>(null);
-
-// Clipboard state
-let clipboard = $state<{ entries: FileEntry[]; mode: "copy" | "cut" } | null>(null);
-
-// Open With state
-let openWithApps = $state<Array<{ name: string; desktop_id: string; icon: string }>>([]);
+const fm = createFileManager();
 
 // Properties dialog state
 let propertiesData = $state<FileProperties | null>(null);
 
 // Folder picker state
-let folderPicker = $state<{ mode: "move" | "copy" | "extract"; entry: FileEntry } | null>(null);
+let folderPicker = $state<{
+	mode: "move" | "copy" | "extract";
+	entry: FileEntry;
+} | null>(null);
 
 // Compress dialog state
 let compressEntry = $state<FileEntry | null>(null);
@@ -84,104 +61,21 @@ function isArchive(entry: FileEntry): boolean {
 }
 
 // Context menu state
-let contextMenu = $state<{ x: number; y: number; entry: FileEntry } | null>(
-	null,
-);
-
-// Navigation history
-let history = $state<string[]>([]);
-let historyIndex = $state(-1);
-
-let sortedEntries = $derived.by(() => {
-	const nameCmp = (a: FileEntry, b: FileEntry) =>
-		a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-
-	const sorted = [...entries];
-	sorted.sort((a, b) => {
-		// Directories always first, files always after
-		if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
-
-		// For size column, sort directories by children count instead of inode size
-		if (a.is_dir && b.is_dir && sortBy === "size") {
-			const cmp = (a.children_count ?? 0) - (b.children_count ?? 0);
-			const directed = sortAsc ? cmp : -cmp;
-			return directed !== 0 ? directed : nameCmp(a, b);
-		}
-
-		let cmp = 0;
-		if (sortBy === "name") {
-			cmp = nameCmp(a, b);
-		} else if (sortBy === "size") {
-			cmp = a.size - b.size;
-		} else if (sortBy === "modified") {
-			cmp = a.modified.localeCompare(b.modified);
-		}
-
-		// Apply sort direction, then stable tiebreaker by name
-		const directed = sortAsc ? cmp : -cmp;
-		return directed !== 0 ? directed : nameCmp(a, b);
-	});
-	return sorted;
-});
-
-let isTrash = $derived(currentPath === "trash://");
-
-async function navigate(path: string, addToHistory = true) {
-	loading = true;
-	error = null;
-	selectedPath = null;
-	selectedEntry = null;
-	contextMenu = null;
-
-	try {
-		if (path === "trash://") {
-			entries = await listTrash();
-		} else {
-			entries = await listDirectory(path, showHidden);
-		}
-		currentPath = path;
-
-		if (addToHistory) {
-			history = [...history.slice(0, historyIndex + 1), path];
-			historyIndex = history.length - 1;
-		}
-	} catch (e) {
-		error = String(e);
-	} finally {
-		loading = false;
-	}
-}
-
-function goBack() {
-	if (historyIndex > 0) {
-		historyIndex--;
-		navigate(history[historyIndex], false);
-	}
-}
-
-function goForward() {
-	if (historyIndex < history.length - 1) {
-		historyIndex++;
-		navigate(history[historyIndex], false);
-	}
-}
-
-function goUp() {
-	const parent = parentPath(currentPath);
-	if (parent !== currentPath) {
-		navigate(parent);
-	}
-}
+let contextMenu = $state<{
+	x: number;
+	y: number;
+	entry: FileEntry | null;
+} | null>(null);
 
 async function handleOpen(entry: FileEntry) {
 	if (entry.is_dir) {
-		navigate(entry.path);
+		fm.navigate(entry.path);
 		return;
 	}
 	try {
 		await openDefault(entry.path);
 	} catch (e) {
-		error = "Failed to open: " + String(e);
+		fm.setError("Failed to open: " + String(e));
 	}
 }
 
@@ -190,19 +84,19 @@ async function handleOpenWith(entry: FileEntry) {
 	try {
 		const apps = await listAppsForMime(entry.mime_type);
 		if (apps.length === 0) {
-			error = "No applications found for this file type";
+			fm.setError("No applications found for this file type");
 			return;
 		}
-		openWithApps = apps;
+		fm.openWithApps = apps;
 		contextMenu = { x: pos.x, y: pos.y, entry };
 	} catch (e) {
-		error = "Failed to list applications: " + String(e);
+		fm.setError("Failed to list applications: " + String(e));
 	}
 }
 
 async function handleExtract() {
-	if (!selectedEntry || busyMessage) return;
-	const entry = selectedEntry;
+	if (!fm.selectedEntry || busyMessage) return;
+	const entry = fm.selectedEntry;
 	const dest = parentPath(entry.path);
 	busyMessage = "Extracting\u2026";
 	busyProgress = null;
@@ -211,22 +105,22 @@ async function handleExtract() {
 	} catch (e) {
 		const msg = String(e);
 		if (msg !== "Cancelled") {
-			error = "Failed to extract: " + msg;
+			fm.setError("Failed to extract: " + msg);
 		}
 	}
 	busyMessage = null;
 	busyProgress = null;
-	await navigate(currentPath, false);
+	await fm.refresh();
 }
 
 function handleMoveTo() {
-	if (!selectedEntry) return;
-	folderPicker = { mode: "move", entry: selectedEntry };
+	if (!fm.selectedEntry) return;
+	folderPicker = { mode: "move", entry: fm.selectedEntry };
 }
 
 function handleCopyTo() {
-	if (!selectedEntry) return;
-	folderPicker = { mode: "copy", entry: selectedEntry };
+	if (!fm.selectedEntry) return;
+	folderPicker = { mode: "copy", entry: fm.selectedEntry };
 }
 
 async function handleFolderPickerSelect(destDir: string) {
@@ -243,12 +137,12 @@ async function handleFolderPickerSelect(destDir: string) {
 		} catch (e) {
 			const msg = String(e);
 			if (msg !== "Cancelled") {
-				error = "Failed to extract: " + msg;
+				fm.setError("Failed to extract: " + msg);
 			}
 		}
 		busyMessage = null;
 		busyProgress = null;
-		await navigate(currentPath, false);
+		await fm.refresh();
 		return;
 	}
 
@@ -259,22 +153,25 @@ async function handleFolderPickerSelect(destDir: string) {
 		} else {
 			await copyEntry(src.path, dest);
 		}
-		await navigate(currentPath, false);
+		await fm.refresh();
 	} catch (e) {
-		error = "Failed to " + mode + ": " + String(e);
+		fm.setError("Failed to " + mode + ": " + String(e));
 	}
 }
 
 function handleCompress() {
-	if (!selectedEntry) return;
-	compressEntry = selectedEntry;
+	if (!fm.selectedEntry) return;
+	compressEntry = fm.selectedEntry;
 }
 
 async function handleCompressConfirm(archiveName: string) {
 	if (!compressEntry || busyMessage) return;
 	const entry = compressEntry;
 	compressEntry = null;
-	const dest = currentPath === "/" ? "/" + archiveName : currentPath + "/" + archiveName;
+	const dest =
+		fm.currentPath === "/"
+			? "/" + archiveName
+			: fm.currentPath + "/" + archiveName;
 	busyMessage = "Compressing\u2026";
 	busyProgress = null;
 	try {
@@ -282,12 +179,12 @@ async function handleCompressConfirm(archiveName: string) {
 	} catch (e) {
 		const msg = String(e);
 		if (msg !== "Cancelled") {
-			error = "Failed to compress: " + msg;
+			fm.setError("Failed to compress: " + msg);
 		}
 	}
 	busyMessage = null;
 	busyProgress = null;
-	await navigate(currentPath, false);
+	await fm.refresh();
 }
 
 async function handleCancelOperation() {
@@ -295,100 +192,87 @@ async function handleCancelOperation() {
 }
 
 async function handleProperties() {
-	if (!selectedEntry) return;
+	if (!fm.selectedEntry) return;
 	try {
-		propertiesData = await getProperties(selectedEntry.path);
+		propertiesData = await getProperties(fm.selectedEntry.path);
 	} catch (e) {
-		error = "Failed to get properties: " + String(e);
+		fm.setError("Failed to get properties: " + String(e));
 	}
 }
 
 function handleExtractTo() {
-	if (!selectedEntry) return;
-	folderPicker = { mode: "extract", entry: selectedEntry };
-}
-
-function handleSelect(entry: FileEntry) {
-	selectedPath = entry.path;
-	selectedEntry = entry;
-}
-
-function handleSort(column: string) {
-	if (sortBy === column) {
-		sortAsc = !sortAsc;
-	} else {
-		sortBy = column;
-		sortAsc = true;
-	}
+	if (!fm.selectedEntry) return;
+	folderPicker = { mode: "extract", entry: fm.selectedEntry };
 }
 
 function handleContextMenu(e: MouseEvent, entry: FileEntry) {
 	e.stopPropagation();
-	selectedPath = entry.path;
-	selectedEntry = entry;
-	openWithApps = [];
+	fm.select(entry);
+	fm.openWithApps = [];
 	contextMenu = { x: e.clientX, y: e.clientY, entry };
 }
 
 function handleBgContextMenu(e: MouseEvent) {
 	e.preventDefault();
-	selectedPath = null;
-	selectedEntry = null;
+	fm.clearSelection();
 	contextMenu = {
 		x: e.clientX,
 		y: e.clientY,
-		entry: null as unknown as FileEntry,
+		entry: null,
 	};
 }
 
 function handleCopy() {
-	if (!selectedEntry) return;
-	clipboard = { entries: [selectedEntry], mode: "copy" };
+	if (!fm.selectedEntry) return;
+	fm.clipboard = { entries: [fm.selectedEntry], mode: "copy" };
 }
 
 function handleCut() {
-	if (!selectedEntry) return;
-	clipboard = { entries: [selectedEntry], mode: "cut" };
+	if (!fm.selectedEntry) return;
+	fm.clipboard = { entries: [fm.selectedEntry], mode: "cut" };
 }
 
 async function handlePaste() {
-	if (!clipboard) return;
-	const isCut = clipboard.mode === "cut";
+	if (!fm.clipboard) return;
+	const isCut = fm.clipboard.mode === "cut";
 
 	try {
-		for (const src of clipboard.entries) {
-			const destPath = currentPath === "/" ? `/${src.name}` : `${currentPath}/${src.name}`;
+		for (const src of fm.clipboard.entries) {
+			const destPath =
+				fm.currentPath === "/"
+					? `/${src.name}`
+					: `${fm.currentPath}/${src.name}`;
 			if (isCut) {
 				await moveEntry(src.path, destPath);
 			} else {
 				await copyEntry(src.path, destPath);
 			}
 		}
-		if (isCut) clipboard = null;
-		await navigate(currentPath, false);
+		if (isCut) fm.clipboard = null;
+		await fm.refresh();
 	} catch (e) {
-		error = `Failed to ${isCut ? "move" : "paste"}: ${e}`;
+		fm.setError(`Failed to ${isCut ? "move" : "paste"}: ${e}`);
 	}
 }
 
 async function handleDelete() {
-	if (!selectedEntry) return;
-	const name = selectedEntry.name;
+	if (!fm.selectedEntry) return;
+	const name = fm.selectedEntry.name;
 	try {
-		await deleteEntry(selectedEntry.path);
-		await navigate(currentPath, false);
+		await deleteEntry(fm.selectedEntry.path);
+		await fm.refresh();
 	} catch (e) {
-		error = `Failed to delete ${name}: ${e}`;
+		fm.setError(`Failed to delete ${name}: ${e}`);
 	}
 }
 
 function handleRename() {
-	if (!selectedEntry) return;
-	renamingPath = selectedEntry.path;
+	if (!fm.selectedEntry) return;
+	fm.renamingPath = fm.selectedEntry.path;
 }
 
 async function commitRename(entry: FileEntry, newName: string) {
-	renamingPath = null;
+	fm.renamingPath = null;
 	if (!newName || newName === entry.name) return;
 
 	const parent = parentPath(entry.path);
@@ -396,59 +280,57 @@ async function commitRename(entry: FileEntry, newName: string) {
 
 	try {
 		await renameEntry(entry.path, newPath);
-		await navigate(currentPath, false);
+		await fm.refresh();
 	} catch (e) {
-		error = `Failed to rename: ${e}`;
+		fm.setError(`Failed to rename: ${e}`);
 	}
 }
 
 function handleNewFolder() {
-	creatingEntry = "directory";
+	fm.creatingEntry = "directory";
 }
 
 function handleNewFile() {
-	creatingEntry = "file";
+	fm.creatingEntry = "file";
 }
 
 async function commitCreate(name: string) {
-	const type = creatingEntry;
-	creatingEntry = null;
+	const type = fm.creatingEntry;
+	fm.creatingEntry = null;
 	if (!name || !type) return;
 
-	const path = currentPath === "/" ? `/${name}` : `${currentPath}/${name}`;
+	const path =
+		fm.currentPath === "/" ? `/${name}` : `${fm.currentPath}/${name}`;
 	try {
 		if (type === "directory") {
 			await createDirectory(path);
 		} else {
 			await createFile(path);
 		}
-		await navigate(currentPath, false);
+		await fm.refresh();
 	} catch (e) {
-		error = `Failed to create ${type === "directory" ? "folder" : "file"}: ${e}`;
+		fm.setError(
+			`Failed to create ${type === "directory" ? "folder" : "file"}: ${e}`,
+		);
 	}
 }
 
-function toggleHidden() {
-	showHidden = !showHidden;
-	navigate(currentPath, false);
-}
-
 async function handleRestore() {
-	if (!selectedEntry) return;
+	if (!fm.selectedEntry) return;
 	try {
-		await restoreTrash(selectedEntry.name);
-		await navigate(currentPath, false);
+		await restoreTrash(fm.selectedEntry.name);
+		await fm.refresh();
 	} catch (e) {
-		error = `Failed to restore: ${e}`;
+		fm.setError(`Failed to restore: ${e}`);
 	}
 }
 
 async function handleEmptyTrash() {
 	try {
 		await emptyTrash();
-		await navigate(currentPath, false);
+		await fm.refresh();
 	} catch (e) {
-		error = `Failed to empty trash: ${e}`;
+		fm.setError(`Failed to empty trash: ${e}`);
 	}
 }
 
@@ -456,27 +338,25 @@ function getContextMenuItems(): MenuEntry[] {
 	if (!contextMenu) return [];
 
 	// "Open with" submenu items
-	if (openWithApps.length > 0) {
-		const items: MenuEntry[] = openWithApps.map((app) => ({
+	if (fm.openWithApps.length > 0) {
+		const items: MenuEntry[] = fm.openWithApps.map((app) => ({
 			label: app.name,
 			action: () => {
-				openWithApp(contextMenu!.entry.path, app.desktop_id);
-				openWithApps = [];
+				openWithApp(contextMenu?.entry?.path ?? "", app.desktop_id);
+				fm.openWithApps = [];
 			},
 		}));
 		return items;
 	}
 
-	if (isTrash) {
+	if (fm.isTrash) {
 		if (contextMenu.entry) {
 			return [
 				{ label: "Restore", action: handleRestore },
 				{ label: "Delete Permanently", action: handleDelete, danger: true },
 			];
 		}
-		return [
-			{ label: "Empty Trash", action: handleEmptyTrash, danger: true },
-		];
+		return [{ label: "Empty Trash", action: handleEmptyTrash, danger: true }];
 	}
 
 	if (contextMenu.entry) {
@@ -513,49 +393,34 @@ function getContextMenuItems(): MenuEntry[] {
 
 	// Background context menu
 	const items: MenuEntry[] = [];
-	if (clipboard) {
-		const pasteLabel = clipboard.entries.length === 1
-			? "Paste \u201C" + clipboard.entries[0].name + "\u201D"
-			: "Paste " + clipboard.entries.length + " items";
-		items.push(
-			{ label: pasteLabel, action: handlePaste },
-			{ separator: true },
-		);
+	if (fm.clipboard) {
+		const pasteLabel =
+			fm.clipboard.entries.length === 1
+				? "Paste \u201C" + fm.clipboard.entries[0].name + "\u201D"
+				: "Paste " + fm.clipboard.entries.length + " items";
+		items.push({ label: pasteLabel, action: handlePaste }, { separator: true });
 	}
 	items.push(
 		{ label: "New Folder", action: handleNewFolder },
 		{ label: "New File", action: handleNewFile },
 		{ separator: true },
 		{
-			label: showHidden ? "Hide Hidden Files" : "Show Hidden Files",
-			action: toggleHidden,
+			label: fm.showHidden ? "Hide Hidden Files" : "Show Hidden Files",
+			action: fm.toggleHidden,
 		},
 	);
 	return items;
 }
 
 onMount(async () => {
-	try {
-		const home = await getHomeDir();
-		await navigate(home);
-	} catch {
-		await navigate("/");
-	}
+	await fm.init();
 
-	try {
-		const d = await listDrives();
-		drives = d.map((drive) => ({
-			name: drive.name,
-			path: drive.path,
-			icon: drive.removable ? "\uF0A0" : "\uF0A0",
-		}));
-	} catch {
-		drives = [];
-	}
-
-	progressUnlisten = await listen<{ processed: number; total: number }>("compress-progress", (event) => {
-		busyProgress = event.payload;
-	});
+	progressUnlisten = await listen<{ processed: number; total: number }>(
+		"compress-progress",
+		(event) => {
+			busyProgress = event.payload;
+		},
+	);
 });
 
 onDestroy(() => {
@@ -565,92 +430,92 @@ onDestroy(() => {
 
 <div class="app">
 	<div class="toolbar">
-		<button class="nav-btn icon" onclick={goBack} disabled={historyIndex <= 0} title="Back">
+		<button class="nav-btn icon" onclick={fm.goBack} disabled={fm.historyIndex <= 0} title="Back">
 			{"\uf060"}
 		</button>
 		<button
 			class="nav-btn icon"
-			onclick={goForward}
-			disabled={historyIndex >= history.length - 1}
+			onclick={fm.goForward}
+			disabled={fm.historyIndex >= fm.history.length - 1}
 			title="Forward"
 		>
 			{"\uf061"}
 		</button>
-		<button class="nav-btn icon" onclick={goUp} title="Up">{"\uf062"}</button>
+		<button class="nav-btn icon" onclick={fm.goUp} title="Up">{"\uf062"}</button>
 		<div class="breadcrumb-wrapper">
-			<Breadcrumb path={currentPath} onnavigate={navigate} />
+			<Breadcrumb path={fm.currentPath} onnavigate={fm.navigate} />
 		</div>
 		<div class="toolbar-group">
 			<div class="sort-control">
 				{#each [["name", "Name"], ["size", "Size"], ["modified", "Date"]] as [key, label] (key)}
-					<button class="sort-btn" class:active={sortBy === key} onclick={() => handleSort(key)}>
-						{label}<span class="sort-arrow" class:visible={sortBy === key}>{sortAsc ? "▲" : "▼"}</span>
+					<button class="sort-btn" class:active={fm.sortBy === key} onclick={() => fm.handleSort(key)}>
+						{label}<span class="sort-arrow" class:visible={fm.sortBy === key}>{fm.sortAsc ? "▲" : "▼"}</span>
 					</button>
 				{/each}
 			</div>
-			<button class="nav-btn icon" class:active={viewMode === "grid"} onclick={() => viewMode = viewMode === "list" ? "grid" : "list"} title="Toggle view mode">
-				{viewMode === "list" ? "\uf00a" : "\uf00b"}
+			<button class="nav-btn icon" class:active={fm.viewMode === "grid"} onclick={() => fm.setViewMode(fm.viewMode === "list" ? "grid" : "list")} title="Toggle view mode">
+				{fm.viewMode === "list" ? "\uf00a" : "\uf00b"}
 			</button>
-			<button class="nav-btn icon" class:active={showHidden} onclick={toggleHidden} title="Toggle hidden files">
-				{showHidden ? "\uf06e" : "\uf070"}
+			<button class="nav-btn icon" class:active={fm.showHidden} onclick={fm.toggleHidden} title="Toggle hidden files">
+				{fm.showHidden ? "\uf06e" : "\uf070"}
 			</button>
 		</div>
 	</div>
 
-	{#if error}
+	{#if fm.error}
 		<div class="error-bar">
-			<span>{error}</span>
-			<button onclick={() => (error = null)}>✕</button>
+			<span>{fm.error}</span>
+			<button onclick={() => fm.setError(null)}>✕</button>
 		</div>
 	{/if}
 
 	<div class="main">
-		<Sidebar {currentPath} onnavigate={navigate} {drives} />
+		<Sidebar currentPath={fm.currentPath} onnavigate={fm.navigate} drives={fm.drives} homeDir={fm.homeDir} />
 
-		{#if loading}
+		{#if fm.loading}
 			<div class="loading">Loading...</div>
 		{:else}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="content-wrapper">
-				{#if isTrash}
+				{#if fm.isTrash}
 					<div class="context-bar">
 						<span class="context-bar-text">
-							{entries.length === 0 ? "Trash is empty" : `${entries.length} ${entries.length === 1 ? "item" : "items"} in trash`}
+							{fm.entries.length === 0 ? "Trash is empty" : `${fm.entries.length} ${fm.entries.length === 1 ? "item" : "items"} in trash`}
 						</span>
-						{#if entries.length > 0}
+						{#if fm.entries.length > 0}
 							<button class="context-bar-action" onclick={handleEmptyTrash}>Empty Trash</button>
 						{/if}
 					</div>
 				{/if}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div class="content" oncontextmenu={handleBgContextMenu}>
-				{#if viewMode === "list"}
+				{#if fm.viewMode === "list"}
 					<FileList
-						entries={sortedEntries}
-						{selectedPath}
-						{renamingPath}
-						{creatingEntry}
-						clipboardPaths={clipboard ? new Set(clipboard.entries.map(e => e.path)) : null}
-						clipboardMode={clipboard?.mode ?? null}
-						{sortBy}
-						{sortAsc}
+						entries={fm.sortedEntries}
+						selectedPath={fm.selectedPath}
+						renamingPath={fm.renamingPath}
+						creatingEntry={fm.creatingEntry}
+						clipboardPaths={fm.clipboard ? new Set(fm.clipboard.entries.map(e => e.path)) : null}
+						clipboardMode={fm.clipboard?.mode ?? null}
+						sortBy={fm.sortBy}
+						sortAsc={fm.sortAsc}
 						onopen={handleOpen}
-						onselect={handleSelect}
+						onselect={fm.select}
 						oncontextmenu={handleContextMenu}
-						onsort={handleSort}
+						onsort={fm.handleSort}
 						onrename={commitRename}
 						oncreate={commitCreate}
 					/>
 				{:else}
 					<FileGrid
-						entries={sortedEntries}
-						{selectedPath}
-						{renamingPath}
-						{creatingEntry}
-						clipboardPaths={clipboard ? new Set(clipboard.entries.map(e => e.path)) : null}
-						clipboardMode={clipboard?.mode ?? null}
+						entries={fm.sortedEntries}
+						selectedPath={fm.selectedPath}
+						renamingPath={fm.renamingPath}
+						creatingEntry={fm.creatingEntry}
+						clipboardPaths={fm.clipboard ? new Set(fm.clipboard.entries.map(e => e.path)) : null}
+						clipboardMode={fm.clipboard?.mode ?? null}
 						onopen={handleOpen}
-						onselect={handleSelect}
+						onselect={fm.select}
 						oncontextmenu={handleContextMenu}
 						onrename={commitRename}
 						oncreate={commitCreate}
@@ -661,12 +526,12 @@ onDestroy(() => {
 		{/if}
 	</div>
 
-	{#if clipboard}
+	{#if fm.clipboard}
 		<div class="status-bar">
 			<span class="status-text">
-				{clipboard.mode === "cut" ? "Moving" : "Copied"}: {clipboard.entries.length === 1 ? clipboard.entries[0].name : clipboard.entries.length + " items"}
+				{fm.clipboard.mode === "cut" ? "Moving" : "Copied"}: {fm.clipboard.entries.length === 1 ? fm.clipboard.entries[0].name : fm.clipboard.entries.length + " items"}
 			</span>
-			<button class="status-clear" onclick={() => clipboard = null}>Clear</button>
+			<button class="status-clear" onclick={() => fm.clipboard = null}>Clear</button>
 		</div>
 	{/if}
 
@@ -675,7 +540,7 @@ onDestroy(() => {
 			x={contextMenu.x}
 			y={contextMenu.y}
 			items={getContextMenuItems()}
-			onclose={() => { contextMenu = null; openWithApps = []; }}
+			onclose={() => { contextMenu = null; fm.openWithApps = []; }}
 		/>
 	{/if}
 

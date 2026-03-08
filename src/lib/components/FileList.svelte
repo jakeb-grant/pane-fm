@@ -1,8 +1,8 @@
 <script lang="ts">
+import { tick } from "svelte";
 import type { FileEntry } from "$lib/commands";
 import { getIconForEntry } from "$lib/icons";
 import { formatSize } from "$lib/utils";
-import { tick } from "svelte";
 
 let {
 	entries,

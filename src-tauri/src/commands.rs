@@ -137,7 +137,7 @@ pub fn list_drives() -> Vec<DriveEntry> {
 
 #[tauri::command]
 pub fn path_exists(path: String) -> bool {
-    PathBuf::from(path).is_dir()
+    PathBuf::from(path).exists()
 }
 
 #[tauri::command]
@@ -162,7 +162,7 @@ pub fn restore_trash(name: String) -> Result<(), String> {
         .ok_or("Could not find original path in trash info")?;
 
     // URL-decode the path
-    let decoded = urlencoding(original_path);
+    let decoded = percent_decode(original_path);
     let dest = PathBuf::from(&decoded);
 
     if dest.exists() {
@@ -735,7 +735,7 @@ fn parse_desktop_file(data_dirs: &[PathBuf], desktop_id: &str) -> Option<AppEntr
     None
 }
 
-fn urlencoding(s: &str) -> String {
+fn percent_decode(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let bytes = s.as_bytes();
     let mut i = 0;

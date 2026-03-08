@@ -1,23 +1,65 @@
 # Hyprfiles Refactoring TODO
 
-## Known Bugs (Fix Before Refactoring)
+## Project Context
 
-### B.1 `icons.ts` NAME_ICONS case-sensitivity bug
-- [ ] `getIconForEntry()` lowercases the filename before lookup, but `NAME_ICONS` has mixed-case keys (`"Dockerfile"`, `"PKGBUILD"`, `".Xresources"`, etc.) that will never match
-- [ ] Fix: lowercase all keys in `NAME_ICONS`, or remove the `toLowerCase()` call and do case-insensitive comparison
+**Hyprfiles** is a themeable file manager for Hyprland built with **Tauri v2** (Rust backend) + **SvelteKit / Svelte 5** (frontend) + **bun** (runtime/package manager). See `CLAUDE.md` for toolchain and conventions, `ROADMAP.md` for the full feature roadmap.
 
-### B.2 `path_exists` only checks directories
-- [ ] `commands.rs` `path_exists()` uses `.is_dir()` instead of `.exists()` — returns false for existing files
-- [ ] Currently only used by Sidebar to check directory places, so behavior happens to be correct, but the function name is misleading
-- [ ] Fix: rename to `dir_exists` or change to use `.exists()`
+### Architecture Overview
 
-### B.3 `urlencoding` function name is backwards
-- [ ] The function at `commands.rs:738` performs URL *decoding* (percent-decoding), not encoding
-- [ ] Fix: rename to `urldecoding` or `percent_decode`
+```
+src/                          # Frontend (Svelte 5)
+├── routes/+page.svelte       # Main app — ALL state, handlers, and UI (1,020 lines, needs splitting)
+├── lib/
+│   ├── commands.ts           # Tauri IPC wrappers (typed invoke calls)
+│   ├── icons.ts              # Nerd font icon lookup tables
+│   ├── utils.ts              # formatSize, pathSegments helpers
+│   └── components/           # Presentational components
+│       ├── FileList.svelte   # List view (has inline edit logic — duplicated with FileGrid)
+│       ├── FileGrid.svelte   # Grid view (has inline edit logic — duplicated with FileList)
+│       ├── Sidebar.svelte    # Places/drives sidebar
+│       ├── Breadcrumb.svelte # Path breadcrumb nav
+│       ├── ContextMenu.svelte # Right-click menu (presentational only)
+│       ├── FolderPicker.svelte    # Folder selection dialog (move/copy/extract)
+│       ├── CompressDialog.svelte  # Archive format + name dialog
+│       └── PropertiesDialog.svelte # File/dir properties (async dir stats)
 
-### B.4 Type escape hatch in background context menu
-- [ ] `handleBgContextMenu` sets `contextMenu.entry` to `null as unknown as FileEntry`
-- [ ] Fix: model context menu state as a discriminated union (entry menu vs background menu)
+src-tauri/src/                # Backend (Rust)
+├── main.rs                   # Entry point
+├── lib.rs                    # Tauri builder + command registration
+├── commands.rs               # ALL 21 Tauri commands + 14 helpers (789 lines, needs splitting)
+└── fs_ops.rs                 # FileEntry/DriveEntry models, read_directory, MIME, basic file ops
+```
+
+### Key Patterns
+- **Frontend state**: All in `+page.svelte` as Svelte 5 `$state()` runes — no store layer yet
+- **Backend commands**: All `#[tauri::command]` functions in one file, return `Result<T, String>`
+- **Progress tracking**: `ProgressWriter`/`ProgressReader` wrappers emit Tauri events, checked by `AtomicBool` for cancellation
+- **Inline editing**: Rename and create use phantom entries with auto-focused inputs (logic duplicated in FileList + FileGrid)
+- **CSS theming**: Custom properties (`--bg-primary`, `--accent`, etc.) defined in `app.css`
+
+### What's Working
+Phase 1 is complete. Partial Phase 2 (sidebar, grid view, dir counts, back/forward, sorting). Compression/extraction with progress + cancel. Trash management. Properties dialog with async dir stats. Open With via `.desktop` file parsing.
+
+### What This TODO Covers
+Refactoring to support Phase 2+ features (tabs, multi-select, keyboard nav, drag & drop, theming). The current monolithic structure won't scale — both `+page.svelte` and `commands.rs` need to be broken up before adding more features.
+
+### Workflow for Agents
+
+Work through sections **one at a time** (e.g., 1.1, then 1.2, then 1.3). For each section:
+
+1. **Plan** — Read the section's checklist and all affected files. Use plan mode or an agent to design the approach before writing code. Identify which files will be created, modified, or deleted.
+2. **Implement** — Make the changes for that section only. Don't touch unrelated sections.
+3. **Verify** — Run all checks and fix any issues before moving on:
+   - `cargo check` (Rust compilation)
+   - `cargo clippy` (Rust linting)
+   - `bunx svelte-check --tsconfig ./tsconfig.json` (Svelte/TS type checking)
+   - `bunx biome check --write` (frontend linting/formatting)
+   - Use the **Svelte MCP autofixer** if svelte-check reports component issues
+4. **Check off** — Mark completed items as `[x]` in this file.
+5. **Commit** — Commit the section's changes with a descriptive message.
+6. **Repeat** — Move to the next section.
+
+**Do not** skip verification steps. **Do not** combine multiple sections into one pass — each section should be a self-contained, working change. If a section is too large, break it into sub-commits but still verify after each.
 
 ---
 
@@ -26,18 +68,18 @@
 The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` values, ~22 handlers, and all app logic. It needs to be broken into a state management layer and focused handler modules.
 
 ### 1.1 Create a file manager store (`src/lib/stores/fileManager.svelte.ts`)
-- [ ] Extract navigation state: `currentPath`, `history`, `historyIndex`, `loading`, `error`
-- [ ] Extract file state: `entries`, `drives`, `sortBy`, `sortAsc`, `showHidden`, `viewMode`
-- [ ] Extract selection state: `selectedPath`, `selectedEntry`
-- [ ] Extract edit state: `renamingPath`, `creatingEntry`
-- [ ] Extract clipboard state: `clipboard` (entries + mode)
-- [ ] Extract app state: `openWithApps`
-- [ ] Extract derived state: `sortedEntries`, `isTrash`
-- [ ] Expose action methods: `navigate()`, `goBack()`, `goForward()`, `goUp()`, `refresh()`
-- [ ] Expose sort/filter methods: `handleSort()`, `toggleHidden()`
-- [ ] Initialize drives list on creation
-- [ ] Provide home dir to Sidebar (eliminate duplicate `getHomeDir()` IPC call)
-- [ ] Persist preferences (viewMode, showHidden, sortBy) to localStorage
+- [x] Extract navigation state: `currentPath`, `history`, `historyIndex`, `loading`, `error`
+- [x] Extract file state: `entries`, `drives`, `sortBy`, `sortAsc`, `showHidden`, `viewMode`
+- [x] Extract selection state: `selectedPath`, `selectedEntry`
+- [x] Extract edit state: `renamingPath`, `creatingEntry`
+- [x] Extract clipboard state: `clipboard` (entries + mode)
+- [x] Extract app state: `openWithApps`
+- [x] Extract derived state: `sortedEntries`, `isTrash`
+- [x] Expose action methods: `navigate()`, `goBack()`, `goForward()`, `goUp()`, `refresh()`
+- [x] Expose sort/filter methods: `handleSort()`, `toggleHidden()`
+- [x] Initialize drives list on creation
+- [x] Provide home dir to Sidebar (eliminate duplicate `getHomeDir()` IPC call)
+- [x] Persist preferences (viewMode, showHidden, sortBy) to localStorage
 
 ### 1.2 Create file operations module (`src/lib/fileOps.ts`)
 - [ ] Extract `handleOpen()` — open file/directory
