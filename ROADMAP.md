@@ -42,13 +42,14 @@ Get a working file browser with basic operations. The app should be usable (if u
 
 ### Rust Backend
 - [x] Read directory contents (name, size, modified date, type, permissions)
-- [ ] Open files with tauri-plugin-opener
+- [x] Open files with tauri-plugin-opener
 - [x] Create files and directories
 - [x] Rename files/directories
 - [x] Delete files/directories (move to freedesktop trash via `trash` crate)
 - [x] Copy and move files/directories
 - [x] MIME type detection (mime_guess + infer)
-- [x] Basic error handling and user feedback
+- [x] Compress and extract archives (zip, tar.gz, tar.xz, tar.zst, tar.bz2) with progress + cancellation
+- [x] Basic error handling and user feedback (structured AppError types)
 
 ### Svelte Frontend
 - [x] File list view (sortable by name, size, date, type)
@@ -57,6 +58,9 @@ Get a working file browser with basic operations. The app should be usable (if u
 - [x] Context menu (right-click) with basic operations
 - [x] Hidden files toggle
 - [x] Loading and error states
+- [x] Open With menu (.desktop file integration)
+- [x] Compress/extract dialogs with progress overlay
+- [x] File properties dialog with async directory stats
 
 ## Phase 2: Navigation & Views
 
