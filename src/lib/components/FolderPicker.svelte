@@ -2,6 +2,7 @@
 import { onMount } from "svelte";
 import type { FileEntry } from "$lib/commands";
 import { getHomeDir, listDirectory, pathExists } from "$lib/commands";
+import { errorMessage } from "$lib/errors";
 import { parentPath, pathSegments } from "$lib/utils";
 
 let {
@@ -30,7 +31,7 @@ async function loadDir(path: string) {
 		folders = entries.filter((e) => e.is_dir);
 		currentDir = path;
 	} catch (e) {
-		err = String(e);
+		err = errorMessage(e) ?? String(e);
 	} finally {
 		loading = false;
 	}

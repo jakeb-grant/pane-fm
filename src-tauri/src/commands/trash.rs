@@ -164,7 +164,7 @@ pub fn empty_trash() -> Result<(), AppError> {
 }
 
 pub(crate) fn percent_decode(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
+    let mut raw: Vec<u8> = Vec::with_capacity(s.len());
     let bytes = s.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -173,15 +173,15 @@ pub(crate) fn percent_decode(s: &str) -> String {
                 &s[i + 1..i + 3],
                 16,
             ) {
-                result.push(byte as char);
+                raw.push(byte);
                 i += 3;
                 continue;
             }
         }
-        result.push(bytes[i] as char);
+        raw.push(bytes[i]);
         i += 1;
     }
-    result
+    String::from_utf8(raw).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
 #[cfg(test)]
@@ -208,12 +208,15 @@ mod tests {
     #[test]
     fn percent_decode_unicode_path() {
         // %C3%A9 = é (UTF-8 bytes 0xC3 0xA9)
-        // percent_decode decodes each byte individually via `byte as char`,
-        // producing char 0xC3 and char 0xA9 (two separate chars, not UTF-8 é).
-        let decoded = percent_decode("/home/user/caf%C3%A9");
-        assert_eq!(decoded.chars().count(), 16); // 14 prefix + 2 decoded bytes
-        // The decoded bytes are valid Latin-1: Ã (U+00C3) and © (U+00A9)
-        assert!(decoded.ends_with("\u{00C3}\u{00A9}"));
+        assert_eq!(percent_decode("/home/user/caf%C3%A9"), "/home/user/café");
+    }
+
+    #[test]
+    fn percent_decode_multibyte_unicode() {
+        // %E4%B8%AD = 中 (CJK character, 3-byte UTF-8)
+        assert_eq!(percent_decode("%E4%B8%AD"), "中");
+        // Mixed: ASCII + multi-byte
+        assert_eq!(percent_decode("a%C3%BC%C3%9Fb"), "aüßb");
     }
 
     #[test]
