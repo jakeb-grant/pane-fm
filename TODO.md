@@ -146,14 +146,12 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 - [x] Move: `ProgressWriter`, `ProgressReader`, `ProgressPayload`, `CANCEL_OPERATION`
 - [x] Move: `compress_zip`, `add_dir_to_zip`, `compress_tar`, `write_tar`, `add_dir_to_tar`
 - [x] Move: `extract_zip`, `unpack_tar`
-- [ ] Deduplicate `add_dir_to_zip` / `add_dir_to_tar` directory traversal into a shared iterator
-
-**Note:** This module will realistically be ~250 lines even after deduplication. That's acceptable given the complexity.
+~~Deduplicate `add_dir_to_zip` / `add_dir_to_tar` — skipped, minimal shared logic after accounting for API differences~~
 
 ### 2.4 Extract app/desktop integration (`src/commands/apps.rs`)
 - [x] Move: `open_default`, `list_apps_for_mime`, `open_with_app`
 - [x] Move: `get_xdg_data_dirs`, `parse_desktop_file`
-- [ ] Deduplicate Exec= line parsing (used in both `list_apps_for_mime` and `open_with_app`)
+~~Deduplicate Exec= line parsing — skipped, only `open_with_app` actually parses Exec~~
 
 ### 2.5 Extract trash operations (`src/commands/trash.rs`)
 - [x] Move: `list_trash` (from `fs_ops.rs`), `restore_trash`, `empty_trash` (from `commands.rs`)
@@ -167,7 +165,7 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 ### 2.7 Clean up fs_ops.rs
 - [x] After all extractions (2.2–2.6), `fs_ops.rs` should only contain: `FileEntry` struct, `DriveEntry` struct, `read_directory()`, `guess_mime()` (make public, drop the `guess_mime_pub` wrapper)
 - [x] Remove the redundant Rust-side sort in `read_directory()` — the frontend re-sorts via `sortedEntries` anyway
-- [ ] Consider renaming to `models.rs` or splitting into `models.rs` + `fs.rs`
+~~Rename to `models.rs` — skipped, file still contains logic (`read_directory`, file ops), not just models~~
 
 ### 2.8 Target outcome
 - [x] No single file exceeds ~250 lines
@@ -181,23 +179,23 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 
 FileList (301 lines) and FileGrid (234 lines) duplicate identical edit input logic.
 
-### 3.1 Create shared edit logic (`src/lib/components/fileEditLogic.ts`)
-- [ ] Extract `focusAndSelect()` helper (smart extension-aware selection)
-- [ ] Extract `editValue` / `editInput` state management
-- [ ] Extract `commitRenameForEntry()` and `commitCreateEntry()` wrappers
-- [ ] Extract the `$effect` blocks for auto-focusing rename/create inputs
+### 3.1 Create shared edit logic (`src/lib/components/fileEditLogic.svelte.ts`)
+- [x] Extract `focusAndSelect()` helper (smart extension-aware selection)
+- [x] Extract `editValue` / `editInput` state management
+- [x] Extract `commitRenameForEntry()` and `commitCreateEntry()` wrappers
+- [x] Extract the `$effect` blocks for auto-focusing rename/create inputs
 
 **Note:** Svelte 5 `$effect` blocks run in component context. Extracting them requires a factory/composable pattern — the shared module should return a setup function that each component calls.
 
 ### 3.2 Update FileList and FileGrid
-- [ ] Import shared logic instead of duplicating it
-- [ ] Each component only handles layout-specific rendering (list rows vs grid tiles)
-- [ ] Ensure both components stay in sync for any future edit features
+- [x] Import shared logic instead of duplicating it
+- [x] Each component only handles layout-specific rendering (list rows vs grid tiles)
+- [x] Ensure both components stay in sync for any future edit features
 
 ### 3.3 Target outcome
-- [ ] Single place to fix edit/rename/create bugs
-- [ ] Adding keyboard navigation for editing = one file change
-- [ ] FileList and FileGrid focus purely on presentation
+- [x] Single place to fix edit/rename/create bugs
+- [x] Adding keyboard navigation for editing = one file change
+- [x] FileList and FileGrid focus purely on presentation
 
 ---
 

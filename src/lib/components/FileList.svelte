@@ -1,8 +1,8 @@
 <script lang="ts">
-import { tick } from "svelte";
 import type { FileEntry } from "$lib/commands";
 import { getIconForEntry } from "$lib/icons";
 import { formatSize } from "$lib/utils";
+import { createEditLogic } from "./fileEditLogic.svelte";
 
 let {
 	entries,
@@ -36,52 +36,17 @@ let {
 	oncreate: (name: string) => void;
 } = $props();
 
-let editValue = $state("");
-let editInput: HTMLInputElement | undefined = $state();
-
-function focusAndSelect(entry?: { is_dir: boolean; name: string }) {
-	tick().then(() => {
-		if (!editInput) return;
-		editInput.focus();
-		if (entry && !entry.is_dir) {
-			const dotIndex = entry.name.lastIndexOf(".");
-			if (dotIndex > 0) {
-				editInput.setSelectionRange(0, dotIndex);
-				return;
-			}
-		}
-		editInput.select();
-	});
-}
-
-$effect(() => {
-	if (renamingPath) {
-		const entry = entries.find((e) => e.path === renamingPath);
-		if (entry) {
-			editValue = entry.name;
-			focusAndSelect(entry);
-		}
-	}
+const edit = createEditLogic({
+	entries: () => entries,
+	renamingPath: () => renamingPath,
+	creatingEntry: () => creatingEntry,
+	onrename: (entry, newName) => onrename(entry, newName),
+	oncreate: (name) => oncreate(name),
 });
-
-$effect(() => {
-	if (creatingEntry) {
-		editValue = creatingEntry === "directory" ? "New Folder" : "New File";
-		focusAndSelect();
-	}
-});
-
-function commitRenameForEntry(entry: FileEntry) {
-	onrename(entry, editValue.trim());
-}
-
-function commitCreateEntry() {
-	oncreate(editValue.trim());
-}
 
 function sortIndicator(column: string): string {
 	if (sortBy !== column) return "";
-	return sortAsc ? " \u25B2" : " \u25BC";
+	return sortAsc ? " ▲" : " ▼";
 }
 </script>
 
@@ -108,13 +73,13 @@ function sortIndicator(column: string): string {
 					<input
 						class="rename-input"
 						type="text"
-						bind:value={editValue}
-						bind:this={editInput}
+						bind:value={edit.editValue}
+						bind:this={edit.editInput}
 						onkeydown={(e) => {
-							if (e.key === "Enter") { e.preventDefault(); commitCreateEntry(); }
+							if (e.key === "Enter") { e.preventDefault(); edit.commitCreateEntry(); }
 							if (e.key === "Escape") { e.preventDefault(); oncreate(""); }
 						}}
-						onblur={commitCreateEntry}
+						onblur={edit.commitCreateEntry}
 					/>
 				</span>
 				<span class="col col-size"></span>
@@ -139,13 +104,13 @@ function sortIndicator(column: string): string {
 						<input
 							class="rename-input"
 							type="text"
-							bind:value={editValue}
-							bind:this={editInput}
+							bind:value={edit.editValue}
+							bind:this={edit.editInput}
 							onkeydown={(e) => {
-								if (e.key === "Enter") { e.preventDefault(); commitRenameForEntry(entry); }
+								if (e.key === "Enter") { e.preventDefault(); edit.commitRenameForEntry(entry); }
 								if (e.key === "Escape") { e.preventDefault(); onrename(entry, entry.name); }
 							}}
-							onblur={() => commitRenameForEntry(entry)}
+							onblur={() => edit.commitRenameForEntry(entry)}
 							onclick={(e) => e.stopPropagation()}
 							ondblclick={(e) => e.stopPropagation()}
 						/>
