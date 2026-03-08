@@ -1,0 +1,31 @@
+[package]
+name = "hyprfiles"
+version = "0.1.0"
+description = "A themeable file manager for Hyprland"
+authors = ["you"]
+edition = "2021"
+
+[lib]
+name = "hyprfiles_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+trash = "5"
+chrono = { version = "0.4", features = ["serde"] }
+mime_guess = "2"
+infer = "0.19"
+dirs = "6"
+tokio = { version = "1", features = ["rt"] }
+zip = { version = "4", default-features = false, features = ["deflate"] }
+flate2 = "1"
+tar = "0.4"
+xz2 = "0.1"
+zstd = "0.13"
+bzip2 = "0.5"
