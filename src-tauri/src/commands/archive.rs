@@ -351,3 +351,261 @@ fn unpack_tar<R: std::io::Read>(reader: R, dest: &PathBuf) -> Result<(), AppErro
         .map_err(|e| AppError::io_with_path(e, dest.display().to_string()))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Helper: create a directory with some test files
+    fn create_test_dir(dir: &std::path::Path) {
+        fs::create_dir_all(dir.join("sub")).unwrap();
+        fs::write(dir.join("hello.txt"), "Hello, world!").unwrap();
+        fs::write(dir.join("sub/nested.txt"), "Nested content").unwrap();
+    }
+
+    /// Helper: verify extracted content matches what we created
+    fn assert_test_dir_contents(dir: &std::path::Path, prefix: &str) {
+        let hello = dir.join(prefix).join("hello.txt");
+        assert!(hello.exists(), "hello.txt should exist");
+        assert_eq!(fs::read_to_string(&hello).unwrap(), "Hello, world!");
+
+        let nested = dir.join(prefix).join("sub/nested.txt");
+        assert!(nested.exists(), "sub/nested.txt should exist");
+        assert_eq!(fs::read_to_string(&nested).unwrap(), "Nested content");
+    }
+
+    #[test]
+    fn zip_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("source");
+        create_test_dir(&src);
+
+        let archive = tmp.path().join("test.zip");
+
+        // Test add_dir_to_zip directly (compress_zip needs AppHandle for ProgressWriter)
+        {
+            use zip::write::SimpleFileOptions;
+            let file = fs::File::create(&archive).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            add_dir_to_zip(&mut zip, &src, &src, options).unwrap();
+            zip.finish().unwrap();
+        }
+
+        // Extract
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+        {
+            let file = fs::File::open(&archive).unwrap();
+            extract_zip(file, &extract_dir).unwrap();
+        }
+
+        assert_test_dir_contents(&extract_dir, "source");
+    }
+
+    #[test]
+    fn tar_gz_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("source");
+        create_test_dir(&src);
+
+        let archive = tmp.path().join("test.tar.gz");
+        let paths = vec![src.to_string_lossy().to_string()];
+
+        // Compress
+        {
+            let file = fs::File::create(&archive).unwrap();
+            let enc = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+            write_tar(enc, &paths).unwrap();
+        }
+
+        // Extract
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+        {
+            let file = fs::File::open(&archive).unwrap();
+            let dec = flate2::read::GzDecoder::new(file);
+            unpack_tar(dec, &extract_dir).unwrap();
+        }
+
+        assert_test_dir_contents(&extract_dir, "source");
+    }
+
+    #[test]
+    fn tar_xz_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("source");
+        create_test_dir(&src);
+
+        let archive = tmp.path().join("test.tar.xz");
+        let paths = vec![src.to_string_lossy().to_string()];
+
+        {
+            let file = fs::File::create(&archive).unwrap();
+            let enc = xz2::write::XzEncoder::new(file, 6);
+            write_tar(enc, &paths).unwrap();
+        }
+
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+        {
+            let file = fs::File::open(&archive).unwrap();
+            let dec = xz2::read::XzDecoder::new(file);
+            unpack_tar(dec, &extract_dir).unwrap();
+        }
+
+        assert_test_dir_contents(&extract_dir, "source");
+    }
+
+    #[test]
+    fn tar_zst_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("source");
+        create_test_dir(&src);
+
+        let archive = tmp.path().join("test.tar.zst");
+        let paths = vec![src.to_string_lossy().to_string()];
+
+        {
+            let file = fs::File::create(&archive).unwrap();
+            let enc = zstd::Encoder::new(file, 3).unwrap().auto_finish();
+            write_tar(enc, &paths).unwrap();
+        }
+
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+        {
+            let file = fs::File::open(&archive).unwrap();
+            let dec = zstd::Decoder::new(file).unwrap();
+            unpack_tar(dec, &extract_dir).unwrap();
+        }
+
+        assert_test_dir_contents(&extract_dir, "source");
+    }
+
+    #[test]
+    fn tar_bz2_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("source");
+        create_test_dir(&src);
+
+        let archive = tmp.path().join("test.tar.bz2");
+        let paths = vec![src.to_string_lossy().to_string()];
+
+        {
+            let file = fs::File::create(&archive).unwrap();
+            let enc = bzip2::write::BzEncoder::new(file, bzip2::Compression::default());
+            write_tar(enc, &paths).unwrap();
+        }
+
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+        {
+            let file = fs::File::open(&archive).unwrap();
+            let dec = bzip2::read::BzDecoder::new(file);
+            unpack_tar(dec, &extract_dir).unwrap();
+        }
+
+        assert_test_dir_contents(&extract_dir, "source");
+    }
+
+    #[test]
+    fn compress_empty_directory() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("empty");
+        fs::create_dir_all(&src).unwrap();
+
+        let archive = tmp.path().join("empty.tar.gz");
+        let paths = vec![src.to_string_lossy().to_string()];
+
+        {
+            let file = fs::File::create(&archive).unwrap();
+            let enc = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+            write_tar(enc, &paths).unwrap();
+        }
+
+        // The archive should be created successfully even with an empty dir.
+        // Note: write_tar uses add_dir_to_tar which only adds contents,
+        // so the empty dir itself won't have entries but the archive is valid.
+        assert!(archive.exists());
+        assert!(fs::metadata(&archive).unwrap().len() > 0);
+
+        // Extraction should succeed without errors
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+        {
+            let file = fs::File::open(&archive).unwrap();
+            let dec = flate2::read::GzDecoder::new(file);
+            unpack_tar(dec, &extract_dir).unwrap();
+        }
+    }
+
+    #[test]
+    fn zip_skips_symlinks() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("source");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("real.txt"), "real file").unwrap();
+
+        // Create a symlink
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(src.join("real.txt"), src.join("link.txt")).unwrap();
+
+        let archive = tmp.path().join("test.zip");
+        {
+            use zip::write::SimpleFileOptions;
+            let file = fs::File::create(&archive).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            add_dir_to_zip(&mut zip, &src, &src, options).unwrap();
+            zip.finish().unwrap();
+        }
+
+        // Extract and verify symlink was skipped
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+        {
+            let file = fs::File::open(&archive).unwrap();
+            extract_zip(file, &extract_dir).unwrap();
+        }
+
+        assert!(extract_dir.join("source/real.txt").exists());
+        #[cfg(unix)]
+        assert!(!extract_dir.join("source/link.txt").exists());
+    }
+
+    #[test]
+    fn extract_to_existing_directory() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("source");
+        create_test_dir(&src);
+
+        // Create archive
+        let archive = tmp.path().join("test.tar.gz");
+        let paths = vec![src.to_string_lossy().to_string()];
+        {
+            let file = fs::File::create(&archive).unwrap();
+            let enc = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+            write_tar(enc, &paths).unwrap();
+        }
+
+        // Extract to a directory that already exists with some content
+        let extract_dir = tmp.path().join("existing");
+        fs::create_dir_all(&extract_dir).unwrap();
+        fs::write(extract_dir.join("preexisting.txt"), "already here").unwrap();
+
+        {
+            let file = fs::File::open(&archive).unwrap();
+            let dec = flate2::read::GzDecoder::new(file);
+            unpack_tar(dec, &extract_dir).unwrap();
+        }
+
+        // Both old and new content should exist
+        assert!(extract_dir.join("preexisting.txt").exists());
+        assert_test_dir_contents(&extract_dir, "source");
+    }
+}

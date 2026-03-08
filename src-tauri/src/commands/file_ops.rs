@@ -213,3 +213,37 @@ pub fn dir_size_and_count(path: &PathBuf) -> Result<(u64, u64), std::io::Error> 
     }
     Ok((size, count))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn dir_size_and_count_accuracy() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("a.txt"), "hello").unwrap(); // 5 bytes
+        fs::write(tmp.path().join("b.txt"), "world!").unwrap(); // 6 bytes
+        fs::create_dir(tmp.path().join("sub")).unwrap();
+        fs::write(tmp.path().join("sub/c.txt"), "nested").unwrap(); // 6 bytes
+
+        let (size, count) = dir_size_and_count(&tmp.path().to_path_buf()).unwrap();
+        assert_eq!(size, 17); // 5 + 6 + 6
+        assert_eq!(count, 4); // a.txt, b.txt, sub/, sub/c.txt
+    }
+
+    #[test]
+    fn dir_size_and_count_empty() {
+        let tmp = TempDir::new().unwrap();
+        let (size, count) = dir_size_and_count(&tmp.path().to_path_buf()).unwrap();
+        assert_eq!(size, 0);
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn dir_size_and_count_nonexistent() {
+        let result = dir_size_and_count(&PathBuf::from("/nonexistent/path"));
+        assert!(result.is_err());
+    }
+}

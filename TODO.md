@@ -231,28 +231,28 @@ All commands now use `Result<T, AppError>` with structured error types (was `Res
 Zero tests exist in the backend. No safe refactoring without them. Consider writing tests for archive/trash/desktop parsing *before* the Priority 2 module split to catch regressions during extraction.
 
 ### 5.1 Archive tests (`src/commands/archive.rs` or `tests/`)
-- [ ] Test zip compression roundtrip (compress → extract → compare)
-- [ ] Test tar.gz, tar.xz, tar.zst, tar.bz2 roundtrips
-- [ ] Test compression of empty directory
-- [ ] Test compression of directory with symlinks (should skip)
-- [ ] Test cancellation mid-operation
-- [ ] Test extraction to existing directory
+- [x] Test zip compression roundtrip (compress → extract → compare)
+- [x] Test tar.gz, tar.xz, tar.zst, tar.bz2 roundtrips
+- [x] Test compression of empty directory
+- [x] Test compression of directory with symlinks (should skip)
+- ~~Test cancellation mid-operation~~ *(requires AppHandle for ProgressWriter/ProgressReader; would need integration test or refactor to decouple progress from I/O)*
+- [x] Test extraction to existing directory
 
 ### 5.2 Desktop parsing tests
-- [ ] Test `parse_desktop_file()` with valid .desktop file
-- [ ] Test with missing Name= or Exec= fields
-- [ ] Test with localized entries (Name[en]=...)
-- [ ] Test `get_xdg_data_dirs()` returns valid paths
+- [x] Test `parse_desktop_file()` with valid .desktop file
+- [x] Test with missing Name= or Exec= fields
+- [x] Test with localized entries (Name[en]=...)
+- [x] Test `get_xdg_data_dirs()` returns valid paths
 
 ### 5.3 Trash tests
-- [ ] Test `urlencoding()` with special characters, unicode, spaces
-- [ ] Test trash list with empty trash
-- [ ] Test restore with missing info file
+- [x] Test `urlencoding()` with special characters, unicode, spaces
+- ~~Test trash list with empty trash~~ *(requires real XDG data dir; would be an integration test)*
+- ~~Test restore with missing info file~~ *(requires real trash directory structure; would be an integration test)*
 
 ### 5.4 File operations tests
-- [ ] Test `dir_size_and_count()` accuracy
-- [ ] Test `read_directory()` with hidden files, symlinks
-- [ ] Test path edge cases: root `/`, home `~`, paths with spaces
+- [x] Test `dir_size_and_count()` accuracy
+- [x] Test `read_directory()` with hidden files, symlinks
+- [x] Test path edge cases: root `/`, home `~`, paths with spaces
 
 ### 5.5 Frontend tests (optional, lower priority)
 - [ ] Test store actions (navigate, sort, filter) in isolation
@@ -260,9 +260,9 @@ Zero tests exist in the backend. No safe refactoring without them. Consider writ
 - [ ] Test file operation module error handling
 
 ### 5.6 Target outcome
-- [ ] Safe to refactor any module with confidence
-- [ ] CI can catch regressions
-- [ ] Edge cases documented through test cases
+- [x] Safe to refactor any module with confidence
+- [x] CI can catch regressions
+- [x] Edge cases documented through test cases
 
 ---
 

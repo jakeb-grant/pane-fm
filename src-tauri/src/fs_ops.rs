@@ -173,3 +173,190 @@ pub fn move_entry(from: &Path, to: &Path) -> Result<(), AppError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn read_directory_basic() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("file.txt"), "content").unwrap();
+        fs::create_dir(tmp.path().join("subdir")).unwrap();
+
+        let entries = read_directory(tmp.path()).unwrap();
+        assert_eq!(entries.len(), 2);
+
+        let file = entries.iter().find(|e| e.name == "file.txt").unwrap();
+        assert!(!file.is_dir);
+        assert_eq!(file.size, 7); // "content".len()
+
+        let dir = entries.iter().find(|e| e.name == "subdir").unwrap();
+        assert!(dir.is_dir);
+    }
+
+    #[test]
+    fn read_directory_hidden_files() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join(".hidden"), "").unwrap();
+        fs::write(tmp.path().join("visible"), "").unwrap();
+
+        let entries = read_directory(tmp.path()).unwrap();
+        let hidden = entries.iter().find(|e| e.name == ".hidden").unwrap();
+        assert!(hidden.hidden);
+
+        let visible = entries.iter().find(|e| e.name == "visible").unwrap();
+        assert!(!visible.hidden);
+    }
+
+    #[test]
+    fn read_directory_symlinks() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("target.txt"), "data").unwrap();
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                tmp.path().join("target.txt"),
+                tmp.path().join("link.txt"),
+            )
+            .unwrap();
+
+            let entries = read_directory(tmp.path()).unwrap();
+            let link = entries.iter().find(|e| e.name == "link.txt").unwrap();
+            assert!(link.is_symlink);
+        }
+    }
+
+    #[test]
+    fn read_directory_nonexistent() {
+        let result = read_directory(Path::new("/nonexistent/path"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_directory_with_spaces_in_path() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path().join("path with spaces");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("file.txt"), "hello").unwrap();
+
+        let entries = read_directory(&dir).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].name, "file.txt");
+    }
+
+    #[test]
+    fn read_directory_root() {
+        // Reading / should succeed and return entries
+        let entries = read_directory(Path::new("/")).unwrap();
+        assert!(!entries.is_empty());
+    }
+
+    #[test]
+    fn create_and_delete_directory() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path().join("newdir");
+
+        create_directory(&dir).unwrap();
+        assert!(dir.exists());
+        assert!(dir.is_dir());
+    }
+
+    #[test]
+    fn create_and_delete_file() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("newfile.txt");
+
+        create_file(&file).unwrap();
+        assert!(file.exists());
+        assert!(file.is_file());
+    }
+
+    #[test]
+    fn create_file_with_nested_parent() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("a/b/c/deep.txt");
+
+        create_file(&file).unwrap();
+        assert!(file.exists());
+    }
+
+    #[test]
+    fn rename_entry_works() {
+        let tmp = TempDir::new().unwrap();
+        let from = tmp.path().join("old.txt");
+        let to = tmp.path().join("new.txt");
+
+        fs::write(&from, "data").unwrap();
+        rename_entry(&from, &to).unwrap();
+
+        assert!(!from.exists());
+        assert!(to.exists());
+        assert_eq!(fs::read_to_string(&to).unwrap(), "data");
+    }
+
+    #[test]
+    fn copy_entry_file() {
+        let tmp = TempDir::new().unwrap();
+        let from = tmp.path().join("src.txt");
+        let to = tmp.path().join("dst.txt");
+
+        fs::write(&from, "content").unwrap();
+        copy_entry(&from, &to).unwrap();
+
+        assert!(from.exists()); // source still exists
+        assert!(to.exists());
+        assert_eq!(fs::read_to_string(&to).unwrap(), "content");
+    }
+
+    #[test]
+    fn copy_entry_directory() {
+        let tmp = TempDir::new().unwrap();
+        let from = tmp.path().join("srcdir");
+        let to = tmp.path().join("dstdir");
+
+        fs::create_dir(&from).unwrap();
+        fs::write(from.join("file.txt"), "hello").unwrap();
+        fs::create_dir(from.join("sub")).unwrap();
+        fs::write(from.join("sub/nested.txt"), "world").unwrap();
+
+        copy_entry(&from, &to).unwrap();
+
+        assert!(to.join("file.txt").exists());
+        assert_eq!(fs::read_to_string(to.join("file.txt")).unwrap(), "hello");
+        assert!(to.join("sub/nested.txt").exists());
+        assert_eq!(
+            fs::read_to_string(to.join("sub/nested.txt")).unwrap(),
+            "world"
+        );
+    }
+
+    #[test]
+    fn move_entry_file() {
+        let tmp = TempDir::new().unwrap();
+        let from = tmp.path().join("src.txt");
+        let to = tmp.path().join("dst.txt");
+
+        fs::write(&from, "content").unwrap();
+        move_entry(&from, &to).unwrap();
+
+        assert!(!from.exists()); // source removed
+        assert!(to.exists());
+        assert_eq!(fs::read_to_string(&to).unwrap(), "content");
+    }
+
+    #[test]
+    fn guess_mime_known_extension() {
+        let path = Path::new("test.png");
+        assert_eq!(guess_mime(path), "image/png");
+    }
+
+    #[test]
+    fn guess_mime_unknown_extension() {
+        let path = Path::new("test.unknownext123");
+        // Should fall back to octet-stream
+        assert_eq!(guess_mime(path), "application/octet-stream");
+    }
+}

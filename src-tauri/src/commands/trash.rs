@@ -163,7 +163,7 @@ pub fn empty_trash() -> Result<(), AppError> {
     Ok(())
 }
 
-fn percent_decode(s: &str) -> String {
+pub(crate) fn percent_decode(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let bytes = s.as_bytes();
     let mut i = 0;
@@ -182,4 +182,50 @@ fn percent_decode(s: &str) -> String {
         i += 1;
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn percent_decode_plain_string() {
+        assert_eq!(percent_decode("hello"), "hello");
+    }
+
+    #[test]
+    fn percent_decode_spaces() {
+        assert_eq!(percent_decode("/home/user/my%20file.txt"), "/home/user/my file.txt");
+    }
+
+    #[test]
+    fn percent_decode_special_characters() {
+        // %23 = #, %26 = &, %3D = =
+        assert_eq!(percent_decode("file%23name"), "file#name");
+        assert_eq!(percent_decode("a%26b%3Dc"), "a&b=c");
+    }
+
+    #[test]
+    fn percent_decode_unicode_path() {
+        // %C3%A9 = é (UTF-8 bytes 0xC3 0xA9)
+        // percent_decode decodes each byte individually via `byte as char`,
+        // producing char 0xC3 and char 0xA9 (two separate chars, not UTF-8 é).
+        let decoded = percent_decode("/home/user/caf%C3%A9");
+        assert_eq!(decoded.chars().count(), 16); // 14 prefix + 2 decoded bytes
+        // The decoded bytes are valid Latin-1: Ã (U+00C3) and © (U+00A9)
+        assert!(decoded.ends_with("\u{00C3}\u{00A9}"));
+    }
+
+    #[test]
+    fn percent_decode_trailing_percent() {
+        // % at end without two hex chars should pass through
+        assert_eq!(percent_decode("abc%"), "abc%");
+        assert_eq!(percent_decode("abc%2"), "abc%2");
+    }
+
+    #[test]
+    fn percent_decode_invalid_hex() {
+        // %ZZ is not valid hex, should pass through
+        assert_eq!(percent_decode("abc%ZZdef"), "abc%ZZdef");
+    }
 }

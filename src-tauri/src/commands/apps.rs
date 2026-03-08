@@ -117,7 +117,7 @@ pub fn open_with_app(path: String, desktop_id: String) -> Result<(), AppError> {
     Ok(())
 }
 
-fn get_xdg_data_dirs() -> Vec<PathBuf> {
+pub(crate) fn get_xdg_data_dirs() -> Vec<PathBuf> {
     let mut dirs_list = Vec::new();
 
     if let Some(data_home) = dirs::data_dir() {
@@ -133,7 +133,7 @@ fn get_xdg_data_dirs() -> Vec<PathBuf> {
     dirs_list
 }
 
-fn parse_desktop_file(data_dirs: &[PathBuf], desktop_id: &str) -> Option<AppEntry> {
+pub(crate) fn parse_desktop_file(data_dirs: &[PathBuf], desktop_id: &str) -> Option<AppEntry> {
     for dir in data_dirs {
         let path = dir.join("applications").join(desktop_id);
         if let Ok(content) = std::fs::read_to_string(&path) {
@@ -167,4 +167,122 @@ fn parse_desktop_file(data_dirs: &[PathBuf], desktop_id: &str) -> Option<AppEntr
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Helper: create a fake XDG data dir with an applications/ subdirectory
+    fn setup_data_dir(tmp: &TempDir) -> PathBuf {
+        let dir = tmp.path().to_path_buf();
+        fs::create_dir_all(dir.join("applications")).unwrap();
+        dir
+    }
+
+    #[test]
+    fn parse_valid_desktop_file() {
+        let tmp = TempDir::new().unwrap();
+        let dir = setup_data_dir(&tmp);
+
+        fs::write(
+            dir.join("applications/firefox.desktop"),
+            "[Desktop Entry]\nName=Firefox\nExec=firefox %u\nIcon=firefox\nType=Application\n",
+        )
+        .unwrap();
+
+        let dirs = vec![dir];
+        let entry = parse_desktop_file(&dirs, "firefox.desktop");
+        assert!(entry.is_some());
+        let entry = entry.unwrap();
+        assert_eq!(entry.name, "Firefox");
+        assert_eq!(entry.icon, "firefox");
+        assert_eq!(entry.desktop_id, "firefox.desktop");
+    }
+
+    #[test]
+    fn parse_desktop_file_missing_name() {
+        let tmp = TempDir::new().unwrap();
+        let dir = setup_data_dir(&tmp);
+
+        // No Name= field
+        fs::write(
+            dir.join("applications/noname.desktop"),
+            "[Desktop Entry]\nExec=something\nIcon=thing\n",
+        )
+        .unwrap();
+
+        let dirs = vec![dir];
+        assert!(parse_desktop_file(&dirs, "noname.desktop").is_none());
+    }
+
+    #[test]
+    fn parse_desktop_file_missing_exec() {
+        let tmp = TempDir::new().unwrap();
+        let dir = setup_data_dir(&tmp);
+
+        // Has Name but no Exec — parse_desktop_file only reads Name/Icon/NoDisplay
+        fs::write(
+            dir.join("applications/noexec.desktop"),
+            "[Desktop Entry]\nName=NoExec App\nIcon=noexec\n",
+        )
+        .unwrap();
+
+        let dirs = vec![dir];
+        // parse_desktop_file should still return Some (it doesn't check Exec)
+        let entry = parse_desktop_file(&dirs, "noexec.desktop");
+        assert!(entry.is_some());
+        assert_eq!(entry.unwrap().name, "NoExec App");
+    }
+
+    #[test]
+    fn parse_desktop_file_no_display() {
+        let tmp = TempDir::new().unwrap();
+        let dir = setup_data_dir(&tmp);
+
+        fs::write(
+            dir.join("applications/hidden.desktop"),
+            "[Desktop Entry]\nName=Hidden\nNoDisplay=true\nIcon=hidden\n",
+        )
+        .unwrap();
+
+        let dirs = vec![dir];
+        assert!(parse_desktop_file(&dirs, "hidden.desktop").is_none());
+    }
+
+    #[test]
+    fn parse_desktop_file_localized_entries() {
+        let tmp = TempDir::new().unwrap();
+        let dir = setup_data_dir(&tmp);
+
+        // Name[en] should not override Name=
+        fs::write(
+            dir.join("applications/localized.desktop"),
+            "[Desktop Entry]\nName=Original\nName[en]=English\nIcon=loc\n",
+        )
+        .unwrap();
+
+        let dirs = vec![dir];
+        let entry = parse_desktop_file(&dirs, "localized.desktop").unwrap();
+        // Name[en]= doesn't match strip_prefix("Name="), so original name is kept
+        assert_eq!(entry.name, "Original");
+    }
+
+    #[test]
+    fn parse_desktop_file_not_found() {
+        let tmp = TempDir::new().unwrap();
+        let dir = setup_data_dir(&tmp);
+
+        let dirs = vec![dir];
+        assert!(parse_desktop_file(&dirs, "nonexistent.desktop").is_none());
+    }
+
+    #[test]
+    fn get_xdg_data_dirs_returns_valid_paths() {
+        let dirs = get_xdg_data_dirs();
+        // Should always return at least one directory (from XDG_DATA_DIRS fallback)
+        assert!(!dirs.is_empty());
+    }
 }
