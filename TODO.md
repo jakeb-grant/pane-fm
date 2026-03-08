@@ -82,17 +82,17 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 - [x] Persist preferences (viewMode, showHidden, sortBy) to localStorage
 
 ### 1.2 Create file operations module (`src/lib/fileOps.ts`)
-- [ ] Extract `handleOpen()` — open file/directory
-- [ ] Extract `handleOpenWith()` — open with specific app
-- [ ] Extract `handleDelete()` — delete/trash entry
-- [ ] Extract `handleCopy()`, `handleCut()`, `handlePaste()` — clipboard operations
-- [ ] Extract `handleRename()`, `commitRename()` — rename flow
-- [ ] Extract `handleNewFolder()`, `handleNewFile()`, `commitCreate()` — create flow
-- [ ] Extract `handleMoveTo()`, `handleCopyTo()` — move/copy to destination
-- [ ] Extract `handleFolderPickerSelect()` — move/copy/extract after folder pick
-- [ ] Extract `handleRestore()`, `handleEmptyTrash()` — trash operations
-- [ ] Extract `handleSelect()`, `handleBgContextMenu()` — selection/context handlers
-- [ ] Each operation should accept the store as a parameter and call `refresh()` on success
+- [x] Extract `handleOpen()` — open file/directory
+- [x] Extract `handleOpenWith()` — open with specific app
+- [x] Extract `handleDelete()` — delete/trash entry
+- [x] Extract `handleCopy()`, `handleCut()`, `handlePaste()` — clipboard operations
+- [x] Extract `handleRename()`, `commitRename()` — rename flow
+- [x] Extract `handleNewFolder()`, `handleNewFile()`, `commitCreate()` — create flow
+- [x] Extract `handleMoveTo()`, `handleCopyTo()` — move/copy to destination
+- [x] Extract `handleFolderPickerSelect()` — move/copy/extract after folder pick
+- [x] Extract `handleRestore()`, `handleEmptyTrash()` — trash operations
+- [x] Extract `handleSelect()`, `handleBgContextMenu()` — selection/context handlers
+- [x] Each operation should accept the store as a parameter and call `refresh()` on success
 - [ ] Return typed errors instead of setting a string directly
 
 ### 1.3 Create dialog/modal manager (`src/lib/stores/dialogs.svelte.ts`)

@@ -4,21 +4,10 @@ import { onDestroy, onMount } from "svelte";
 import {
 	cancelOperation,
 	compress,
-	copyEntry,
-	createDirectory,
-	createFile,
-	deleteEntry,
-	emptyTrash,
 	extract,
 	type FileEntry,
 	type FileProperties,
-	getProperties,
-	listAppsForMime,
-	moveEntry,
-	openDefault,
 	openWithApp,
-	renameEntry,
-	restoreTrash,
 } from "$lib/commands";
 import Breadcrumb from "$lib/components/Breadcrumb.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
@@ -29,6 +18,7 @@ import FileList from "$lib/components/FileList.svelte";
 import FolderPicker from "$lib/components/FolderPicker.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
+import * as ops from "$lib/fileOps";
 import { createFileManager } from "$lib/stores/fileManager.svelte";
 import { formatSize, parentPath } from "$lib/utils";
 
@@ -67,32 +57,26 @@ let contextMenu = $state<{
 	entry: FileEntry | null;
 } | null>(null);
 
-async function handleOpen(entry: FileEntry) {
-	if (entry.is_dir) {
-		fm.navigate(entry.path);
-		return;
-	}
-	try {
-		await openDefault(entry.path);
-	} catch (e) {
-		fm.setError("Failed to open: " + String(e));
-	}
+function setContextMenu(menu: {
+	x: number;
+	y: number;
+	entry: FileEntry | null;
+}) {
+	contextMenu = menu;
 }
 
-async function handleOpenWith(entry: FileEntry) {
-	const pos = { x: contextMenu?.x ?? 0, y: contextMenu?.y ?? 0 };
-	try {
-		const apps = await listAppsForMime(entry.mime_type);
-		if (apps.length === 0) {
-			fm.setError("No applications found for this file type");
-			return;
-		}
-		fm.openWithApps = apps;
-		contextMenu = { x: pos.x, y: pos.y, entry };
-	} catch (e) {
-		fm.setError("Failed to list applications: " + String(e));
-	}
+function setFolderPicker(v: {
+	mode: "move" | "copy" | "extract";
+	entry: FileEntry;
+}) {
+	folderPicker = v;
 }
+
+function setPropertiesData(v: FileProperties) {
+	propertiesData = v;
+}
+
+// --- Handlers that still live here (busy/progress/dialog orchestration — will move to 1.3) ---
 
 async function handleExtract() {
 	if (!fm.selectedEntry || busyMessage) return;
@@ -113,50 +97,9 @@ async function handleExtract() {
 	await fm.refresh();
 }
 
-function handleMoveTo() {
+function handleExtractTo() {
 	if (!fm.selectedEntry) return;
-	folderPicker = { mode: "move", entry: fm.selectedEntry };
-}
-
-function handleCopyTo() {
-	if (!fm.selectedEntry) return;
-	folderPicker = { mode: "copy", entry: fm.selectedEntry };
-}
-
-async function handleFolderPickerSelect(destDir: string) {
-	if (!folderPicker) return;
-	const src = folderPicker.entry;
-	const mode = folderPicker.mode;
-	folderPicker = null;
-
-	if (mode === "extract") {
-		busyMessage = "Extracting\u2026";
-		busyProgress = null;
-		try {
-			await extract(src.path, destDir);
-		} catch (e) {
-			const msg = String(e);
-			if (msg !== "Cancelled") {
-				fm.setError("Failed to extract: " + msg);
-			}
-		}
-		busyMessage = null;
-		busyProgress = null;
-		await fm.refresh();
-		return;
-	}
-
-	const dest = destDir === "/" ? "/" + src.name : destDir + "/" + src.name;
-	try {
-		if (mode === "move") {
-			await moveEntry(src.path, dest);
-		} else {
-			await copyEntry(src.path, dest);
-		}
-		await fm.refresh();
-	} catch (e) {
-		fm.setError("Failed to " + mode + ": " + String(e));
-	}
+	folderPicker = { mode: "extract", entry: fm.selectedEntry };
 }
 
 function handleCompress() {
@@ -191,148 +134,32 @@ async function handleCancelOperation() {
 	await cancelOperation();
 }
 
-async function handleProperties() {
-	if (!fm.selectedEntry) return;
-	try {
-		propertiesData = await getProperties(fm.selectedEntry.path);
-	} catch (e) {
-		fm.setError("Failed to get properties: " + String(e));
-	}
-}
+async function handleFolderPickerSelectWrapper(destDir: string) {
+	if (!folderPicker) return;
+	const fp = folderPicker;
+	folderPicker = null;
 
-function handleExtractTo() {
-	if (!fm.selectedEntry) return;
-	folderPicker = { mode: "extract", entry: fm.selectedEntry };
-}
-
-function handleContextMenu(e: MouseEvent, entry: FileEntry) {
-	e.stopPropagation();
-	fm.select(entry);
-	fm.openWithApps = [];
-	contextMenu = { x: e.clientX, y: e.clientY, entry };
-}
-
-function handleBgContextMenu(e: MouseEvent) {
-	e.preventDefault();
-	fm.clearSelection();
-	contextMenu = {
-		x: e.clientX,
-		y: e.clientY,
-		entry: null,
-	};
-}
-
-function handleCopy() {
-	if (!fm.selectedEntry) return;
-	fm.clipboard = { entries: [fm.selectedEntry], mode: "copy" };
-}
-
-function handleCut() {
-	if (!fm.selectedEntry) return;
-	fm.clipboard = { entries: [fm.selectedEntry], mode: "cut" };
-}
-
-async function handlePaste() {
-	if (!fm.clipboard) return;
-	const isCut = fm.clipboard.mode === "cut";
-
-	try {
-		for (const src of fm.clipboard.entries) {
-			const destPath =
-				fm.currentPath === "/"
-					? `/${src.name}`
-					: `${fm.currentPath}/${src.name}`;
-			if (isCut) {
-				await moveEntry(src.path, destPath);
-			} else {
-				await copyEntry(src.path, destPath);
+	if (fp.mode === "extract") {
+		busyMessage = "Extracting\u2026";
+		busyProgress = null;
+		try {
+			await extract(fp.entry.path, destDir);
+		} catch (e) {
+			const msg = String(e);
+			if (msg !== "Cancelled") {
+				fm.setError("Failed to extract: " + msg);
 			}
 		}
-		if (isCut) fm.clipboard = null;
+		busyMessage = null;
+		busyProgress = null;
 		await fm.refresh();
-	} catch (e) {
-		fm.setError(`Failed to ${isCut ? "move" : "paste"}: ${e}`);
+		return;
 	}
+
+	await ops.handleFolderPickerSelect(fm, fp, destDir);
 }
 
-async function handleDelete() {
-	if (!fm.selectedEntry) return;
-	const name = fm.selectedEntry.name;
-	try {
-		await deleteEntry(fm.selectedEntry.path);
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(`Failed to delete ${name}: ${e}`);
-	}
-}
-
-function handleRename() {
-	if (!fm.selectedEntry) return;
-	fm.renamingPath = fm.selectedEntry.path;
-}
-
-async function commitRename(entry: FileEntry, newName: string) {
-	fm.renamingPath = null;
-	if (!newName || newName === entry.name) return;
-
-	const parent = parentPath(entry.path);
-	const newPath = parent === "/" ? `/${newName}` : `${parent}/${newName}`;
-
-	try {
-		await renameEntry(entry.path, newPath);
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(`Failed to rename: ${e}`);
-	}
-}
-
-function handleNewFolder() {
-	fm.creatingEntry = "directory";
-}
-
-function handleNewFile() {
-	fm.creatingEntry = "file";
-}
-
-async function commitCreate(name: string) {
-	const type = fm.creatingEntry;
-	fm.creatingEntry = null;
-	if (!name || !type) return;
-
-	const path =
-		fm.currentPath === "/" ? `/${name}` : `${fm.currentPath}/${name}`;
-	try {
-		if (type === "directory") {
-			await createDirectory(path);
-		} else {
-			await createFile(path);
-		}
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(
-			`Failed to create ${type === "directory" ? "folder" : "file"}: ${e}`,
-		);
-	}
-}
-
-async function handleRestore() {
-	if (!fm.selectedEntry) return;
-	try {
-		await restoreTrash(fm.selectedEntry.name);
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(`Failed to restore: ${e}`);
-	}
-}
-
-async function handleEmptyTrash() {
-	try {
-		await emptyTrash();
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(`Failed to empty trash: ${e}`);
-	}
-}
+// --- Context menu builder ---
 
 function getContextMenuItems(): MenuEntry[] {
 	if (!contextMenu) return [];
@@ -342,8 +169,11 @@ function getContextMenuItems(): MenuEntry[] {
 		const items: MenuEntry[] = fm.openWithApps.map((app) => ({
 			label: app.name,
 			action: () => {
-				openWithApp(contextMenu?.entry?.path ?? "", app.desktop_id);
-				fm.openWithApps = [];
+				ops.launchOpenWithApp(
+					fm,
+					contextMenu?.entry?.path ?? "",
+					app.desktop_id,
+				);
 			},
 		}));
 		return items;
@@ -352,24 +182,49 @@ function getContextMenuItems(): MenuEntry[] {
 	if (fm.isTrash) {
 		if (contextMenu.entry) {
 			return [
-				{ label: "Restore", action: handleRestore },
-				{ label: "Delete Permanently", action: handleDelete, danger: true },
+				{ label: "Restore", action: () => ops.handleRestore(fm) },
+				{
+					label: "Delete Permanently",
+					action: () => ops.handleDelete(fm),
+					danger: true,
+				},
 			];
 		}
-		return [{ label: "Empty Trash", action: handleEmptyTrash, danger: true }];
+		return [
+			{
+				label: "Empty Trash",
+				action: () => ops.handleEmptyTrash(fm),
+				danger: true,
+			},
+		];
 	}
 
 	if (contextMenu.entry) {
 		const entry = contextMenu.entry;
 		const items: MenuEntry[] = [
-			{ label: "Open", action: () => handleOpen(entry) },
-			{ label: "Open With\u2026", action: () => handleOpenWith(entry) },
+			{ label: "Open", action: () => ops.handleOpen(fm, entry) },
+			{
+				label: "Open With\u2026",
+				action: () =>
+					ops.handleOpenWith(
+						fm,
+						entry,
+						{ x: contextMenu?.x ?? 0, y: contextMenu?.y ?? 0 },
+						setContextMenu,
+					),
+			},
 			{ separator: true },
-			{ label: "Cut", action: handleCut },
-			{ label: "Copy", action: handleCopy },
-			{ label: "Move to\u2026", action: handleMoveTo },
-			{ label: "Copy to\u2026", action: handleCopyTo },
-			{ label: "Rename", action: handleRename },
+			{ label: "Cut", action: () => ops.handleCut(fm) },
+			{ label: "Copy", action: () => ops.handleCopy(fm) },
+			{
+				label: "Move to\u2026",
+				action: () => ops.handleMoveTo(fm, setFolderPicker),
+			},
+			{
+				label: "Copy to\u2026",
+				action: () => ops.handleCopyTo(fm, setFolderPicker),
+			},
+			{ label: "Rename", action: () => ops.handleRename(fm) },
 			{ separator: true },
 		];
 
@@ -383,9 +238,16 @@ function getContextMenuItems(): MenuEntry[] {
 		items.push(
 			{ label: "Compress\u2026", action: handleCompress },
 			{ separator: true },
-			{ label: "Move to Trash", action: handleDelete, danger: true },
+			{
+				label: "Move to Trash",
+				action: () => ops.handleDelete(fm),
+				danger: true,
+			},
 			{ separator: true },
-			{ label: "Properties", action: handleProperties },
+			{
+				label: "Properties",
+				action: () => ops.handleProperties(fm, setPropertiesData),
+			},
 		);
 
 		return items;
@@ -398,11 +260,14 @@ function getContextMenuItems(): MenuEntry[] {
 			fm.clipboard.entries.length === 1
 				? "Paste \u201C" + fm.clipboard.entries[0].name + "\u201D"
 				: "Paste " + fm.clipboard.entries.length + " items";
-		items.push({ label: pasteLabel, action: handlePaste }, { separator: true });
+		items.push(
+			{ label: pasteLabel, action: () => ops.handlePaste(fm) },
+			{ separator: true },
+		);
 	}
 	items.push(
-		{ label: "New Folder", action: handleNewFolder },
-		{ label: "New File", action: handleNewFile },
+		{ label: "New Folder", action: () => ops.handleNewFolder(fm) },
+		{ label: "New File", action: () => ops.handleNewFile(fm) },
 		{ separator: true },
 		{
 			label: fm.showHidden ? "Hide Hidden Files" : "Show Hidden Files",
@@ -483,12 +348,12 @@ onDestroy(() => {
 							{fm.entries.length === 0 ? "Trash is empty" : `${fm.entries.length} ${fm.entries.length === 1 ? "item" : "items"} in trash`}
 						</span>
 						{#if fm.entries.length > 0}
-							<button class="context-bar-action" onclick={handleEmptyTrash}>Empty Trash</button>
+							<button class="context-bar-action" onclick={() => ops.handleEmptyTrash(fm)}>Empty Trash</button>
 						{/if}
 					</div>
 				{/if}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="content" oncontextmenu={handleBgContextMenu}>
+				<div class="content" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, setContextMenu)}>
 				{#if fm.viewMode === "list"}
 					<FileList
 						entries={fm.sortedEntries}
@@ -499,12 +364,12 @@ onDestroy(() => {
 						clipboardMode={fm.clipboard?.mode ?? null}
 						sortBy={fm.sortBy}
 						sortAsc={fm.sortAsc}
-						onopen={handleOpen}
+						onopen={(entry) => ops.handleOpen(fm, entry)}
 						onselect={fm.select}
-						oncontextmenu={handleContextMenu}
+						oncontextmenu={(e, entry) => ops.handleContextMenu(fm, e, entry, setContextMenu)}
 						onsort={fm.handleSort}
-						onrename={commitRename}
-						oncreate={commitCreate}
+						onrename={(entry, name) => ops.commitRename(fm, entry, name)}
+						oncreate={(name) => ops.commitCreate(fm, name)}
 					/>
 				{:else}
 					<FileGrid
@@ -514,11 +379,11 @@ onDestroy(() => {
 						creatingEntry={fm.creatingEntry}
 						clipboardPaths={fm.clipboard ? new Set(fm.clipboard.entries.map(e => e.path)) : null}
 						clipboardMode={fm.clipboard?.mode ?? null}
-						onopen={handleOpen}
+						onopen={(entry) => ops.handleOpen(fm, entry)}
 						onselect={fm.select}
-						oncontextmenu={handleContextMenu}
-						onrename={commitRename}
-						oncreate={commitCreate}
+						oncontextmenu={(e, entry) => ops.handleContextMenu(fm, e, entry, setContextMenu)}
+						onrename={(entry, name) => ops.commitRename(fm, entry, name)}
+						oncreate={(name) => ops.commitCreate(fm, name)}
 					/>
 				{/if}
 				</div>
@@ -554,7 +419,7 @@ onDestroy(() => {
 	{#if folderPicker}
 		<FolderPicker
 			title={folderPicker.mode === "move" ? "Move to\u2026" : folderPicker.mode === "extract" ? "Extract to\u2026" : "Copy to\u2026"}
-			onselect={handleFolderPickerSelect}
+			onselect={handleFolderPickerSelectWrapper}
 			onclose={() => (folderPicker = null)}
 		/>
 	{/if}
