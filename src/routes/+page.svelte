@@ -17,7 +17,7 @@ import {
 	getContextMenuItems,
 } from "$lib/contextMenu";
 import * as ops from "$lib/fileOps";
-import { keybinds } from "$lib/keybinds";
+import { keybinds, matchesKeybind } from "$lib/keybinds";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { createFileManager } from "$lib/stores/fileManager.svelte";
 
@@ -30,11 +30,35 @@ let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
 async function handleWindowKeydown(e: KeyboardEvent) {
 	const tag = (e.target as HTMLElement)?.tagName;
 	if (tag === "INPUT" || tag === "TEXTAREA") return;
+
 	if (e.key === keybinds.filter) {
 		e.preventDefault();
 		filterBarVisible = true;
 		await tick();
 		filterBar?.focusInput();
+		return;
+	}
+
+	if (matchesKeybind(e.key, keybinds.moveDown)) {
+		e.preventDefault();
+		fm.selectRelative(1);
+	} else if (matchesKeybind(e.key, keybinds.moveUp)) {
+		e.preventDefault();
+		fm.selectRelative(-1);
+	} else if (matchesKeybind(e.key, keybinds.open)) {
+		e.preventDefault();
+		if (fm.selectedEntry) ops.handleOpen(fm, fm.selectedEntry);
+	} else if (matchesKeybind(e.key, keybinds.goParent)) {
+		e.preventDefault();
+		fm.goUp();
+	} else if (e.key === keybinds.goTop) {
+		e.preventDefault();
+		fm.selectByIndex(0);
+	} else if (e.key === keybinds.goBottom) {
+		e.preventDefault();
+		fm.selectByIndex(fm.filteredEntries.length - 1);
+	} else if (e.key === keybinds.toggleHidden) {
+		fm.toggleHidden();
 	}
 }
 

@@ -44,13 +44,21 @@ const edit = createEditLogic({
 	oncreate: (name) => oncreate(name),
 });
 
+let listEl = $state<HTMLDivElement | null>(null);
+
+$effect(() => {
+	if (!selectedPath || !listEl) return;
+	const row = listEl.querySelector("tr.selected");
+	row?.scrollIntoView({ block: "nearest" });
+});
+
 function sortIndicator(column: string): string {
 	if (sortBy !== column) return "";
 	return sortAsc ? "▲" : "▼";
 }
 </script>
 
-<div class="file-list">
+<div class="file-list" bind:this={listEl}>
 	<table>
 		<thead>
 			<tr>

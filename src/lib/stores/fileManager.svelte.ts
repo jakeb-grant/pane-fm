@@ -101,7 +101,11 @@ export function createFileManager() {
 	const isTrash = $derived(currentPath === "trash://");
 
 	// Actions
-	async function navigate(path: string, addToHistory = true) {
+	async function navigate(
+		path: string,
+		addToHistory = true,
+		selectAfter: string | null = null,
+	) {
 		loading = true;
 		error = null;
 		selectedPath = null;
@@ -120,6 +124,12 @@ export function createFileManager() {
 				history = [...history.slice(0, historyIndex + 1), path];
 				historyIndex = history.length - 1;
 			}
+
+			// Auto-select: prefer selectAfter target, else first entry
+			const target = selectAfter
+				? entries.find((e) => e.path === selectAfter || e.name === selectAfter)
+				: entries[0];
+			if (target) select(target);
 		} catch (e) {
 			error = errorMessage(e) ?? String(e);
 		} finally {
@@ -144,7 +154,8 @@ export function createFileManager() {
 	function goUp() {
 		const parent = parentPath(currentPath);
 		if (parent !== currentPath) {
-			navigate(parent);
+			const previousDir = currentPath;
+			navigate(parent, true, previousDir);
 		}
 	}
 
@@ -177,6 +188,21 @@ export function createFileManager() {
 	function clearSelection() {
 		selectedPath = null;
 		selectedEntry = null;
+	}
+
+	function selectByIndex(index: number) {
+		const list = filteredEntries;
+		if (list.length === 0) return;
+		const clamped = Math.max(0, Math.min(index, list.length - 1));
+		select(list[clamped]);
+	}
+
+	function selectRelative(delta: number) {
+		const list = filteredEntries;
+		if (list.length === 0) return;
+		const currentIndex = list.findIndex((e) => e.path === selectedPath);
+		const next = currentIndex === -1 ? 0 : currentIndex + delta;
+		selectByIndex(next);
 	}
 
 	function setError(msg: string | null) {
@@ -303,6 +329,8 @@ export function createFileManager() {
 		toggleHidden,
 		select,
 		clearSelection,
+		selectByIndex,
+		selectRelative,
 		setError,
 		init,
 	};

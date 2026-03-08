@@ -80,9 +80,39 @@ Make it fast and comfortable to navigate. Keyboard users should feel at home.
 - [x] Directory item counts
 
 ### Keyboard
-- [ ] Vim navigation (hjkl — down, up, open, go back)
-- [ ] Quick select (/ to filter, Enter to open)
-- [ ] Shortcuts for common ops (dd delete, yy copy, p paste, r rename)
+Yazi-inspired keybinds. Arrow keys always work alongside vim keys.
+
+#### Done
+- [x] `j`/`k`/`Up`/`Down` — move selection up/down
+- [x] `h`/`l`/`Left`/`Right`/`Enter` — parent / open
+- [x] `Home`/`End` — first / last entry
+- [x] `.` — toggle hidden files
+- [x] `/` — fuzzy filter
+- [x] Auto-select first entry on navigate, re-select dir on go-up
+
+#### Wire up (functionality exists, just needs keybind)
+- [ ] `y` — yank (copy)
+- [ ] `x` — cut
+- [ ] `p` — paste
+- [ ] `d` — trash
+- [ ] `r` — rename
+- [ ] `a` — create (file or directory)
+- [ ] `Y`/`X` — cancel yank
+- [ ] `gg` — go to top (chord)
+- [ ] `G` — go to bottom
+- [ ] `H`/`L` — history back/forward
+- [ ] `Escape` — cascading clear (filter → selection)
+
+#### New functionality needed
+- [ ] `Space` — toggle selection on entry (multi-select)
+- [ ] `v` — visual mode (range select)
+- [ ] `Ctrl-a` — select all
+- [ ] `Ctrl-u`/`Ctrl-d` — half page up/down
+- [ ] `n`/`N` — next/prev filter match (cycle through matches)
+- [ ] `,` prefix — sort chords (`,s` size, `,m` modified, `,n` name)
+- [ ] `g` prefix — goto chords (`gh` home, `gd` downloads)
+- [ ] `c` prefix — copy to system clipboard (`cc` path, `cf` filename)
+- [ ] `D` — permanent delete (bypass trash)
 - [ ] Configurable keybinds via config file
 
 ## Phase 3: Theming & Drag and Drop
