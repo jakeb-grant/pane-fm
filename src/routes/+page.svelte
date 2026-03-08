@@ -1,15 +1,18 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
-import type { FileEntry } from "$lib/commands";
 import Breadcrumb from "$lib/components/Breadcrumb.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
-import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
 import ContextMenu from "$lib/components/ContextMenu.svelte";
 import FileGrid from "$lib/components/FileGrid.svelte";
 import FileList from "$lib/components/FileList.svelte";
 import FolderPicker from "$lib/components/FolderPicker.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
+import {
+	type ContextMenuActions,
+	type ContextMenuContext,
+	getContextMenuItems,
+} from "$lib/contextMenu";
 import * as ops from "$lib/fileOps";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { createFileManager } from "$lib/stores/fileManager.svelte";
@@ -18,130 +21,51 @@ import { formatSize } from "$lib/utils";
 const fm = createFileManager();
 const dlg = createDialogManager(fm);
 
-const archiveExtensions = /\.(zip|tar|tar\.gz|tgz|tar\.xz|tar\.bz2|tar\.zst)$/i;
-
-function isArchive(entry: FileEntry): boolean {
-	return !entry.is_dir && archiveExtensions.test(entry.name);
-}
-
 function formatBusyProgress(processed: number, total: number): string {
 	return `${formatSize(processed)} / ${formatSize(total)}`;
 }
 
-// --- Context menu builder ---
+// --- Context menu wiring ---
 
-function getContextMenuItems(): MenuEntry[] {
+const menuActions: ContextMenuActions = {
+	open: (entry) => ops.handleOpen(fm, entry),
+	openWith: (entry, pos) =>
+		ops.handleOpenWith(fm, entry, pos, (menu) =>
+			dlg.openContextMenu(menu.x, menu.y, menu.entry),
+		),
+	cut: () => ops.handleCut(fm),
+	copy: () => ops.handleCopy(fm),
+	paste: () => ops.handlePaste(fm),
+	rename: () => ops.handleRename(fm),
+	moveTo: () =>
+		ops.handleMoveTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entry)),
+	copyTo: () =>
+		ops.handleCopyTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entry)),
+	delete: () => ops.handleDelete(fm),
+	extract: dlg.handleExtract,
+	extractTo: dlg.handleExtractTo,
+	compress: dlg.handleCompress,
+	properties: dlg.handleProperties,
+	restore: () => ops.handleRestore(fm),
+	emptyTrash: () => ops.handleEmptyTrash(fm),
+	newFolder: () => ops.handleNewFolder(fm),
+	newFile: () => ops.handleNewFile(fm),
+	toggleHidden: fm.toggleHidden,
+	launchApp: (filePath, desktopId) =>
+		ops.launchOpenWithApp(fm, filePath, desktopId),
+};
+
+function buildMenuItems() {
 	if (!dlg.contextMenu) return [];
-
-	// "Open with" submenu items
-	if (fm.openWithApps.length > 0) {
-		return fm.openWithApps.map((app) => ({
-			label: app.name,
-			action: () => {
-				ops.launchOpenWithApp(
-					fm,
-					dlg.contextMenu?.entry?.path ?? "",
-					app.desktop_id,
-				);
-			},
-		}));
-	}
-
-	if (fm.isTrash) {
-		if (dlg.contextMenu.entry) {
-			return [
-				{ label: "Restore", action: () => ops.handleRestore(fm) },
-				{
-					label: "Delete Permanently",
-					action: () => ops.handleDelete(fm),
-					danger: true,
-				},
-			];
-		}
-		return [
-			{
-				label: "Empty Trash",
-				action: () => ops.handleEmptyTrash(fm),
-				danger: true,
-			},
-		];
-	}
-
-	if (dlg.contextMenu.entry) {
-		const entry = dlg.contextMenu.entry;
-		const items: MenuEntry[] = [
-			{ label: "Open", action: () => ops.handleOpen(fm, entry) },
-			{
-				label: "Open With\u2026",
-				action: () =>
-					ops.handleOpenWith(
-						fm,
-						entry,
-						{ x: dlg.contextMenu?.x ?? 0, y: dlg.contextMenu?.y ?? 0 },
-						(menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry),
-					),
-			},
-			{ separator: true },
-			{ label: "Cut", action: () => ops.handleCut(fm) },
-			{ label: "Copy", action: () => ops.handleCopy(fm) },
-			{
-				label: "Move to\u2026",
-				action: () =>
-					ops.handleMoveTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entry)),
-			},
-			{
-				label: "Copy to\u2026",
-				action: () =>
-					ops.handleCopyTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entry)),
-			},
-			{ label: "Rename", action: () => ops.handleRename(fm) },
-			{ separator: true },
-		];
-
-		if (isArchive(entry)) {
-			items.push(
-				{ label: "Extract Here", action: dlg.handleExtract },
-				{ label: "Extract to Folder\u2026", action: dlg.handleExtractTo },
-			);
-		}
-
-		items.push(
-			{ label: "Compress\u2026", action: dlg.handleCompress },
-			{ separator: true },
-			{
-				label: "Move to Trash",
-				action: () => ops.handleDelete(fm),
-				danger: true,
-			},
-			{ separator: true },
-			{ label: "Properties", action: dlg.handleProperties },
-		);
-
-		return items;
-	}
-
-	// Background context menu
-	const items: MenuEntry[] = [];
-	if (fm.clipboard) {
-		const pasteLabel =
-			fm.clipboard.entries.length === 1
-				? `Paste \u201C${fm.clipboard.entries[0].name}\u201D`
-				: `Paste ${fm.clipboard.entries.length} items`;
-		items.push(
-			{ label: pasteLabel, action: () => ops.handlePaste(fm) },
-			{ separator: true },
-		);
-	}
-	items.push(
-		{ label: "New Folder", action: () => ops.handleNewFolder(fm) },
-		{ label: "New File", action: () => ops.handleNewFile(fm) },
-		{ separator: true },
-		{
-			label: fm.showHidden ? "Hide Hidden Files" : "Show Hidden Files",
-			action: fm.toggleHidden,
-		},
-	);
-	return items;
+	const ctx: ContextMenuContext = dlg.contextMenu.entry
+		? {
+				kind: "entry",
+				entry: dlg.contextMenu.entry,
+				x: dlg.contextMenu.x,
+				y: dlg.contextMenu.y,
+			}
+		: { kind: "background" };
+	return getContextMenuItems(ctx, fm, menuActions);
 }
 
 onMount(async () => {
@@ -265,7 +189,7 @@ onDestroy(() => {
 		<ContextMenu
 			x={dlg.contextMenu.x}
 			y={dlg.contextMenu.y}
-			items={getContextMenuItems()}
+			items={buildMenuItems()}
 			onclose={dlg.closeContextMenu}
 		/>
 	{/if}

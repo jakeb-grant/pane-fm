@@ -93,7 +93,7 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 - [x] Extract `handleRestore()`, `handleEmptyTrash()` — trash operations
 - [x] Extract `handleSelect()`, `handleBgContextMenu()` — selection/context handlers
 - [x] Each operation should accept the store as a parameter and call `refresh()` on success
-- [ ] Return typed errors instead of setting a string directly
+- ~~Return typed errors instead of setting a string directly~~ *(deferred to Priority 4 — requires structured backend errors first)*
 
 ### 1.3 Create dialog/modal manager (`src/lib/stores/dialogs.svelte.ts`)
 - [x] Unified state for all dialogs: properties, folderPicker, compress, contextMenu, busy
@@ -106,11 +106,11 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 **Note:** This module and 1.2 share a tight dependency on busy/progress state. Design the progress management interface before implementing either.
 
 ### 1.4 Extract context menu builder (`src/lib/contextMenu.ts`)
-- [ ] Move `getContextMenuItems()` out of +page.svelte
-- [ ] Accept current state (selectedEntry, clipboard, isTrash, openWithApps) as parameters
-- [ ] Move `archiveExtensions` regex to a shared constants file
-- [ ] Move background context menu items (new folder, new file, paste, properties) to separate builder
-- [ ] Model entry vs background context menu as a discriminated union (see B.4)
+- [x] Move `getContextMenuItems()` out of +page.svelte
+- [x] Accept current state (selectedEntry, clipboard, isTrash, openWithApps) as parameters
+- [x] Move `archiveExtensions` regex to a shared constants file
+- [x] Move background context menu items (new folder, new file, paste, properties) to separate builder
+- [x] Model entry vs background context menu as a discriminated union (see B.4)
 
 ### 1.5 Extract CSS into component styles
 - [ ] Move toolbar styles into a `Toolbar.svelte` component
