@@ -113,15 +113,15 @@ The main page component is 1,020 lines with 23 `$state` variables, 2 `$derived` 
 - [x] Model entry vs background context menu as a discriminated union (see B.4)
 
 ### 1.5 Extract CSS into component styles
-- [ ] Move toolbar styles into a `Toolbar.svelte` component
-- [ ] Move status bar styles into a `StatusBar.svelte` component
-- [ ] Move busy overlay styles into a `BusyOverlay.svelte` component
-- [ ] Keep only layout/grid styles in +page.svelte
+- [x] Move toolbar styles into a `Toolbar.svelte` component
+- [x] Move status bar styles into a `StatusBar.svelte` component
+- [x] Move busy overlay styles into a `BusyOverlay.svelte` component
+- [x] Keep only layout/grid styles in +page.svelte
 
 ### 1.6 Target outcome
-- [ ] `+page.svelte` should be <300 lines: imports, layout markup, component wiring
-- [ ] All business logic testable without rendering components
-- [ ] Adding a new feature (tabs, multi-select) means extending the store, not the page
+- [x] `+page.svelte` should be <300 lines: imports, layout markup, component wiring
+- [x] All business logic testable without rendering components
+- [x] Adding a new feature (tabs, multi-select) means extending the store, not the page
 
 ---
 
