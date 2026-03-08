@@ -1,287 +1,101 @@
-# AGENTS.md
+# hyprfiles
 
-Baseline instructions for AI coding agents working in this project.
+Themeable file manager for Hyprland. Tauri v2 (Rust) + SvelteKit / Svelte 5 + bun.
 
-## Python
+## Checks
 
-### Toolchain
-
-Tools from [Astral](https://astral.sh/) should be run via `uvx` (ephemeral tool execution) unless installed in the project.
-
-| Tool   | Purpose              | Command             |
-| ------ | -------------------- | ------------------- |
-| uv     | Package/project mgmt | `uv add`, `uv run`  |
-| ruff   | Linting & formatting | `uvx ruff check`, `uvx ruff format` |
-| ty     | Type checking        | `uvx ty check`      |
-| pytest | Testing              | `uv run pytest`     |
-
-### Project Setup
-
-- Python version: **>= 3.14**
-- Dependencies and tool config live in `pyproject.toml`
-- Use **pydantic** for data models — do not use dataclasses
-
-Initialize projects with `uv init`:
+Run all four before considering any task complete:
 
 ```bash
-uv init myproject                    # Default app (main.py, no build system)
-uv init --lib myproject              # Library (src/ layout, py.typed, build system)
-uv init --package myproject          # Packaged app (src/ layout, entry points)
-uv init --bare myproject             # Minimal (pyproject.toml only)
-uv init --python 3.14 myproject      # Pin Python version
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+bunx svelte-check --tsconfig ./tsconfig.json
+bunx biome check --write
 ```
 
-Default app structure:
+Use the **Svelte MCP autofixer** if `svelte-check` reports component issues.
+
+## Architecture
+
 ```
-myproject/
-├── .python-version
-├── README.md
-├── main.py
-└── pyproject.toml
-```
+src/                              # Frontend (Svelte 5)
+├── routes/+page.svelte           # Layout shell only (~300 lines) — no business logic
+├── lib/
+│   ├── stores/
+│   │   ├── fileManager.svelte.ts # All app state (navigation, files, selection, clipboard)
+│   │   └── dialogs.svelte.ts     # Dialog/busy/progress state + compress/extract orchestration
+│   ├── fileOps.ts                # File operation handlers (accept store, call commands, refresh)
+│   ├── contextMenu.ts            # Context menu item builders (discriminated union)
+│   ├── commands.ts               # Tauri IPC wrappers (typed invoke calls)
+│   ├── errors.ts                 # AppError type + isAppError, isCancelled, errorMessage
+│   ├── constants.ts              # Shared constants (archiveExtensions, etc.)
+│   ├── icons.ts                  # Nerd font icon lookup
+│   ├── utils.ts                  # Path/format helpers
+│   └── components/               # Presentational components — no business logic
+│       ├── fileEditLogic.svelte.ts # Shared rename/create logic (used by FileList + FileGrid)
+│       └── *.svelte              # FileList, FileGrid, Toolbar, StatusBar, Sidebar, etc.
 
-### Configuration
-
-```toml
-# pyproject.toml
-
-[tool.ruff.lint]
-select = [
-    "E",     # pycodestyle errors
-    "F",     # Pyflakes
-    "I",     # isort
-    "UP",    # pyupgrade
-    "B",     # flake8-bugbear
-    "SIM",   # flake8-simplify
-    "RUF",   # Ruff-specific rules
-    "PT",    # flake8-pytest-style
-    "PERF",  # Perflint
-    "S",     # flake8-bandit (security)
-    "N",     # pep8-naming
-    "C4",    # flake8-comprehensions
-    "ASYNC", # flake8-async
-    "PTH",   # flake8-use-pathlib
-    "TRY",   # tryceratops
-]
-
-[tool.ty.environment]
-python-version = "3.14"
-
-[tool.ty.rules]
-all = "warn"
+src-tauri/src/                    # Backend (Rust)
+├── lib.rs                        # Tauri builder + command registration (21 commands)
+├── error.rs                      # AppError enum — all commands return Result<T, AppError>
+├── fs_ops.rs                     # FileEntry/DriveEntry structs, read_directory, guess_mime, file ops
+└── commands/                     # One module per domain
+    ├── file_ops.rs               # CRUD, properties, dir stats
+    ├── archive.rs                # Compress/extract with progress + cancellation
+    ├── apps.rs                   # Open files, .desktop parsing, Open With
+    ├── trash.rs                  # Freedesktop trash list/restore/empty
+    └── drives.rs                 # Mounted drive detection
 ```
 
-### Documentation
+### Key patterns
 
-- uv: https://docs.astral.sh/uv/llms.txt
-- ruff: https://docs.astral.sh/ruff/llms.txt
-- ty: https://docs.astral.sh/ty/llms.txt
-- pytest: https://docs.pytest.org/en/stable/how-to/index.html
-- pydantic: https://docs.pydantic.dev/latest/llms.txt
+- **Frontend state**: Svelte 5 `$state()` runes in factory functions (`createFileManager()`, `createDialogManager()`). No global stores — state is instantiated in `+page.svelte` and passed as props or function params.
+- **File operations**: Functions in `fileOps.ts` accept a `FileManager` store as the first parameter, call Tauri commands, and call `fm.refresh()` on success.
+- **Errors**: All Rust commands return `Result<T, AppError>`. `AppError` is `#[serde(tag = "kind")]` so the frontend receives `{ kind: "NotFound", path: "..." }` etc. Use `errorMessage(e)` to convert, `isCancelled(e)` to check. Cancelled errors are silently ignored.
+- **Shared edit logic**: `fileEditLogic.svelte.ts` is a composable used by both FileList and FileGrid — rename/create input state, auto-focus with extension-aware selection.
+- **Progress tracking**: `ProgressWriter`/`ProgressReader` wrappers in `archive.rs` emit Tauri events, checked by `AtomicBool` for cancellation.
 
-## Rust
+### Where to put new code
 
-### Toolchain
+| Adding...                  | Goes in                              |
+|----------------------------|--------------------------------------|
+| New Tauri command          | Relevant `commands/*.rs` module + register in `lib.rs` |
+| New file operation         | `fileOps.ts` (handler) + `commands.ts` (IPC wrapper) |
+| New UI state               | `fileManager.svelte.ts` or `dialogs.svelte.ts` |
+| New presentational component | `src/lib/components/` |
+| New context menu item      | `contextMenu.ts` |
+| New error variant          | `error.rs` (Rust) + `errors.ts` (TypeScript) — keep in sync |
 
-Use `cargo` and its built-in tools.
+### Boundaries
 
-| Tool          | Purpose    | Command        |
-| ------------- | ---------- | -------------- |
-| cargo build   | Build      | `cargo build`  |
-| cargo test    | Testing    | `cargo test`   |
-| cargo clippy  | Linting    | `cargo clippy` |
-| cargo fmt     | Formatting | `cargo fmt`    |
+- `+page.svelte` is layout and wiring only. Do not add business logic, handlers, or state.
+- Components in `components/` are presentational. They receive data via props and emit events — no direct Tauri command calls.
+- `fs_ops.rs` is the shared implementation layer. `commands/*.rs` are thin `#[tauri::command]` wrappers that delegate to it.
 
-### Project Setup
+## Toolchain
 
-- Rust edition: **2024**
-- Initialize projects with `cargo init`
-
-## Web (SvelteKit)
-
-### Toolchain
-
-Use **bun** as the runtime, package manager, and test runner. Do not use npm/yarn/pnpm.
-
-| Tool       | Purpose              | Command              |
-| ---------- | -------------------- | -------------------- |
-| bun        | Runtime & pkg mgmt   | `bun install`, `bun add` |
-| bunx       | Ephemeral tool exec  | `bunx sv create`     |
-| bun run    | Script runner        | `bun run dev`, `bun run build` |
-| bun test   | Testing              | `bun test`           |
-| biome      | Linting & formatting | `bunx biome check` (review first), `bunx biome check --write` |
-
-### Project Setup
-
-Initialize SvelteKit projects with bun:
-
-```bash
-bunx sv create my-app
-cd my-app
-bun install
-bun add -D svelte-adapter-bun
-bun run dev
-```
-
-After scaffolding, install dev dependencies:
-
-```bash
-bun add -D @biomejs/biome @testing-library/svelte @happy-dom/global-registrator
-bunx biome init
-```
-
-Replace the generated `biome.json` with:
-
-```json
-{
-  "$schema": "https://biomejs.dev/schemas/latest/schema.json",
-  "files": {
-    "includes": ["**/*.{js,ts,jsx,tsx}", "**/*.json", "**/*.css", "**/*.svelte"]
-  },
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "tab"
-  },
-  "linter": {
-    "rules": {
-      "recommended": true,
-      "correctness": {
-        "recommended": true,
-        "noNodejsModules": "off"
-      },
-      "security": "error",
-      "suspicious": "warn"
-    }
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "double"
-    }
-  },
-  "assist": {
-    "enabled": true,
-    "actions": {
-      "source": {
-        "organizeImports": "on"
-      }
-    }
-  },
-  "overrides": [
-    {
-      "includes": ["**/*.svelte"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noUnusedVariables": "off",
-            "noUnusedImports": "off"
-          },
-          "suspicious": {
-            "noUnassignedVariables": "off"
-          },
-          "style": {
-            "useConst": "off"
-          }
-        }
-      }
-    }
-  ]
-}
-```
-
-Create a Svelte loader plugin for bun test (see https://bun.com/docs/guides/test/svelte-test) and configure `bunfig.toml`:
-
-```toml
-[test]
-preload = ["./svelte-loader.ts"]
-```
-
-Update `svelte.config.js` to use the bun adapter:
-
-```js
-import adapter from "svelte-adapter-bun";
-import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
-
-/** @type {import('@sveltejs/kit').Config} */
-const config = {
-  preprocess: vitePreprocess(),
-  kit: {
-    adapter: adapter(),
-  },
-};
-
-export default config;
-```
-
-Default project structure:
-```
-my-app/
-├ src/
-│ ├ lib/
-│ │ ├ server/
-│ │ └ [lib files]
-│ ├ routes/
-│ │ └ [routes]
-│ ├ app.html
-│ ├ hooks.client.ts
-│ └ hooks.server.ts
-├ static/
-├ tests/
-├ package.json
-├ svelte.config.js
-├ tsconfig.json
-└ vite.config.ts
-```
-
-### Documentation
-
-- Bun: https://bun.sh/docs/llms.txt
-- Biome: https://biomejs.dev/guides/getting-started/
-- Svelte: Use the **Svelte MCP server** — see [MCP Servers](#mcp-servers) below
+| What         | Tool   | Notes                                    |
+|--------------|--------|------------------------------------------|
+| Package mgr  | bun    | Do not use npm/yarn/pnpm                 |
+| Rust lint    | clippy |                                          |
+| Rust test    | cargo test | 40 tests across archive, apps, trash, file ops |
+| TS/Svelte types | svelte-check |                                   |
+| Lint/format  | biome  | `bunx biome check --write`               |
+| Dev server   | tauri  | `bun run tauri dev`                      |
 
 ## MCP Servers
 
-The following MCP servers should be available to agents. Check for them before starting work. Attempt to install if missing, but ask the user to install manually if unable.
+- **Svelte** (`@sveltejs/mcp`) — Svelte/SvelteKit docs. Use for component patterns and API lookup.
+- **Context7** — up-to-date docs for any library. Use instead of guessing APIs.
 
-- **Svelte** (`@sveltejs/mcp`) — Svelte/SvelteKit documentation and assistance
-  ```bash
-  # Claude Code
-  claude mcp add -t stdio -s user svelte -- bunx -y @sveltejs/mcp
-  ```
-  ```json
-  {
-    "mcpServers": {
-      "svelte": {
-        "command": "bunx",
-        "args": ["-y", "@sveltejs/mcp"]
-      }
-    }
-  }
-  ```
-- **Context7** — provides up-to-date documentation for any library. Use it to look up APIs and examples rather than guessing.
-  ```bash
-  # Claude Code
-  claude mcp add -t stdio -s user context7 -- bunx -y @context7/mcp
-  ```
-  ```json
-  {
-    "mcpServers": {
-      "context7": {
-        "command": "bunx",
-        "args": ["-y", "@context7/mcp"]
-      }
-    }
-  }
-  ```
+## Guidelines
 
-## General Guidelines
-
-- Prefer simple, minimal solutions over abstractions.
 - Do not add features, refactoring, or "improvements" beyond what was asked.
-- Run linting and type checking before considering a task complete.
-- Run tests after making changes to verify nothing is broken.
+- Do not add docstrings, comments, or type annotations to code you didn't change.
+- Do not add error handling for scenarios that can't happen. Only validate at system boundaries.
+- Do not create abstractions for one-time operations. Three similar lines > premature helper.
 - Do not add `Co-Authored-By` or other self-attribution to git commits.
+- Prefer editing existing files over creating new ones.
+- See `ROADMAP.md` for planned features and phasing.
+- See `TODO.md` for refactoring history and architectural decisions.
