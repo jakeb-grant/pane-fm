@@ -116,25 +116,56 @@ Yazi-inspired keybinds. Arrow keys always work alongside vim keys.
 - [ ] Configurable keybinds via config file
 
 ### Multi-select
-Prerequisite for bulk operations and full keybind support.
+Prerequisite for bulk operations and full keybind support. Do this before
+wiring remaining keybinds so every keybind works for single and multi from
+day one.
 
-#### State
-- [ ] `selectedPaths: Set<string>` replacing single `selectedPath`
-- [ ] Selection mode tracking (none / single / visual range)
-- [ ] Visual mode anchor point (start of range for `v` selection)
+#### Design: Cursor vs Selection (yazi/ranger model)
+- **Cursor** (`cursorPath`/`cursorEntry`): the focused entry that j/k moves,
+  what `l`/Enter/open acts on, where the highlight bar sits, drives scroll-into-view
+- **Selection** (`selectedPaths: Set<string>`): entries that bulk operations act on
+- **`effectiveSelection`** (derived): if `selectedPaths` non-empty, use those entries;
+  otherwise fall back to `[cursorEntry]`
+- Keep `selectedPath`/`selectedEntry` as backward-compat aliases during migration
 
-#### Interactions
-- [ ] Click selects single, Ctrl+click toggles, Shift+click extends range
-- [ ] `Space` — toggle current entry in selection
-- [ ] `v` — enter visual mode (range select as you move with j/k)
-- [ ] `Ctrl-a` — select all visible entries
-- [ ] `Escape` — clear multi-selection
+#### Step 1: Refactor `fileManager.svelte.ts`
+- [ ] Rename `selectedPath`→`cursorPath`, `selectedEntry`→`cursorEntry`
+- [ ] Add `selectedPaths: Set<string>` state
+- [ ] Add `effectiveSelection` derived getter
+- [ ] Add `toggleSelect(entry)`, `selectRange(from, to)`, `selectAll()`, `clearMultiSelection()`
+- [ ] `select()`/click clears multi-selection and moves cursor
+- [ ] `navigate()` clears both cursor and selectedPaths
 
-#### Operations on multi-selection
-- [ ] `y`/`x`/`d`/`p` operate on all selected entries
-- [ ] Context menu reflects multi-selection ("Delete 3 items", etc.)
-- [ ] Drag and drop works with multiple selected entries
-- [ ] StatusBar shows selection count ("3 selected")
+#### Step 2: Update `fileOps.ts`
+- [ ] `handleCopy`/`handleCut` → use `fm.effectiveSelection` (clipboard already holds `FileEntry[]`)
+- [ ] `handleDelete` → loop over `fm.effectiveSelection`
+- [ ] `handleMoveTo`/`handleCopyTo` → pass `effectiveSelection` to folder picker
+- [ ] `handleRestore` → loop over effective selection
+- [ ] `handleRename`, `handleProperties`, `handleOpen` → stay single-entry, use `cursorEntry`
+- [ ] `handlePaste` → already loops `clipboard.entries`, no change needed
+
+#### Step 3: Update `dialogs.svelte.ts`
+- [ ] `handleCompress` → pass all effective entries' paths (Rust `compress` already accepts `paths[]`)
+- [ ] `handleExtract`/`handleExtractTo` → single archive only, use `cursorEntry`
+- [ ] `handleProperties` → single entry, use `cursorEntry`
+- [ ] `folderPicker` type → accept `entries: FileEntry[]` instead of single `entry`
+
+#### Step 4: Update `FileList.svelte`
+- [ ] Rename prop `selectedPath`→`cursorPath`, add `selectedPaths: Set<string>` prop
+- [ ] Row classes: `class:cursor` for highlight bar, `class:selected` for multi-select
+- [ ] Click handlers: plain=move cursor, Ctrl+click=toggle select, Shift+click=range select
+
+#### Step 5: Update `+page.svelte`
+- [ ] Pass new props to FileList
+- [ ] Wire `Space` (toggle), `v` (visual mode), `Ctrl-a` (select all)
+- [ ] `Escape` cascades: close filter → clear multi-selection → clear cursor
+
+#### Step 6: Update `contextMenu.ts`
+- [ ] Multi-selection labels ("Move 3 items to Trash", etc.)
+- [ ] Hide/disable single-only items (Rename, Properties, Open With) when multi-selected
+
+#### Step 7: StatusBar
+- [ ] Show "N items selected" when `selectedPaths.size > 0`
 
 ## Phase 3: Theming & Drag and Drop
 
