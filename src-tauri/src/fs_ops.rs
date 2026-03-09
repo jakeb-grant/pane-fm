@@ -32,12 +32,66 @@ pub fn read_directory(path: &Path) -> Result<Vec<FileEntry>, AppError> {
     let mut files: Vec<FileEntry> = Vec::new();
 
     for entry in entries {
-        let entry = entry?;
-        let metadata = entry.metadata()?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        // DirEntry::file_type uses d_type from readdir (no stat syscall).
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+
+        // Skip device files, sockets, FIFOs — stat/lstat can block on these.
+        if !ft.is_file() && !ft.is_dir() && !ft.is_symlink() {
+            continue;
+        }
 
         let name = entry.file_name().to_string_lossy().to_string();
         let path_buf = entry.path();
-        let is_symlink = entry.file_type().map(|ft| ft.is_symlink()).unwrap_or(false);
+        let is_symlink = ft.is_symlink();
+
+        // For symlinks, lstat can block on special targets (e.g. /dev/stderr
+        // -> /proc/self/fd/2). Build a minimal entry without stat.
+        // For regular files/dirs, symlink_metadata (lstat) is safe.
+        if is_symlink {
+            // Resolve symlink target metadata for is_dir/size (stat is safe,
+            // only file reads block on special targets like /proc/self/fd/*).
+            let target_meta = fs::metadata(&path_buf).ok();
+            let target_is_dir = target_meta.as_ref().is_some_and(|m| m.is_dir());
+            let size = target_meta.as_ref().map_or(0, |m| m.len());
+
+            let mime_type = if target_is_dir {
+                "inode/directory".to_string()
+            } else {
+                // Extension-only mime guess — never open the file,
+                // as the target may be a device/pipe that blocks on read.
+                mime_guess::from_path(&path_buf)
+                    .first()
+                    .map(|m| m.to_string())
+                    .unwrap_or_else(|| "application/octet-stream".to_string())
+            };
+
+            files.push(FileEntry {
+                name: name.clone(),
+                path: path_buf.to_string_lossy().to_string(),
+                is_dir: target_is_dir,
+                is_symlink: true,
+                size,
+                modified: String::new(),
+                mime_type,
+                permissions: 0,
+                hidden: name.starts_with('.'),
+                children_count: None,
+            });
+            continue;
+        }
+
+        let metadata = match fs::symlink_metadata(&path_buf) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
 
         let modified = metadata
             .modified()
@@ -64,27 +118,33 @@ pub fn read_directory(path: &Path) -> Result<Vec<FileEntry>, AppError> {
 
         let hidden = name.starts_with('.');
 
-        let children_count = if metadata.is_dir() {
-            fs::read_dir(&path_buf).ok().map(|d| d.count() as u64)
-        } else {
-            None
-        };
-
         files.push(FileEntry {
             name,
             path: path_buf.to_string_lossy().to_string(),
             is_dir: metadata.is_dir(),
-            is_symlink,
+            is_symlink: false,
             size: metadata.len(),
             modified,
             mime_type,
             permissions,
             hidden,
-            children_count,
+            children_count: None,
         });
     }
 
     Ok(files)
+}
+
+/// Count children for a batch of directory paths.
+/// Returns a map of path -> count. Paths that fail are omitted.
+pub fn get_children_counts(paths: &[String]) -> std::collections::HashMap<String, u64> {
+    paths
+        .iter()
+        .filter_map(|p| {
+            let count = fs::read_dir(p).ok()?.count() as u64;
+            Some((p.clone(), count))
+        })
+        .collect()
 }
 
 pub fn guess_mime(path: &Path) -> String {

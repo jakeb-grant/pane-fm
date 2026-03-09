@@ -63,6 +63,13 @@ pub fn move_entry(from: String, to: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+pub async fn get_children_counts(paths: Vec<String>) -> std::collections::HashMap<String, u64> {
+    tokio::task::spawn_blocking(move || fs_ops::get_children_counts(&paths))
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
 pub fn path_exists(path: String) -> bool {
     PathBuf::from(path).exists()
 }

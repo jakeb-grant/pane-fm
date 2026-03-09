@@ -33,6 +33,8 @@ export const keybinds = {
 	historyForward: "L",
 	properties: "i",
 	focusPath: { key: "l", ctrl: true },
+	halfPageUp: { key: "u", ctrl: true },
+	halfPageDown: { key: "d", ctrl: true },
 } as const satisfies Record<string, KeybindDef>;
 
 function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {

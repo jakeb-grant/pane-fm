@@ -16,6 +16,7 @@ pub fn run() {
             commands::file_ops::copy_entry,
             commands::file_ops::move_entry,
             commands::file_ops::path_exists,
+            commands::file_ops::get_children_counts,
             commands::file_ops::get_properties,
             commands::file_ops::get_dir_stats,
             commands::drives::list_drives,

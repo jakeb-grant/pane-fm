@@ -50,12 +50,63 @@ const edit = createEditLogic({
 	oncreate: (name) => oncreate(name),
 });
 
-let listEl = $state<HTMLDivElement | null>(null);
+const ROW_HEIGHT = 29;
+const OVERSCAN = 10;
 
+let listEl = $state<HTMLDivElement | null>(null);
+let scrollTop = $state(0);
+let viewHeight = $state(600);
+
+function handleScroll() {
+	if (listEl) scrollTop = listEl.scrollTop;
+}
+
+let startIdx = $derived(
+	Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN),
+);
+let endIdx = $derived(
+	Math.min(
+		entries.length,
+		Math.ceil((scrollTop + viewHeight) / ROW_HEIGHT) + OVERSCAN,
+	),
+);
+let visibleEntries = $derived(entries.slice(startIdx, endIdx));
+let topPad = $derived(startIdx * ROW_HEIGHT);
+let bottomPad = $derived((entries.length - endIdx) * ROW_HEIGHT);
+
+// Derived index ensures the effect re-runs when entries reorder (e.g. re-sort)
+let cursorIdx = $derived(
+	cursorPath ? entries.findIndex((e) => e.path === cursorPath) : -1,
+);
+
+// Keep cursor in view — only scroll when it would go off-screen.
+// Row positions use tbody coordinates (idx * ROW_HEIGHT).
+// The sticky header covers the top 27px of the viewport, so visible
+// data runs from scrollTop to scrollTop + clientHeight - headerHeight.
 $effect(() => {
-	if (!cursorPath || !listEl) return;
-	const row = listEl.querySelector("tr.cursor");
-	row?.scrollIntoView({ block: "nearest" });
+	if (cursorIdx === -1 || !listEl) return;
+	const thead = listEl.querySelector("thead");
+	const headerHeight = thead ? thead.offsetHeight : 0;
+	const rowTop = cursorIdx * ROW_HEIGHT;
+	const rowBottom = rowTop + ROW_HEIGHT;
+	const dataTop = listEl.scrollTop;
+	const dataBottom = dataTop + listEl.clientHeight - headerHeight;
+	if (rowTop < dataTop) {
+		listEl.scrollTop = rowTop;
+	} else if (rowBottom > dataBottom) {
+		listEl.scrollTop = rowBottom - listEl.clientHeight + headerHeight;
+	}
+});
+
+// Track container height via ResizeObserver
+$effect(() => {
+	if (!listEl) return;
+	viewHeight = listEl.clientHeight;
+	const ro = new ResizeObserver((es) => {
+		viewHeight = es[0].contentRect.height;
+	});
+	ro.observe(listEl);
+	return () => ro.disconnect();
 });
 
 function sortIndicator(column: string): string {
@@ -64,7 +115,7 @@ function sortIndicator(column: string): string {
 }
 </script>
 
-<div class="file-list" bind:this={listEl}>
+<div class="file-list" bind:this={listEl} onscroll={handleScroll}>
 	<table>
 		<thead>
 			<tr>
@@ -103,8 +154,13 @@ function sortIndicator(column: string): string {
 				</tr>
 			{/if}
 
-			{#each entries as entry (entry.path)}
+			{#if topPad > 0}
+				<tr style="height:{topPad}px" aria-hidden="true"><td colspan="4"></td></tr>
+			{/if}
+
+			{#each visibleEntries as entry (entry.path)}
 				<tr
+					style="height:{ROW_HEIGHT}px"
 					class:cursor={cursorPath === entry.path}
 					class:selected={selectedPaths.has(entry.path)}
 					class:directory={entry.is_dir}
@@ -143,10 +199,14 @@ function sortIndicator(column: string): string {
 							{/if}
 						{/if}
 					</td>
-					<td class="td-size">{entry.is_dir ? `${entry.children_count ?? 0} items` : formatSize(entry.size)}</td>
+					<td class="td-size">{entry.is_dir ? (entry.children_count != null ? `${entry.children_count} items` : "\u2014") : formatSize(entry.size)}</td>
 					<td class="td-modified">{entry.modified}</td>
 				</tr>
 			{/each}
+
+			{#if bottomPad > 0}
+				<tr style="height:{bottomPad}px" aria-hidden="true"><td colspan="4"></td></tr>
+			{/if}
 		</tbody>
 	</table>
 
@@ -232,6 +292,10 @@ function sortIndicator(column: string): string {
 		background: var(--bg-surface);
 	}
 
+	:global(.hide-cursor) tbody tr:hover {
+		background: none;
+	}
+
 	tr.cursor {
 		background: var(--bg-hover);
 	}
@@ -294,6 +358,7 @@ function sortIndicator(column: string): string {
 		padding: 6px 12px;
 		font-size: 13px;
 		font-family: var(--font-sans);
+		line-height: 1;
 		color: var(--text-primary);
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -304,6 +369,7 @@ function sortIndicator(column: string): string {
 		text-align: center;
 		font-family: var(--font-icon);
 		font-size: 16px;
+		line-height: 1;
 	}
 
 	.td-name {

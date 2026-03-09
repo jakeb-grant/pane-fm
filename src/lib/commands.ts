@@ -63,6 +63,12 @@ export function pathExists(path: string): Promise<boolean> {
 	return invoke("path_exists", { path });
 }
 
+export function getChildrenCounts(
+	paths: string[],
+): Promise<Record<string, number>> {
+	return invoke("get_children_counts", { paths });
+}
+
 export function listTrash(): Promise<FileEntry[]> {
 	return invoke("list_trash");
 }

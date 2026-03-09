@@ -1,5 +1,6 @@
 import {
 	type FileEntry,
+	getChildrenCounts,
 	getHomeDir,
 	listDirectory,
 	listDrives,
@@ -153,10 +154,29 @@ export function createFileManager() {
 					: entries[0];
 			if (target) select(target);
 			else if (entries[0]) select(entries[0]);
+
+			// Fetch children counts async so the list appears instantly
+			const dirPaths = entries.filter((e) => e.is_dir).map((e) => e.path);
+			if (dirPaths.length > 0) {
+				fetchChildrenCounts(path, dirPaths);
+			}
 		} catch (e) {
 			error = errorMessage(e) ?? String(e);
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function fetchChildrenCounts(forPath: string, dirPaths: string[]) {
+		try {
+			const counts = await getChildrenCounts(dirPaths);
+			// Only apply if we're still on the same directory
+			if (currentPath !== forPath) return;
+			entries = entries.map((e) =>
+				e.path in counts ? { ...e, children_count: counts[e.path] } : e,
+			);
+		} catch {
+			// Non-critical — leave children_count as null
 		}
 	}
 

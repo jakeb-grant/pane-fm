@@ -30,11 +30,24 @@ let filterBarVisible = $state(false);
 let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
 let toolbar = $state<ReturnType<typeof Toolbar> | null>(null);
 let mouseCursorHidden = $state(false);
+let lastMousePos = { x: 0, y: 0 };
 
 async function handleWindowKeydown(e: KeyboardEvent) {
 	if (matchesKeybind(e, keybinds.focusPath)) {
 		e.preventDefault();
 		toolbar?.focusPath();
+		return;
+	}
+	if (matchesKeybind(e, keybinds.halfPageUp)) {
+		e.preventDefault();
+		fm.selectRelative(-15);
+		mouseCursorHidden = true;
+		return;
+	}
+	if (matchesKeybind(e, keybinds.halfPageDown)) {
+		e.preventDefault();
+		fm.selectRelative(15);
+		mouseCursorHidden = true;
 		return;
 	}
 
@@ -204,7 +217,7 @@ onDestroy(() => {
 });
 </script>
 
-<svelte:window onkeydown={handleWindowKeydown} onmousemove={() => { mouseCursorHidden = false; }} />
+<svelte:window onkeydown={handleWindowKeydown} onmousemove={(e) => { if (e.screenX !== lastMousePos.x || e.screenY !== lastMousePos.y) { lastMousePos = { x: e.screenX, y: e.screenY }; mouseCursorHidden = false; }}} />
 
 <div class="app" class:hide-cursor={mouseCursorHidden}>
 	<Toolbar
