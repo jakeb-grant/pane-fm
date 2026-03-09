@@ -18,6 +18,7 @@ let {
 }} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="busy-overlay" onwheel={(e) => e.preventDefault()} onclick={(e) => e.stopPropagation()}>
 	<div class="busy-card">
 		<div class="busy-header">

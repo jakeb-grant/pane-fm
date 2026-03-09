@@ -21,6 +21,7 @@ const formats = [
 ];
 
 let selectedFormat = $state("zip");
+// svelte-ignore state_referenced_locally — intentionally capturing initial prop value
 let baseName = $state(defaultName);
 let nameInput: HTMLInputElement | undefined = $state();
 
@@ -46,8 +47,10 @@ function handleSubmit() {
 }} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()}>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="dialog" onclick={(e) => e.stopPropagation()}>
 		<h2 class="title">Compress</h2>
 

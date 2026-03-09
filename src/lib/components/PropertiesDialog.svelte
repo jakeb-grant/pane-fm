@@ -19,7 +19,7 @@ let dirCount = $state<number | null>(null);
 let dirStatsLoading = $state(false);
 let unlisten: UnlistenFn | null = null;
 
-const iconEntry = {
+const iconEntry = $derived({
 	name: properties.name,
 	path: properties.path,
 	is_dir: properties.is_dir,
@@ -30,7 +30,7 @@ const iconEntry = {
 	permissions: 0,
 	hidden: properties.name.startsWith("."),
 	children_count: null,
-};
+});
 
 onMount(async () => {
 	if (properties.is_dir) {
@@ -61,8 +61,10 @@ onDestroy(() => {
 }} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()}>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="dialog" onclick={(e) => e.stopPropagation()}>
 		<div class="header">
 			<span class="file-icon">{getIconForEntry(iconEntry)}</span>

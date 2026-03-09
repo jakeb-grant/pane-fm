@@ -262,7 +262,7 @@ function sortIndicator(column: string): string {
 	}
 
 	.th-name {
-		/* takes remaining space */
+		width: auto;
 	}
 
 	.th-size {
@@ -373,7 +373,7 @@ function sortIndicator(column: string): string {
 	}
 
 	.td-name {
-		/* takes remaining space */
+		width: auto;
 	}
 
 	.td-size {
