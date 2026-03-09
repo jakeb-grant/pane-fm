@@ -190,14 +190,14 @@ The two features that justify this project's existence.
 - [x] CSS custom properties for all colors, spacing, fonts, radii, etc.
 - [x] Hot-reload themes (watch config/theme files, apply without restart)
 - [x] Ship 3 starter themes: dark minimal, catppuccin, nord
-- [ ] Icon display (nerd font glyphs by default, configurable)
+- [ ] Icon display (nerd font glyphs by default, configurable) — postponed (nerd fonts work fine as-is)
 
 ### Drag and Drop
-- [ ] Internal DnD — drag files to move/copy within the app
-- [ ] Visual drag feedback (ghost element, drop indicators)
-- [ ] External DnD out — drag files from hyprfiles to browsers/other apps
-- [ ] External DnD in — drop files from browsers/other apps into hyprfiles
-- [ ] Modifier keys (hold Ctrl to copy instead of move)
+- [x] Internal DnD — drag files to move/copy within the app
+- [x] Visual drag feedback (ghost element, drop indicators)
+- [x] External DnD out — drag files from hyprfiles to browsers/other apps
+- [x] External DnD in — drop files from browsers/other apps into hyprfiles
+- [x] Modifier keys (hold Ctrl to copy instead of move)
 
 ## Phase 4: Power Features
 

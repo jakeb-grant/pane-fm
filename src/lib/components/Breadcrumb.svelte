@@ -2,8 +2,23 @@
 import { listDirectory } from "$lib/commands";
 import { pathSegments } from "$lib/utils";
 
-let { path, onnavigate }: { path: string; onnavigate: (path: string) => void } =
-	$props();
+let {
+	path,
+	onnavigate,
+	isDragging = false,
+	dropTarget = null,
+	ondragoverpath,
+	ondroppath,
+	ondragleavepath,
+}: {
+	path: string;
+	onnavigate: (path: string) => void;
+	isDragging?: boolean;
+	dropTarget?: string | null;
+	ondragoverpath?: (path: string) => void;
+	ondroppath?: (path: string, ctrlKey: boolean) => void;
+	ondragleavepath?: () => void;
+} = $props();
 
 let segments = $derived(pathSegments(path));
 let editing = $state(false);
@@ -150,8 +165,12 @@ $effect(() => {
 			<button
 				class="segment"
 				class:active={i === segments.length - 1}
+				class:drop-target={dropTarget === segment.path}
 				onclick={() => onnavigate(segment.path)}
 				ondblclick={(e) => { e.stopPropagation(); startEditing(); }}
+				onmouseenter={() => { if (isDragging) ondragoverpath?.(segment.path); }}
+				onmouseleave={() => { if (isDragging) ondragleavepath?.(); }}
+				onmouseup={(e) => { if (isDragging) ondroppath?.(segment.path, e.ctrlKey); }}
 			>
 				{segment.name}
 			</button>
@@ -185,6 +204,10 @@ $effect(() => {
 		padding: 2px 6px;
 		border-radius: var(--radius);
 		cursor: pointer;
+	}
+
+	.segment.drop-target {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
 	}
 
 	.segment:hover {

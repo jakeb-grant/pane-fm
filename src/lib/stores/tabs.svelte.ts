@@ -41,6 +41,7 @@ export function createTabManager() {
 		if (clipboard) {
 			tabs[activeIndex].fm.clipboard = clipboard;
 		}
+		tabs[activeIndex].fm.refresh();
 	}
 
 	function transition(newIndex: number) {

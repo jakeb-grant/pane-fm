@@ -281,6 +281,7 @@ export function createDialogManager(getFm: () => FileManager) {
 		closeCompress,
 		openContextMenu,
 		closeContextMenu,
+		confirm,
 		closeConfirm,
 
 		// Orchestration

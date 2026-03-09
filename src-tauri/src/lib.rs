@@ -7,6 +7,7 @@ mod fs_ops;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_drag::init())
         .manage(commands::theme::ThemeWatcher(std::sync::Mutex::new(None)))
         .setup(|_app| {
             commands::theme::install_default_themes();

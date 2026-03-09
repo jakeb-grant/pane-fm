@@ -221,6 +221,40 @@ export async function handleFolderPickerSelect(
 	}
 }
 
+export async function handleDrop(
+	fm: FileManager,
+	sourcePaths: string[],
+	destDir: string,
+	mode: "move" | "copy",
+) {
+	try {
+		for (const src of sourcePaths) {
+			const name = src.split("/").pop() ?? "";
+			const dest = destDir === "/" ? `/${name}` : `${destDir}/${name}`;
+			if (src === dest) continue;
+			if (mode === "move") {
+				await moveEntry(src, dest);
+			} else {
+				await copyEntry(src, dest);
+			}
+		}
+		await fm.refresh();
+	} catch (e) {
+		fm.setError(errorMessage(e) ?? `Failed to ${mode}`);
+	}
+}
+
+export async function handleDropToTrash(fm: FileManager, paths: string[]) {
+	try {
+		for (const p of paths) {
+			await deleteEntry(p);
+		}
+		await fm.refresh();
+	} catch (e) {
+		fm.setError(errorMessage(e) ?? "Failed to trash");
+	}
+}
+
 export async function handleRestore(fm: FileManager) {
 	const entries = fm.effectiveSelection;
 	if (entries.length === 0) return;

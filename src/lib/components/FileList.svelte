@@ -12,6 +12,8 @@ let {
 	creatingEntry = null,
 	clipboardPaths = null,
 	clipboardMode = null,
+	isTrash = false,
+	dropTarget = null,
 	sortBy,
 	sortAsc,
 	onopen,
@@ -22,6 +24,10 @@ let {
 	onsort,
 	onrename,
 	oncreate,
+	ondragstartentries,
+	ondropentry,
+	ondragoverentry,
+	ondragleaveentry,
 }: {
 	entries: FileEntry[];
 	cursorPath: string | null;
@@ -30,6 +36,8 @@ let {
 	creatingEntry?: "file" | "directory" | null;
 	clipboardPaths?: Set<string> | null;
 	clipboardMode?: "copy" | "cut" | null;
+	isTrash?: boolean;
+	dropTarget?: string | null;
 	sortBy: string;
 	sortAsc: boolean;
 	onopen: (entry: FileEntry) => void;
@@ -40,6 +48,10 @@ let {
 	onsort: (column: string) => void;
 	onrename: (entry: FileEntry, newName: string) => void;
 	oncreate: (name: string) => void;
+	ondragstartentries?: (entries: FileEntry[]) => void;
+	ondropentry?: (targetDir: FileEntry, ctrlKey: boolean) => void;
+	ondragoverentry?: (entry: FileEntry) => void;
+	ondragleaveentry?: () => void;
 } = $props();
 
 const edit = createEditLogic({
@@ -113,6 +125,141 @@ function sortIndicator(column: string): string {
 	if (sortBy !== column) return "";
 	return sortAsc ? "▲" : "▼";
 }
+
+// Mouse-based drag (HTML5 DnD doesn't work in WebKitGTK/Tauri)
+const DRAG_THRESHOLD = 5;
+const SCROLL_EDGE = 40;
+const SCROLL_SPEED = 8;
+
+let dragOrigin = $state<{ x: number; y: number; entry: FileEntry } | null>(
+	null,
+);
+let dragging = $state(false);
+let ghost = $state<HTMLElement | null>(null);
+
+function handleMouseDown(entry: FileEntry, e: MouseEvent) {
+	if (e.button !== 0 || renamingPath === entry.path || isTrash) return;
+	e.preventDefault();
+	dragOrigin = { x: e.clientX, y: e.clientY, entry };
+}
+
+function handleMouseMove(e: MouseEvent) {
+	if (!dragOrigin) return;
+
+	if (!dragging) {
+		const dx = e.clientX - dragOrigin.x;
+		const dy = e.clientY - dragOrigin.y;
+		if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+
+		// Start drag — clear any accidental text selection
+		dragging = true;
+		window.getSelection()?.removeAllRanges();
+		const entry = dragOrigin.entry;
+		const dragItems = selectedPaths.has(entry.path)
+			? entries.filter((en) => selectedPaths.has(en.path))
+			: [entry];
+		ondragstartentries?.(dragItems);
+
+		// Clean up any stale ghost before creating a new one
+		if (ghost) {
+			ghost.remove();
+			ghost = null;
+		}
+		const el = document.createElement("div");
+		el.className = "drag-ghost";
+		el.textContent =
+			dragItems.length === 1 ? "1 item" : `${dragItems.length} items`;
+		document.body.appendChild(el);
+		ghost = el;
+	}
+
+	// Move ghost
+	if (ghost) {
+		ghost.style.top = `${e.clientY + 12}px`;
+		ghost.style.left = `${e.clientX + 12}px`;
+	}
+
+	// Auto-scroll at edges
+	if (listEl) {
+		const rect = listEl.getBoundingClientRect();
+		if (e.clientY - rect.top < SCROLL_EDGE) listEl.scrollTop -= SCROLL_SPEED;
+		else if (rect.bottom - e.clientY < SCROLL_EDGE)
+			listEl.scrollTop += SCROLL_SPEED;
+	}
+
+	// Hit-test: only manage drop targets when mouse is over the file list
+	const listRect = listEl?.getBoundingClientRect();
+	const overList =
+		listRect &&
+		e.clientX >= listRect.left &&
+		e.clientX <= listRect.right &&
+		e.clientY >= listRect.top &&
+		e.clientY <= listRect.bottom;
+
+	if (overList) {
+		const target = document.elementFromPoint(e.clientX, e.clientY);
+		const row = target?.closest("tr");
+		if (row) {
+			const idx = row.dataset.entryIdx;
+			if (idx != null) {
+				const hovered = entries[Number(idx)];
+				if (hovered?.is_dir) {
+					ondragoverentry?.(hovered);
+					return;
+				}
+			}
+		}
+		ondragleaveentry?.();
+	}
+}
+
+function handleMouseUp(e: MouseEvent) {
+	if (!dragging) {
+		dragOrigin = null;
+		return;
+	}
+
+	// Find drop target
+	if (ghost) {
+		ghost.remove();
+		ghost = null;
+	}
+	const target = document.elementFromPoint(e.clientX, e.clientY);
+	const row = target?.closest("tr");
+	if (row) {
+		const idx = row.dataset.entryIdx;
+		if (idx != null) {
+			const hovered = entries[Number(idx)];
+			if (hovered?.is_dir) {
+				ondropentry?.(hovered, e.ctrlKey);
+			}
+		}
+	}
+
+	dragging = false;
+	dragOrigin = null;
+	ondragleaveentry?.();
+}
+
+$effect(() => {
+	if (!dragOrigin) return;
+	const onMove = (e: MouseEvent) => handleMouseMove(e);
+	const onUp = (e: MouseEvent) => handleMouseUp(e);
+	const onSelectStart = (e: Event) => e.preventDefault();
+	window.addEventListener("mousemove", onMove);
+	window.addEventListener("mouseup", onUp);
+	document.addEventListener("selectstart", onSelectStart);
+	return () => {
+		window.removeEventListener("mousemove", onMove);
+		window.removeEventListener("mouseup", onUp);
+		document.removeEventListener("selectstart", onSelectStart);
+		if (ghost) {
+			ghost.remove();
+			ghost = null;
+		}
+		dragging = false;
+	};
+});
 </script>
 
 <div class="file-list" bind:this={listEl} onscroll={handleScroll}>
@@ -158,22 +305,26 @@ function sortIndicator(column: string): string {
 				<tr style="height:{topPad}px" aria-hidden="true"><td colspan="4"></td></tr>
 			{/if}
 
-			{#each visibleEntries as entry (entry.path)}
+			{#each visibleEntries as entry, vi (entry.path)}
 				<tr
 					style="height:{ROW_HEIGHT}px"
+					data-entry-idx={startIdx + vi}
 					class:cursor={cursorPath === entry.path}
 					class:selected={selectedPaths.has(entry.path)}
 					class:directory={entry.is_dir}
 					class:cut={clipboardPaths?.has(entry.path) && clipboardMode === "cut"}
 					class:copied={clipboardPaths?.has(entry.path) && clipboardMode === "copy"}
+					class:drop-target={dropTarget === entry.path && entry.is_dir}
 					ondblclick={() => { if (renamingPath !== entry.path) onopen(entry); }}
 					onclick={(e) => {
+						if (dragging) return;
 						if (renamingPath === entry.path) return;
 						if (e.ctrlKey || e.metaKey) { ontoggleselect(entry); }
 						else if (e.shiftKey) { onselectrange(entry); }
 						else { onselect(entry); }
 					}}
 					oncontextmenu={(e) => { e.preventDefault(); oncontextmenu(e, entry); }}
+					onmousedown={(e) => handleMouseDown(entry, e)}
 				>
 					<td class="td-icon">{getIconForEntry(entry)}</td>
 					<td class="td-name">
@@ -363,6 +514,7 @@ function sortIndicator(column: string): string {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		user-select: none;
 	}
 
 	.td-icon {
@@ -405,6 +557,26 @@ function sortIndicator(column: string): string {
 		padding: 40px;
 		text-align: center;
 		color: var(--text-muted);
+	}
+
+	tr.drop-target {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
+		outline: 1px dashed var(--accent);
+		outline-offset: -1px;
+	}
+
+	:global(.drag-ghost) {
+		position: fixed;
+		background: var(--bg-secondary);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius);
+		padding: 4px 10px;
+		font-size: 12px;
+		color: var(--text-primary);
+		font-family: var(--font-sans);
+		pointer-events: none;
+		white-space: nowrap;
+		z-index: 9999;
 	}
 
 	.rename-input {

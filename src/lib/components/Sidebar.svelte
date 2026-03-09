@@ -6,11 +6,21 @@ let {
 	onnavigate,
 	drives,
 	homeDir,
+	isDragging = false,
+	dropTarget = null,
+	ondragover,
+	ondrop,
+	ondragleave,
 }: {
 	currentPath: string;
 	onnavigate: (path: string) => void;
 	drives: { name: string; path: string; icon: string }[];
 	homeDir: string;
+	isDragging?: boolean;
+	dropTarget?: string | null;
+	ondragover?: (path: string) => void;
+	ondrop?: (path: string, ctrlKey: boolean) => void;
+	ondragleave?: () => void;
 } = $props();
 
 let places = $state<{ label: string; icon: string; path: string }[]>([]);
@@ -44,7 +54,11 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 			<button
 				class="sidebar-item"
 				class:active={currentPath === item.path}
+				class:drop-target={dropTarget === item.path}
 				onclick={() => onnavigate(item.path)}
+				onmouseenter={() => { if (isDragging) ondragover?.(item.path); }}
+				onmouseleave={() => { if (isDragging) ondragleave?.(); }}
+				onmouseup={(e) => { if (isDragging) ondrop?.(item.path, e.ctrlKey); }}
 			>
 				<span class="item-icon">{item.icon}</span>
 				<span class="item-label">{item.label}</span>
@@ -59,7 +73,11 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 				<button
 					class="sidebar-item"
 					class:active={currentPath === drive.path}
+					class:drop-target={dropTarget === drive.path}
 					onclick={() => onnavigate(drive.path)}
+					onmouseenter={() => { if (isDragging) ondragover?.(drive.path); }}
+					onmouseleave={() => { if (isDragging) ondragleave?.(); }}
+					onmouseup={(e) => { if (isDragging) ondrop?.(drive.path, e.ctrlKey); }}
 				>
 					<span class="item-icon">{drive.icon}</span>
 					<span class="item-label">{drive.name}</span>
@@ -74,7 +92,11 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 			<button
 				class="sidebar-item"
 				class:active={currentPath === item.path}
+				class:drop-target={dropTarget === item.path}
 				onclick={() => onnavigate(item.path)}
+				onmouseenter={() => { if (isDragging) ondragover?.(item.path); }}
+				onmouseleave={() => { if (isDragging) ondragleave?.(); }}
+				onmouseup={(e) => { if (isDragging) ondrop?.(item.path, e.ctrlKey); }}
 			>
 				<span class="item-icon">{item.icon}</span>
 				<span class="item-label">{item.label}</span>
@@ -143,6 +165,10 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 	.sidebar-item.active {
 		background: var(--bg-surface);
 		color: var(--accent);
+	}
+
+	.sidebar-item.drop-target {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
 	}
 
 	.sidebar-item:disabled {

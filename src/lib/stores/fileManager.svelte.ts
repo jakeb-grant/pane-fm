@@ -78,6 +78,11 @@ export function createFileManager() {
 		null,
 	);
 
+	// Drag and drop state
+	let dragEntries = $state<FileEntry[]>([]);
+	let dropTarget = $state<string | null>(null);
+	const isDragging = $derived(dragEntries.length > 0);
+
 	// Filter state
 	let filterQuery = $state("");
 
@@ -448,6 +453,15 @@ export function createFileManager() {
 		get visualMode() {
 			return visualMode;
 		},
+		get dragEntries() {
+			return dragEntries;
+		},
+		get dropTarget() {
+			return dropTarget;
+		},
+		get isDragging() {
+			return isDragging;
+		},
 		get history() {
 			return history;
 		},
@@ -504,6 +518,17 @@ export function createFileManager() {
 			renamingPath = null;
 			creatingEntry = null;
 			openWithApps = [];
+		},
+		startDrag(entries: FileEntry[]) {
+			dragEntries = entries;
+			dropTarget = null;
+		},
+		setDropTarget(path: string | null) {
+			dropTarget = path;
+		},
+		endDrag() {
+			dragEntries = [];
+			dropTarget = null;
 		},
 		setError,
 		init,

@@ -1,6 +1,8 @@
 <script lang="ts">
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { onDestroy, onMount, tick } from "svelte";
+import type { FileEntry } from "$lib/commands";
 import { getConfig, loadThemeCss, watchTheme } from "$lib/commands";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
@@ -410,6 +412,64 @@ function clipboardText(): string {
 	return `${mode}: ${what}`;
 }
 
+// --- Drag and drop wiring ---
+
+function handleDragStart(draggedEntries: FileEntry[]) {
+	fm.startDrag(draggedEntries);
+}
+
+function handleDropOnEntry(targetDir: FileEntry, ctrlKey: boolean) {
+	if (!fm.isDragging || !targetDir.is_dir) return;
+	if (fm.dragEntries.some((en) => en.path === targetDir.path)) {
+		fm.endDrag();
+		return;
+	}
+	const mode = ctrlKey ? "copy" : "move";
+	const paths = fm.dragEntries.map((en) => en.path);
+	fm.endDrag();
+	ops.handleDrop(fm, paths, targetDir.path, mode);
+}
+
+function handleDropOnTarget(path: string, ctrlKey: boolean) {
+	if (!fm.isDragging) return;
+	const draggedPaths = fm.dragEntries.map((en) => en.path);
+	const draggedNames = fm.dragEntries.map((en) => en.name);
+	fm.endDrag();
+	if (path === "trash://") {
+		const label =
+			draggedNames.length === 1
+				? draggedNames[0]
+				: `${draggedNames.length} items`;
+		dlg.confirm({
+			title: "Move to Trash",
+			message: `Move ${label} to trash?`,
+			confirmLabel: "Move to Trash",
+			danger: true,
+			onconfirm: async () => {
+				dlg.closeConfirm();
+				await ops.handleDropToTrash(fm, draggedPaths);
+			},
+		});
+		return;
+	}
+	const mode = ctrlKey ? "copy" : "move";
+	const targetTab = tabs.tabs.find((t) => t.fm.currentPath === path);
+	const targetFm = targetTab ? targetTab.fm : fm;
+	ops.handleDrop(targetFm, draggedPaths, path, mode).then(() => {
+		if (targetFm !== fm) fm.refresh();
+	});
+}
+
+function handleDragOverTarget(path: string) {
+	fm.setDropTarget(path);
+}
+
+function handleDragLeaveTarget() {
+	fm.setDropTarget(null);
+}
+
+let dropUnlisten: (() => void) | null = null;
+
 onMount(async () => {
 	let configWarning: string | undefined;
 	try {
@@ -440,27 +500,39 @@ onMount(async () => {
 	await tabs.init();
 	if (configWarning) tabs.activeFm.setError(configWarning);
 	await dlg.subscribeProgress();
+
+	dropUnlisten = await getCurrentWebview().onDragDropEvent((event) => {
+		if (event.payload.type === "drop" && event.payload.paths.length > 0) {
+			ops.handleDrop(fm, event.payload.paths, fm.currentPath, "copy");
+		}
+	});
 });
 
 onDestroy(() => {
 	dlg.unsubscribeProgress();
 	themeUnlisten?.();
+	dropUnlisten?.();
 });
 </script>
 
 <svelte:window onkeydown={handleWindowKeydown} onmousemove={(e) => { if (e.screenX !== lastMousePos.x || e.screenY !== lastMousePos.y) { lastMousePos = { x: e.screenX, y: e.screenY }; mouseCursorHidden = false; }}} />
 
 <div class="app" class:hide-cursor={mouseCursorHidden}>
-	<Sidebar currentPath={fm.currentPath} onnavigate={(path) => fm.navigate(path)} drives={fm.drives} homeDir={fm.homeDir} />
+	<Sidebar currentPath={fm.currentPath} onnavigate={(path) => fm.navigate(path)} drives={fm.drives} homeDir={fm.homeDir} isDragging={fm.isDragging} dropTarget={fm.dropTarget} ondragover={handleDragOverTarget} ondrop={handleDropOnTarget} ondragleave={handleDragLeaveTarget} />
 
 	<div class="main-column">
 		{#if tabs.tabs.length > 1}
 			<TabBar
-				tabs={tabs.tabs.map((tab, i) => ({ id: tab.id, label: tabs.tabLabels[i] }))}
+				tabs={tabs.tabs.map((tab, i) => ({ id: tab.id, label: tabs.tabLabels[i], path: tab.fm.currentPath }))}
 				activeIndex={tabs.activeIndex}
 				onswitch={tabs.switchTab}
 				onclose={tabs.closeTab}
 				onnew={tabs.newTab}
+				isDragging={fm.isDragging}
+				dropTarget={fm.dropTarget}
+				ondragover={handleDragOverTarget}
+				ondrop={handleDropOnTarget}
+				ondragleave={handleDragLeaveTarget}
 			/>
 		{/if}
 		<Toolbar
@@ -474,6 +546,11 @@ onDestroy(() => {
 			onnavigate={fm.navigate}
 			showHidden={fm.showHidden}
 			ontogglehidden={fm.toggleHidden}
+			isDragging={fm.isDragging}
+			dropTarget={fm.dropTarget}
+			ondragoverpath={handleDragOverTarget}
+			ondroppath={handleDropOnTarget}
+			ondragleavepath={handleDragLeaveTarget}
 		/>
 
 		{#if fm.error}
@@ -522,6 +599,8 @@ onDestroy(() => {
 						creatingEntry={fm.creatingEntry}
 						clipboardPaths={fm.clipboard ? new Set(fm.clipboard.entries.map(e => e.path)) : null}
 						clipboardMode={fm.clipboard?.mode ?? null}
+						isTrash={fm.isTrash}
+						dropTarget={fm.dropTarget}
 						sortBy={fm.sortBy}
 						sortAsc={fm.sortAsc}
 						onopen={(entry) => ops.handleOpen(fm, entry)}
@@ -532,6 +611,10 @@ onDestroy(() => {
 						onsort={fm.handleSort}
 						onrename={(entry, name) => ops.commitRename(fm, entry, name)}
 						oncreate={(name) => ops.commitCreate(fm, name)}
+						ondragstartentries={handleDragStart}
+						ondropentry={handleDropOnEntry}
+						ondragoverentry={(entry) => { if (!fm.dragEntries.some((en) => en.path === entry.path)) fm.setDropTarget(entry.path); }}
+						ondragleaveentry={() => fm.setDropTarget(null)}
 					/>
 				</div>
 			</div>

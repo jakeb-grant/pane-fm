@@ -18,6 +18,11 @@ let {
 	onnavigate,
 	showHidden,
 	ontogglehidden,
+	isDragging = false,
+	dropTarget = null,
+	ondragoverpath,
+	ondroppath,
+	ondragleavepath,
 }: {
 	canGoBack: boolean;
 	canGoForward: boolean;
@@ -28,6 +33,11 @@ let {
 	onnavigate: (path: string) => void;
 	showHidden: boolean;
 	ontogglehidden: () => void;
+	isDragging?: boolean;
+	dropTarget?: string | null;
+	ondragoverpath?: (path: string) => void;
+	ondroppath?: (path: string, ctrlKey: boolean) => void;
+	ondragleavepath?: () => void;
 } = $props();
 </script>
 
@@ -40,7 +50,7 @@ let {
 	</button>
 	<button class="nav-btn icon" onclick={ongoup} title="Up">{"\uf062"}</button>
 	<div class="breadcrumb-wrapper">
-		<Breadcrumb bind:this={breadcrumb} path={currentPath} onnavigate={onnavigate} />
+		<Breadcrumb bind:this={breadcrumb} path={currentPath} onnavigate={onnavigate} {isDragging} {dropTarget} {ondragoverpath} {ondroppath} {ondragleavepath} />
 	</div>
 	<button class="nav-btn icon" class:active={showHidden} onclick={ontogglehidden} title="Toggle hidden files">
 		{showHidden ? "\uf06e" : "\uf070"}

@@ -31,6 +31,7 @@ zstd = "0.13"
 bzip2 = "0.5"
 toml = "0.8"
 notify = "7"
+tauri-plugin-drag = "2.1.0"
 
 [dev-dependencies]
 tempfile = "3"

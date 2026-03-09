@@ -5,12 +5,22 @@ let {
 	onswitch,
 	onclose,
 	onnew,
+	isDragging = false,
+	dropTarget = null,
+	ondragover,
+	ondrop,
+	ondragleave,
 }: {
-	tabs: { id: number; label: string }[];
+	tabs: { id: number; label: string; path: string }[];
 	activeIndex: number;
 	onswitch: (index: number) => void;
 	onclose: (index: number) => void;
 	onnew: () => void;
+	isDragging?: boolean;
+	dropTarget?: string | null;
+	ondragover?: (path: string) => void;
+	ondrop?: (path: string, ctrlKey: boolean) => void;
+	ondragleave?: () => void;
 } = $props();
 </script>
 
@@ -19,6 +29,10 @@ let {
 		<button
 			class="tab"
 			class:active={i === activeIndex}
+			class:drop-target={dropTarget === tab.path}
+			onmouseenter={() => { if (isDragging) ondragover?.(tab.path); }}
+			onmouseleave={() => { if (isDragging) ondragleave?.(); }}
+			onmouseup={(e) => { if (isDragging) ondrop?.(tab.path, e.ctrlKey); }}
 			onclick={() => onswitch(i)}
 		>
 			<span class="tab-index">{i + 1}</span>
@@ -61,6 +75,10 @@ let {
 		min-width: 0;
 		max-width: 160px;
 		transition: color var(--transition-fast), border-color var(--transition-fast);
+	}
+
+	.tab.drop-target {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
 	}
 
 	.tab:hover {
