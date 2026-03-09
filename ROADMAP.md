@@ -129,12 +129,12 @@ day one.
 - Keep `selectedPath`/`selectedEntry` as backward-compat aliases during migration
 
 #### Step 1: Refactor `fileManager.svelte.ts`
-- [ ] Rename `selectedPath`→`cursorPath`, `selectedEntry`→`cursorEntry`
-- [ ] Add `selectedPaths: Set<string>` state
-- [ ] Add `effectiveSelection` derived getter
-- [ ] Add `toggleSelect(entry)`, `selectRange(from, to)`, `selectAll()`, `clearMultiSelection()`
-- [ ] `select()`/click clears multi-selection and moves cursor
-- [ ] `navigate()` clears both cursor and selectedPaths
+- [x] Rename `selectedPath`→`cursorPath`, `selectedEntry`→`cursorEntry`
+- [x] Add `selectedPaths: Set<string>` state
+- [x] Add `effectiveSelection` derived getter
+- [x] Add `toggleSelect(entry)`, `selectRange(from, to)`, `selectAll()`, `clearMultiSelection()`
+- [x] `select()`/click clears multi-selection and moves cursor
+- [x] `navigate()` clears both cursor and selectedPaths
 
 #### Step 2: Update `fileOps.ts`
 - [ ] `handleCopy`/`handleCut` → use `fm.effectiveSelection` (clipboard already holds `FileEntry[]`)

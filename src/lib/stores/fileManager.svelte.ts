@@ -39,9 +39,12 @@ export function createFileManager() {
 	let sortAsc = $state(loadPreference("sortAsc", true));
 	let showHidden = $state(loadPreference("showHidden", false));
 
-	// Selection state
-	let selectedPath = $state<string | null>(null);
-	let selectedEntry = $state<FileEntry | null>(null);
+	// Cursor state (the focused/highlighted entry)
+	let cursorPath = $state<string | null>(null);
+	let cursorEntry = $state<FileEntry | null>(null);
+
+	// Multi-selection state
+	let selectedPaths = $state<Set<string>>(new Set());
 
 	// Edit state
 	let renamingPath = $state<string | null>(null);
@@ -98,6 +101,13 @@ export function createFileManager() {
 		return sortedEntries.filter((e) => fuzzyMatch(filterQuery, e.name));
 	});
 
+	const effectiveSelection = $derived.by(() => {
+		if (selectedPaths.size > 0) {
+			return filteredEntries.filter((e) => selectedPaths.has(e.path));
+		}
+		return cursorEntry ? [cursorEntry] : [];
+	});
+
 	const isTrash = $derived(currentPath === "trash://");
 
 	// Actions
@@ -108,8 +118,9 @@ export function createFileManager() {
 	) {
 		loading = true;
 		error = null;
-		selectedPath = null;
-		selectedEntry = null;
+		cursorPath = null;
+		cursorEntry = null;
+		selectedPaths = new Set();
 		filterQuery = "";
 
 		try {
@@ -181,13 +192,15 @@ export function createFileManager() {
 	}
 
 	function select(entry: FileEntry) {
-		selectedPath = entry.path;
-		selectedEntry = entry;
+		cursorPath = entry.path;
+		cursorEntry = entry;
+		selectedPaths = new Set();
 	}
 
 	function clearSelection() {
-		selectedPath = null;
-		selectedEntry = null;
+		cursorPath = null;
+		cursorEntry = null;
+		selectedPaths = new Set();
 	}
 
 	function selectByIndex(index: number) {
@@ -200,9 +213,43 @@ export function createFileManager() {
 	function selectRelative(delta: number) {
 		const list = filteredEntries;
 		if (list.length === 0) return;
-		const currentIndex = list.findIndex((e) => e.path === selectedPath);
+		const currentIndex = list.findIndex((e) => e.path === cursorPath);
 		const next = currentIndex === -1 ? 0 : currentIndex + delta;
 		selectByIndex(next);
+	}
+
+	function toggleSelect(entry: FileEntry) {
+		const next = new Set(selectedPaths);
+		if (next.has(entry.path)) {
+			next.delete(entry.path);
+		} else {
+			next.add(entry.path);
+		}
+		selectedPaths = next;
+		cursorPath = entry.path;
+		cursorEntry = entry;
+	}
+
+	function selectRange(from: FileEntry, to: FileEntry) {
+		const list = filteredEntries;
+		const fromIdx = list.findIndex((e) => e.path === from.path);
+		const toIdx = list.findIndex((e) => e.path === to.path);
+		if (fromIdx === -1 || toIdx === -1) return;
+		const start = Math.min(fromIdx, toIdx);
+		const end = Math.max(fromIdx, toIdx);
+		const next = new Set(selectedPaths);
+		for (let i = start; i <= end; i++) {
+			next.add(list[i].path);
+		}
+		selectedPaths = next;
+	}
+
+	function selectAll() {
+		selectedPaths = new Set(filteredEntries.map((e) => e.path));
+	}
+
+	function clearMultiSelection() {
+		selectedPaths = new Set();
 	}
 
 	function setError(msg: string | null) {
@@ -255,11 +302,24 @@ export function createFileManager() {
 		get error() {
 			return error;
 		},
+		get cursorPath() {
+			return cursorPath;
+		},
+		get cursorEntry() {
+			return cursorEntry;
+		},
+		get selectedPaths() {
+			return selectedPaths;
+		},
+		get effectiveSelection() {
+			return effectiveSelection;
+		},
+		// Backward-compat aliases (removed when consumers migrate)
 		get selectedPath() {
-			return selectedPath;
+			return cursorPath;
 		},
 		get selectedEntry() {
-			return selectedEntry;
+			return cursorEntry;
 		},
 		get renamingPath() {
 			return renamingPath;
@@ -331,6 +391,10 @@ export function createFileManager() {
 		clearSelection,
 		selectByIndex,
 		selectRelative,
+		toggleSelect,
+		selectRange,
+		selectAll,
+		clearMultiSelection,
 		setError,
 		init,
 	};
