@@ -32,6 +32,9 @@ export function createFileManager() {
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
+	// Remembers last cursor position per directory
+	const cursorMemory = new Map<string, string>();
+
 	// File state
 	let entries = $state<FileEntry[]>([]);
 	let drives = $state<{ name: string; path: string; icon: string }[]>([]);
@@ -116,6 +119,11 @@ export function createFileManager() {
 		addToHistory = true,
 		selectAfter: string | null = null,
 	) {
+		// Remember cursor position before leaving
+		if (cursorPath && currentPath) {
+			cursorMemory.set(currentPath, cursorPath);
+		}
+
 		loading = true;
 		error = null;
 		cursorPath = null;
@@ -136,11 +144,15 @@ export function createFileManager() {
 				historyIndex = history.length - 1;
 			}
 
-			// Auto-select: prefer selectAfter target, else first entry
+			// Auto-select: explicit target > remembered cursor > first entry
+			const remembered = cursorMemory.get(path);
 			const target = selectAfter
 				? entries.find((e) => e.path === selectAfter || e.name === selectAfter)
-				: entries[0];
+				: remembered
+					? entries.find((e) => e.path === remembered)
+					: entries[0];
 			if (target) select(target);
+			else if (entries[0]) select(entries[0]);
 		} catch (e) {
 			error = errorMessage(e) ?? String(e);
 		} finally {
@@ -191,9 +203,13 @@ export function createFileManager() {
 		navigate(currentPath, false);
 	}
 
-	function select(entry: FileEntry) {
+	function moveCursor(entry: FileEntry) {
 		cursorPath = entry.path;
 		cursorEntry = entry;
+	}
+
+	function select(entry: FileEntry) {
+		moveCursor(entry);
 		selectedPaths = new Set();
 	}
 
@@ -207,7 +223,7 @@ export function createFileManager() {
 		const list = filteredEntries;
 		if (list.length === 0) return;
 		const clamped = Math.max(0, Math.min(index, list.length - 1));
-		select(list[clamped]);
+		moveCursor(list[clamped]);
 	}
 
 	function selectRelative(delta: number) {
@@ -242,6 +258,8 @@ export function createFileManager() {
 			next.add(list[i].path);
 		}
 		selectedPaths = next;
+		cursorPath = to.path;
+		cursorEntry = to;
 	}
 
 	function selectAll() {

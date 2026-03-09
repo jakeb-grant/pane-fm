@@ -31,7 +31,7 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	const tag = (e.target as HTMLElement)?.tagName;
 	if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-	if (e.key === keybinds.filter) {
+	if (matchesKeybind(e, keybinds.filter)) {
 		e.preventDefault();
 		filterBarVisible = true;
 		await tick();
@@ -39,25 +39,40 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		return;
 	}
 
-	if (matchesKeybind(e.key, keybinds.moveDown)) {
+	if (matchesKeybind(e, keybinds.escape)) {
+		e.preventDefault();
+		if (filterBarVisible) {
+			handleFilterClose();
+		} else if (fm.selectedPaths.size > 0) {
+			fm.clearMultiSelection();
+		} else {
+			fm.clearSelection();
+		}
+	} else if (matchesKeybind(e, keybinds.selectAll)) {
+		e.preventDefault();
+		fm.selectAll();
+	} else if (matchesKeybind(e, keybinds.toggleSelect)) {
+		e.preventDefault();
+		if (fm.cursorEntry) fm.toggleSelect(fm.cursorEntry);
+	} else if (matchesKeybind(e, keybinds.moveDown)) {
 		e.preventDefault();
 		fm.selectRelative(1);
-	} else if (matchesKeybind(e.key, keybinds.moveUp)) {
+	} else if (matchesKeybind(e, keybinds.moveUp)) {
 		e.preventDefault();
 		fm.selectRelative(-1);
-	} else if (matchesKeybind(e.key, keybinds.open)) {
+	} else if (matchesKeybind(e, keybinds.open)) {
 		e.preventDefault();
 		if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry);
-	} else if (matchesKeybind(e.key, keybinds.goParent)) {
+	} else if (matchesKeybind(e, keybinds.goParent)) {
 		e.preventDefault();
 		fm.goUp();
-	} else if (e.key === keybinds.goTop) {
+	} else if (matchesKeybind(e, keybinds.goTop)) {
 		e.preventDefault();
 		fm.selectByIndex(0);
-	} else if (e.key === keybinds.goBottom) {
+	} else if (matchesKeybind(e, keybinds.goBottom)) {
 		e.preventDefault();
 		fm.selectByIndex(fm.filteredEntries.length - 1);
-	} else if (e.key === keybinds.toggleHidden) {
+	} else if (matchesKeybind(e, keybinds.toggleHidden)) {
 		fm.toggleHidden();
 	}
 }
@@ -107,7 +122,22 @@ function buildMenuItems() {
 				y: dlg.contextMenu.y,
 			}
 		: { kind: "background" };
-	return getContextMenuItems(ctx, fm, menuActions);
+	return getContextMenuItems(
+		ctx,
+		{
+			isTrash: fm.isTrash,
+			showHidden: fm.showHidden,
+			clipboard: fm.clipboard,
+			openWithApps: fm.openWithApps,
+			multiSelectCount:
+				fm.selectedPaths.size > 0
+					? fm.selectedPaths.size
+					: fm.cursorEntry
+						? 1
+						: 0,
+		},
+		menuActions,
+	);
 }
 
 function clipboardText(): string {
@@ -184,7 +214,8 @@ onDestroy(() => {
 				<div class="content" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}>
 				<FileList
 						entries={fm.filteredEntries}
-						selectedPath={fm.selectedPath}
+						cursorPath={fm.cursorPath}
+						selectedPaths={fm.selectedPaths}
 						renamingPath={fm.renamingPath}
 						creatingEntry={fm.creatingEntry}
 						clipboardPaths={fm.clipboard ? new Set(fm.clipboard.entries.map(e => e.path)) : null}
@@ -193,6 +224,8 @@ onDestroy(() => {
 						sortAsc={fm.sortAsc}
 						onopen={(entry) => ops.handleOpen(fm, entry)}
 						onselect={fm.select}
+						ontoggleselect={fm.toggleSelect}
+						onselectrange={(entry) => { if (fm.cursorEntry) fm.selectRange(fm.cursorEntry, entry); else fm.select(entry); }}
 						oncontextmenu={(e, entry) => ops.handleContextMenu(fm, e, entry, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}
 						onsort={fm.handleSort}
 						onrename={(entry, name) => ops.commitRename(fm, entry, name)}
@@ -203,7 +236,9 @@ onDestroy(() => {
 		{/if}
 	</div>
 
-	{#if fm.clipboard}
+	{#if fm.selectedPaths.size > 0}
+		<StatusBar text="{fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'} selected" onclear={() => fm.clearMultiSelection()} />
+	{:else if fm.clipboard}
 		<StatusBar text={clipboardText()} onclear={() => fm.clipboard = null} />
 	{/if}
 
@@ -233,9 +268,9 @@ onDestroy(() => {
 	/>
 {/if}
 
-{#if dlg.compressEntry}
+{#if dlg.compressEntries.length > 0}
 	<CompressDialog
-		defaultName={dlg.compressEntry.name}
+		defaultName={dlg.compressEntries.length === 1 ? dlg.compressEntries[0].name : "archive"}
 		onconfirm={dlg.handleCompressConfirm}
 		onclose={dlg.closeCompress}
 	/>

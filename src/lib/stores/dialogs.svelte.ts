@@ -22,7 +22,7 @@ export function createDialogManager(fm: FileManager) {
 	} | null>(null);
 
 	// Compress dialog
-	let compressEntry = $state<FileEntry | null>(null);
+	let compressEntries = $state<FileEntry[]>([]);
 
 	// Context menu
 	let contextMenu = $state<{
@@ -73,12 +73,12 @@ export function createDialogManager(fm: FileManager) {
 		folderPicker = null;
 	}
 
-	function openCompress(entry: FileEntry) {
-		compressEntry = entry;
+	function openCompress(entries: FileEntry[]) {
+		compressEntries = entries;
 	}
 
 	function closeCompress() {
-		compressEntry = null;
+		compressEntries = [];
 	}
 
 	function openContextMenu(x: number, y: number, entry: FileEntry | null) {
@@ -128,22 +128,21 @@ export function createDialogManager(fm: FileManager) {
 	}
 
 	function handleCompress() {
-		if (!fm.cursorEntry) return;
-		openCompress(fm.cursorEntry);
+		const entries = fm.effectiveSelection;
+		if (entries.length === 0) return;
+		openCompress(entries);
 	}
 
 	async function handleCompressConfirm(archiveName: string) {
-		if (!compressEntry) return;
-		const entry = compressEntry;
+		if (compressEntries.length === 0) return;
+		const paths = compressEntries.map((e) => e.path);
 		closeCompress();
 		const dest =
 			fm.currentPath === "/"
 				? `/${archiveName}`
 				: `${fm.currentPath}/${archiveName}`;
 		// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
-		await runBusyOperation("Compressing\u2026", () =>
-			compress([entry.path], dest),
-		);
+		await runBusyOperation("Compressing\u2026", () => compress(paths, dest));
 	}
 
 	async function handleCancelOperation() {
@@ -179,8 +178,8 @@ export function createDialogManager(fm: FileManager) {
 		get folderPicker() {
 			return folderPicker;
 		},
-		get compressEntry() {
-			return compressEntry;
+		get compressEntries() {
+			return compressEntries;
 		},
 		get contextMenu() {
 			return contextMenu;

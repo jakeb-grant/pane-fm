@@ -145,27 +145,27 @@ day one.
 - [x] `handlePaste` → already loops `clipboard.entries`, no change needed
 
 #### Step 3: Update `dialogs.svelte.ts`
-- [ ] `handleCompress` → pass all effective entries' paths (Rust `compress` already accepts `paths[]`)
-- [ ] `handleExtract`/`handleExtractTo` → single archive only, use `cursorEntry`
-- [ ] `handleProperties` → single entry, use `cursorEntry`
-- [ ] `folderPicker` type → accept `entries: FileEntry[]` instead of single `entry`
+- [x] `handleCompress` → pass all effective entries' paths (Rust `compress` already accepts `paths[]`)
+- [x] `handleExtract`/`handleExtractTo` → single archive only, use `cursorEntry`
+- [x] `handleProperties` → single entry, use `cursorEntry`
+- [x] `folderPicker` type → accept `entries: FileEntry[]` instead of single `entry`
 
 #### Step 4: Update `FileList.svelte`
-- [ ] Rename prop `selectedPath`→`cursorPath`, add `selectedPaths: Set<string>` prop
-- [ ] Row classes: `class:cursor` for highlight bar, `class:selected` for multi-select
-- [ ] Click handlers: plain=move cursor, Ctrl+click=toggle select, Shift+click=range select
+- [x] Rename prop `selectedPath`→`cursorPath`, add `selectedPaths: Set<string>` prop
+- [x] Row classes: `class:cursor` for highlight bar, `class:selected` for multi-select
+- [x] Click handlers: plain=move cursor, Ctrl+click=toggle select, Shift+click=range select
 
 #### Step 5: Update `+page.svelte`
-- [ ] Pass new props to FileList
-- [ ] Wire `Space` (toggle), `v` (visual mode), `Ctrl-a` (select all)
-- [ ] `Escape` cascades: close filter → clear multi-selection → clear cursor
+- [x] Pass new props to FileList
+- [x] Wire `Space` (toggle), `Ctrl-a` (select all)
+- [x] `Escape` cascades: close filter → clear multi-selection → clear cursor
 
 #### Step 6: Update `contextMenu.ts`
-- [ ] Multi-selection labels ("Move 3 items to Trash", etc.)
-- [ ] Hide/disable single-only items (Rename, Properties, Open With) when multi-selected
+- [x] Multi-selection labels ("Move 3 items to Trash", etc.)
+- [x] Hide/disable single-only items (Rename, Properties, Open With) when multi-selected
 
 #### Step 7: StatusBar
-- [ ] Show "N items selected" when `selectedPaths.size > 0`
+- [x] Show "N items selected" when `selectedPaths.size > 0`
 
 ## Phase 3: Theming & Drag and Drop
 

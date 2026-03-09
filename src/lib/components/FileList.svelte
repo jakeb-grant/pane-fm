@@ -6,7 +6,8 @@ import { createEditLogic } from "./fileEditLogic.svelte";
 
 let {
 	entries,
-	selectedPath,
+	cursorPath,
+	selectedPaths = new Set(),
 	renamingPath = null,
 	creatingEntry = null,
 	clipboardPaths = null,
@@ -15,13 +16,16 @@ let {
 	sortAsc,
 	onopen,
 	onselect,
+	ontoggleselect,
+	onselectrange,
 	oncontextmenu,
 	onsort,
 	onrename,
 	oncreate,
 }: {
 	entries: FileEntry[];
-	selectedPath: string | null;
+	cursorPath: string | null;
+	selectedPaths?: Set<string>;
 	renamingPath?: string | null;
 	creatingEntry?: "file" | "directory" | null;
 	clipboardPaths?: Set<string> | null;
@@ -30,6 +34,8 @@ let {
 	sortAsc: boolean;
 	onopen: (entry: FileEntry) => void;
 	onselect: (entry: FileEntry) => void;
+	ontoggleselect: (entry: FileEntry) => void;
+	onselectrange: (entry: FileEntry) => void;
 	oncontextmenu: (e: MouseEvent, entry: FileEntry) => void;
 	onsort: (column: string) => void;
 	onrename: (entry: FileEntry, newName: string) => void;
@@ -47,8 +53,8 @@ const edit = createEditLogic({
 let listEl = $state<HTMLDivElement | null>(null);
 
 $effect(() => {
-	if (!selectedPath || !listEl) return;
-	const row = listEl.querySelector("tr.selected");
+	if (!cursorPath || !listEl) return;
+	const row = listEl.querySelector("tr.cursor");
 	row?.scrollIntoView({ block: "nearest" });
 });
 
@@ -99,11 +105,17 @@ function sortIndicator(column: string): string {
 
 			{#each entries as entry (entry.path)}
 				<tr
-					class:selected={selectedPath === entry.path}
+					class:cursor={cursorPath === entry.path}
+					class:selected={selectedPaths.has(entry.path)}
 					class:directory={entry.is_dir}
 					class:cut={clipboardPaths?.has(entry.path) && clipboardMode === "cut"}
 					ondblclick={() => { if (renamingPath !== entry.path) onopen(entry); }}
-					onclick={() => { if (renamingPath !== entry.path) onselect(entry); }}
+					onclick={(e) => {
+						if (renamingPath === entry.path) return;
+						if (e.ctrlKey || e.metaKey) { ontoggleselect(entry); }
+						else if (e.shiftKey) { onselectrange(entry); }
+						else { onselect(entry); }
+					}}
 					oncontextmenu={(e) => { e.preventDefault(); oncontextmenu(e, entry); }}
 				>
 					<td class="td-icon">{getIconForEntry(entry)}</td>
@@ -219,8 +231,16 @@ function sortIndicator(column: string): string {
 		background: var(--bg-surface);
 	}
 
-	tr.selected {
+	tr.cursor {
 		background: var(--bg-hover);
+	}
+
+	tr.selected {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+	}
+
+	tr.cursor.selected {
+		background: color-mix(in srgb, var(--accent) 20%, var(--bg-hover));
 	}
 
 	tr.cut {

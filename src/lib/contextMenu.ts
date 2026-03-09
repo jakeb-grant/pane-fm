@@ -48,6 +48,7 @@ export interface ContextMenuState {
 	showHidden: boolean;
 	clipboard: { entries: FileEntry[]; mode: "copy" | "cut" } | null;
 	openWithApps: Array<{ name: string; desktop_id: string; icon: string }>;
+	multiSelectCount: number;
 }
 
 // --- Builders ---
@@ -80,25 +81,45 @@ function buildTrashBgItems(actions: ContextMenuActions): MenuEntry[] {
 
 function buildEntryItems(
 	ctx: EntryContext,
+	state: ContextMenuState,
 	actions: ContextMenuActions,
 ): MenuEntry[] {
 	const { entry } = ctx;
-	const items: MenuEntry[] = [
-		{ label: "Open", action: () => actions.open(entry) },
-		{
-			label: "Open With\u2026",
-			action: () => actions.openWith(entry, { x: ctx.x, y: ctx.y }),
-		},
-		{ separator: true },
-		{ label: "Cut", action: actions.cut },
-		{ label: "Copy", action: actions.copy },
-		{ label: "Move to\u2026", action: actions.moveTo },
-		{ label: "Copy to\u2026", action: actions.copyTo },
-		{ label: "Rename", action: actions.rename },
-		{ separator: true },
-	];
+	const multi = state.multiSelectCount > 1;
+	const n = state.multiSelectCount;
+	const items: MenuEntry[] = [];
 
-	if (isArchive(entry)) {
+	if (!multi) {
+		items.push(
+			{ label: "Open", action: () => actions.open(entry) },
+			{
+				label: "Open With\u2026",
+				action: () => actions.openWith(entry, { x: ctx.x, y: ctx.y }),
+			},
+			{ separator: true },
+		);
+	}
+
+	items.push(
+		{ label: multi ? `Cut ${n} Items` : "Cut", action: actions.cut },
+		{ label: multi ? `Copy ${n} Items` : "Copy", action: actions.copy },
+		{
+			label: multi ? `Move ${n} Items to\u2026` : "Move to\u2026",
+			action: actions.moveTo,
+		},
+		{
+			label: multi ? `Copy ${n} Items to\u2026` : "Copy to\u2026",
+			action: actions.copyTo,
+		},
+	);
+
+	if (!multi) {
+		items.push({ label: "Rename", action: actions.rename });
+	}
+
+	items.push({ separator: true });
+
+	if (!multi && isArchive(entry)) {
 		items.push(
 			{ label: "Extract Here", action: actions.extract },
 			{ label: "Extract to Folder\u2026", action: actions.extractTo },
@@ -106,13 +127,25 @@ function buildEntryItems(
 	}
 
 	items.push(
-		// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
-		{ label: "Compress\u2026", action: actions.compress },
+		{
+			// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
+			label: multi ? `Compress ${n} Items\u2026` : "Compress\u2026",
+			action: actions.compress,
+		},
 		{ separator: true },
-		{ label: "Move to Trash", action: actions.delete, danger: true },
-		{ separator: true },
-		{ label: "Properties", action: actions.properties },
+		{
+			label: multi ? `Move ${n} Items to Trash` : "Move to Trash",
+			action: actions.delete,
+			danger: true,
+		},
 	);
+
+	if (!multi) {
+		items.push(
+			{ separator: true },
+			{ label: "Properties", action: actions.properties },
+		);
+	}
 
 	return items;
 }
@@ -164,7 +197,7 @@ export function getContextMenuItems(
 		if (state.openWithApps.length > 0) {
 			return buildOpenWithItems(ctx, state, actions);
 		}
-		return buildEntryItems(ctx, actions);
+		return buildEntryItems(ctx, state, actions);
 	}
 
 	return buildBgItems(state, actions);

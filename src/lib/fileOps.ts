@@ -251,7 +251,9 @@ export function handleContextMenu(
 	}) => void,
 ) {
 	e.stopPropagation();
-	fm.select(entry);
+	if (!fm.selectedPaths.has(entry.path)) {
+		fm.select(entry);
+	}
 	fm.openWithApps = [];
 	setContextMenu({ x: e.clientX, y: e.clientY, entry });
 }
