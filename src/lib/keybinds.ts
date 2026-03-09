@@ -8,6 +8,28 @@ export interface Keybind {
 
 type KeybindDef = string | Keybind | readonly (string | Keybind)[];
 
+export interface ChordDef {
+	keys: readonly [string, string];
+}
+
+export const chords = {
+	goTop: { keys: ["g", "g"] },
+	goHome: { keys: ["g", "h"] },
+	goDownloads: { keys: ["g", "d"] },
+	goTrash: { keys: ["g", "t"] },
+	sortName: { keys: [",", "n"] },
+	sortSize: { keys: [",", "s"] },
+	sortModified: { keys: [",", "m"] },
+	copyPath: { keys: ["c", "c"] },
+	copyFilename: { keys: ["c", "f"] },
+} as const satisfies Record<string, ChordDef>;
+
+export type ChordName = keyof typeof chords;
+
+export const chordPrefixes: Set<string> = new Set(
+	Object.values(chords).map((c) => c.keys[0]),
+);
+
 export const keybinds = {
 	filter: "/",
 	moveDown: ["j", "ArrowDown"],

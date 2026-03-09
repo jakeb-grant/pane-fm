@@ -19,7 +19,13 @@ import {
 	getContextMenuItems,
 } from "$lib/contextMenu";
 import * as ops from "$lib/fileOps";
-import { keybinds, matchesKeybind } from "$lib/keybinds";
+import {
+	type ChordName,
+	chordPrefixes,
+	chords,
+	keybinds,
+	matchesKeybind,
+} from "$lib/keybinds";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { createFileManager } from "$lib/stores/fileManager.svelte";
 
@@ -31,6 +37,56 @@ let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
 let toolbar = $state<ReturnType<typeof Toolbar> | null>(null);
 let mouseCursorHidden = $state(false);
 let lastMousePos = { x: 0, y: 0 };
+let pendingChord = $state<string | null>(null);
+let chordTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearChord() {
+	pendingChord = null;
+	if (chordTimer) {
+		clearTimeout(chordTimer);
+		chordTimer = null;
+	}
+}
+
+function matchChord(prefix: string, second: string): ChordName | null {
+	for (const [name, def] of Object.entries(chords)) {
+		if (def.keys[0] === prefix && def.keys[1] === second)
+			return name as ChordName;
+	}
+	return null;
+}
+
+function executeChord(name: ChordName) {
+	switch (name) {
+		case "goTop":
+			fm.selectByIndex(0);
+			break;
+		case "goHome":
+			fm.navigate(fm.homeDir);
+			break;
+		case "goDownloads":
+			fm.navigate(`${fm.homeDir}/Downloads`);
+			break;
+		case "goTrash":
+			fm.navigate("trash://");
+			break;
+		case "sortName":
+			fm.handleSort("name");
+			break;
+		case "sortSize":
+			fm.handleSort("size");
+			break;
+		case "sortModified":
+			fm.handleSort("modified");
+			break;
+		case "copyPath":
+			if (fm.cursorEntry) navigator.clipboard.writeText(fm.cursorEntry.path);
+			break;
+		case "copyFilename":
+			if (fm.cursorEntry) navigator.clipboard.writeText(fm.cursorEntry.name);
+			break;
+	}
+}
 
 async function handleWindowKeydown(e: KeyboardEvent) {
 	if (matchesKeybind(e, keybinds.focusPath)) {
@@ -53,6 +109,36 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 
 	const tag = (e.target as HTMLElement)?.tagName;
 	if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+	// Chord handling: two-key sequences like gg, gh, ,s
+	if (pendingChord) {
+		const chord = matchChord(pendingChord, e.key);
+		clearChord();
+		if (chord) {
+			e.preventDefault();
+			executeChord(chord);
+			mouseCursorHidden = true;
+			return;
+		}
+		// No match — fall through so second key works as normal single key
+	}
+
+	if (!e.ctrlKey && !e.altKey && !e.metaKey && chordPrefixes.has(e.key)) {
+		// Check if this key is ONLY a chord prefix (no single-key bind uses it)
+		// g, comma, c are not single-key binds so we can safely intercept
+		const isSingleBind = Object.values(keybinds).some((bind) => {
+			if (typeof bind === "string") return bind === e.key;
+			if (Array.isArray(bind))
+				return bind.some((b) => typeof b === "string" && b === e.key);
+			return false;
+		});
+		if (!isSingleBind) {
+			e.preventDefault();
+			pendingChord = e.key;
+			chordTimer = setTimeout(clearChord, 500);
+			return;
+		}
+	}
 
 	let handled = true;
 

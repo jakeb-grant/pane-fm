@@ -104,10 +104,10 @@ Yazi-inspired keybinds. Arrow keys always work alongside vim keys.
 - [x] `Escape` — cascading clear (filter → selection)
 
 #### New functionality needed
-- [ ] `Space` — toggle selection on entry (multi-select)
+- [x] `Space` — toggle selection on entry (multi-select)
 - [ ] `v` — visual mode (range select)
-- [ ] `Ctrl-a` — select all
-- [ ] `Ctrl-u`/`Ctrl-d` — half page up/down
+- [x] `Ctrl-a` — select all
+- [x] `Ctrl-u`/`Ctrl-d` — half page up/down
 - [ ] `n`/`N` — next/prev filter match (cycle through matches)
 - [ ] `,` prefix — sort chords (`,s` size, `,m` modified, `,n` name)
 - [ ] `g` prefix — goto chords (`gh` home, `gd` downloads)
