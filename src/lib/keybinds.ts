@@ -15,11 +15,21 @@ export const keybinds = {
 	open: ["l", "ArrowRight", "Enter"],
 	goParent: ["h", "ArrowLeft"],
 	goTop: "Home",
-	goBottom: "End",
+	goBottom: ["G", "End"],
 	toggleHidden: ".",
 	toggleSelect: " ",
 	selectAll: { key: "a", ctrl: true },
 	escape: "Escape",
+	yank: "y",
+	cut: "x",
+	paste: "p",
+	trash: "d",
+	rename: "r",
+	newFile: "a",
+	newFolder: { key: "A", shift: true },
+	cancelClipboard: ["Y", "X"],
+	historyBack: "H",
+	historyForward: "L",
 } as const satisfies Record<string, KeybindDef>;
 
 function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {

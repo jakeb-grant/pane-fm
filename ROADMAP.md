@@ -91,17 +91,17 @@ Yazi-inspired keybinds. Arrow keys always work alongside vim keys.
 - [x] Auto-select first entry on navigate, re-select dir on go-up
 
 #### Wire up (functionality exists, just needs keybind)
-- [ ] `y` — yank (copy)
-- [ ] `x` — cut
-- [ ] `p` — paste
-- [ ] `d` — trash
-- [ ] `r` — rename
-- [ ] `a` — create (file or directory)
-- [ ] `Y`/`X` — cancel yank
+- [x] `y` — yank (copy)
+- [x] `x` — cut
+- [x] `p` — paste
+- [x] `d` — trash
+- [x] `r` — rename
+- [x] `a`/`A` — create file / create folder
+- [x] `Y`/`X` — cancel yank
 - [ ] `gg` — go to top (chord)
-- [ ] `G` — go to bottom
-- [ ] `H`/`L` — history back/forward
-- [ ] `Escape` — cascading clear (filter → selection)
+- [x] `G` — go to bottom
+- [x] `H`/`L` — history back/forward
+- [x] `Escape` — cascading clear (filter → selection)
 
 #### New functionality needed
 - [ ] `Space` — toggle selection on entry (multi-select)

@@ -21,6 +21,9 @@ pub enum AppError {
     Desktop {
         message: String,
     },
+    AlreadyExists {
+        path: String,
+    },
     Trash {
         message: String,
     },
@@ -38,6 +41,7 @@ impl std::fmt::Display for AppError {
             }
             AppError::NotFound { path } => write!(f, "Not found: {path}"),
             AppError::PermissionDenied { path } => write!(f, "Permission denied: {path}"),
+            AppError::AlreadyExists { path } => write!(f, "Already exists: {path}"),
             AppError::Cancelled => write!(f, "Operation cancelled"),
             AppError::Archive { message } => write!(f, "Archive error: {message}"),
             AppError::Desktop { message } => write!(f, "Desktop error: {message}"),
@@ -57,6 +61,9 @@ impl From<std::io::Error> for AppError {
             std::io::ErrorKind::PermissionDenied => AppError::PermissionDenied {
                 path: String::new(),
             },
+            std::io::ErrorKind::AlreadyExists => AppError::AlreadyExists {
+                path: String::new(),
+            },
             std::io::ErrorKind::Interrupted => AppError::Cancelled,
             _ => AppError::Io {
                 message: e.to_string(),
@@ -73,6 +80,7 @@ impl AppError {
         match e.kind() {
             std::io::ErrorKind::NotFound => AppError::NotFound { path },
             std::io::ErrorKind::PermissionDenied => AppError::PermissionDenied { path },
+            std::io::ErrorKind::AlreadyExists => AppError::AlreadyExists { path },
             std::io::ErrorKind::Interrupted => AppError::Cancelled,
             _ => AppError::Io {
                 message: e.to_string(),

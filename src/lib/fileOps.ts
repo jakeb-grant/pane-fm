@@ -71,12 +71,14 @@ export function handleCopy(fm: FileManager) {
 	const entries = fm.effectiveSelection;
 	if (entries.length === 0) return;
 	fm.clipboard = { entries, mode: "copy" };
+	fm.clearMultiSelection();
 }
 
 export function handleCut(fm: FileManager) {
 	const entries = fm.effectiveSelection;
 	if (entries.length === 0) return;
 	fm.clipboard = { entries, mode: "cut" };
+	fm.clearMultiSelection();
 }
 
 export async function handlePaste(fm: FileManager) {
@@ -95,7 +97,7 @@ export async function handlePaste(fm: FileManager) {
 				await copyEntry(src.path, destPath);
 			}
 		}
-		if (isCut) fm.clipboard = null;
+		fm.clipboard = null;
 		await fm.refresh();
 	} catch (e) {
 		fm.setError(errorMessage(e) ?? `Failed to ${isCut ? "move" : "paste"}`);

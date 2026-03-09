@@ -2,6 +2,7 @@
 import { onDestroy, onMount, tick } from "svelte";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
+import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
 import ContextMenu from "$lib/components/ContextMenu.svelte";
 import FileList from "$lib/components/FileList.svelte";
 // biome-ignore lint/style/useImportType: component used in template
@@ -43,6 +44,8 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		e.preventDefault();
 		if (filterBarVisible) {
 			handleFilterClose();
+		} else if (fm.clipboard) {
+			fm.clipboard = null;
 		} else if (fm.selectedPaths.size > 0) {
 			fm.clearMultiSelection();
 		} else {
@@ -74,6 +77,29 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.selectByIndex(fm.filteredEntries.length - 1);
 	} else if (matchesKeybind(e, keybinds.toggleHidden)) {
 		fm.toggleHidden();
+	} else if (matchesKeybind(e, keybinds.yank)) {
+		ops.handleCopy(fm);
+	} else if (matchesKeybind(e, keybinds.cut)) {
+		ops.handleCut(fm);
+	} else if (matchesKeybind(e, keybinds.paste)) {
+		ops.handlePaste(fm);
+	} else if (matchesKeybind(e, keybinds.trash)) {
+		dlg.handleDelete();
+	} else if (matchesKeybind(e, keybinds.rename)) {
+		e.preventDefault();
+		ops.handleRename(fm);
+	} else if (matchesKeybind(e, keybinds.newFolder)) {
+		e.preventDefault();
+		ops.handleNewFolder(fm);
+	} else if (matchesKeybind(e, keybinds.newFile)) {
+		e.preventDefault();
+		ops.handleNewFile(fm);
+	} else if (matchesKeybind(e, keybinds.cancelClipboard)) {
+		fm.clipboard = null;
+	} else if (matchesKeybind(e, keybinds.historyBack)) {
+		fm.goBack();
+	} else if (matchesKeybind(e, keybinds.historyForward)) {
+		fm.goForward();
 	}
 }
 
@@ -98,13 +124,13 @@ const menuActions: ContextMenuActions = {
 		ops.handleMoveTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entries)),
 	copyTo: () =>
 		ops.handleCopyTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entries)),
-	delete: () => ops.handleDelete(fm),
+	delete: () => dlg.handleDelete(),
 	extract: dlg.handleExtract,
 	extractTo: dlg.handleExtractTo,
 	compress: dlg.handleCompress,
 	properties: dlg.handleProperties,
 	restore: () => ops.handleRestore(fm),
-	emptyTrash: () => ops.handleEmptyTrash(fm),
+	emptyTrash: () => dlg.handleEmptyTrash(),
 	newFolder: () => ops.handleNewFolder(fm),
 	newFile: () => ops.handleNewFile(fm),
 	toggleHidden: fm.toggleHidden,
@@ -196,7 +222,7 @@ onDestroy(() => {
 							{fm.entries.length === 0 ? "Trash is empty" : `${fm.entries.length} ${fm.entries.length === 1 ? "item" : "items"} in trash`}
 						</span>
 						{#if fm.entries.length > 0}
-							<button class="context-bar-action" onclick={() => ops.handleEmptyTrash(fm)}>Empty Trash</button>
+							<button class="context-bar-action" onclick={() => dlg.handleEmptyTrash()}>Empty Trash</button>
 						{/if}
 					</div>
 				{/if}
@@ -273,6 +299,17 @@ onDestroy(() => {
 		defaultName={dlg.compressEntries.length === 1 ? dlg.compressEntries[0].name : "archive"}
 		onconfirm={dlg.handleCompressConfirm}
 		onclose={dlg.closeCompress}
+	/>
+{/if}
+
+{#if dlg.confirmDialog}
+	<ConfirmDialog
+		title={dlg.confirmDialog.title}
+		message={dlg.confirmDialog.message}
+		confirmLabel={dlg.confirmDialog.confirmLabel}
+		danger={dlg.confirmDialog.danger}
+		onconfirm={dlg.confirmDialog.onconfirm}
+		onclose={dlg.closeConfirm}
 	/>
 {/if}
 

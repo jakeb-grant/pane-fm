@@ -3,6 +3,7 @@ export type AppError =
 	| { kind: "Io"; message: string; path?: string }
 	| { kind: "NotFound"; path: string }
 	| { kind: "PermissionDenied"; path: string }
+	| { kind: "AlreadyExists"; path: string }
 	| { kind: "Cancelled" }
 	| { kind: "Archive"; message: string }
 	| { kind: "Desktop"; message: string }
@@ -32,6 +33,8 @@ export function errorMessage(e: unknown): string | null {
 			return `Not found: ${e.path}`;
 		case "PermissionDenied":
 			return `Permission denied: ${e.path}`;
+		case "AlreadyExists":
+			return `Already exists: ${e.path}`;
 		case "Io":
 			return e.path ? `${e.message} (${e.path})` : e.message;
 		case "Archive":

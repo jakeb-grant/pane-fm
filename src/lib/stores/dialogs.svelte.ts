@@ -31,6 +31,15 @@ export function createDialogManager(fm: FileManager) {
 		entry: FileEntry | null;
 	} | null>(null);
 
+	// Confirm dialog
+	let confirmDialog = $state<{
+		title: string;
+		message: string;
+		confirmLabel: string;
+		danger: boolean;
+		onconfirm: () => void;
+	} | null>(null);
+
 	// Busy overlay
 	let busyMessage = $state<string | null>(null);
 	let busyProgress = $state<{ processed: number; total: number } | null>(null);
@@ -165,6 +174,56 @@ export function createDialogManager(fm: FileManager) {
 		await ops.handleFolderPickerSelect(fm, fp, destDir);
 	}
 
+	function confirm(opts: {
+		title: string;
+		message: string;
+		confirmLabel: string;
+		danger?: boolean;
+		onconfirm: () => void;
+	}) {
+		confirmDialog = {
+			title: opts.title,
+			message: opts.message,
+			confirmLabel: opts.confirmLabel,
+			danger: opts.danger ?? false,
+			onconfirm: opts.onconfirm,
+		};
+	}
+
+	function closeConfirm() {
+		confirmDialog = null;
+	}
+
+	function handleDelete() {
+		const entries = fm.effectiveSelection;
+		if (entries.length === 0) return;
+		const label =
+			entries.length === 1 ? entries[0].name : `${entries.length} items`;
+		confirm({
+			title: "Move to Trash",
+			message: `Move ${label} to trash?`,
+			confirmLabel: "Move to Trash",
+			danger: true,
+			onconfirm: async () => {
+				closeConfirm();
+				await ops.handleDelete(fm);
+			},
+		});
+	}
+
+	function handleEmptyTrash() {
+		confirm({
+			title: "Empty Trash",
+			message: "Permanently delete all items in trash? This cannot be undone.",
+			confirmLabel: "Empty Trash",
+			danger: true,
+			onconfirm: async () => {
+				closeConfirm();
+				await ops.handleEmptyTrash(fm);
+			},
+		});
+	}
+
 	async function handleProperties() {
 		if (!fm.cursorEntry) return;
 		await ops.handleProperties(fm, openProperties);
@@ -190,6 +249,9 @@ export function createDialogManager(fm: FileManager) {
 		get busyProgress() {
 			return busyProgress;
 		},
+		get confirmDialog() {
+			return confirmDialog;
+		},
 
 		// Dialog open/close
 		openProperties,
@@ -200,8 +262,11 @@ export function createDialogManager(fm: FileManager) {
 		closeCompress,
 		openContextMenu,
 		closeContextMenu,
+		closeConfirm,
 
 		// Orchestration
+		handleDelete,
+		handleEmptyTrash,
 		handleExtract,
 		handleExtractTo,
 		handleCompress,

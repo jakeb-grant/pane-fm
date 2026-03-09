@@ -109,6 +109,7 @@ function sortIndicator(column: string): string {
 					class:selected={selectedPaths.has(entry.path)}
 					class:directory={entry.is_dir}
 					class:cut={clipboardPaths?.has(entry.path) && clipboardMode === "cut"}
+					class:copied={clipboardPaths?.has(entry.path) && clipboardMode === "copy"}
 					ondblclick={() => { if (renamingPath !== entry.path) onopen(entry); }}
 					onclick={(e) => {
 						if (renamingPath === entry.path) return;
@@ -236,15 +237,53 @@ function sortIndicator(column: string): string {
 	}
 
 	tr.selected {
-		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+	}
+
+	tr.selected > td:first-child {
+		box-shadow: inset 3px 0 0 var(--accent);
 	}
 
 	tr.cursor.selected {
-		background: color-mix(in srgb, var(--accent) 20%, var(--bg-hover));
+		background: color-mix(in srgb, var(--accent) 14%, var(--bg-hover));
+	}
+
+	tr.cursor.selected > td:first-child {
+		box-shadow: inset 4px 0 0 var(--accent), 0 0 8px -2px color-mix(in srgb, var(--accent) 30%, transparent);
+	}
+
+	tr.copied > td:first-child {
+		box-shadow: inset 3px 0 0 var(--success);
+	}
+
+	tr.copied {
+		background: color-mix(in srgb, var(--success) 6%, transparent);
+	}
+
+	tr.cursor.copied {
+		background: var(--bg-hover);
+	}
+
+	tr.cursor.copied > td:first-child {
+		box-shadow: inset 4px 0 0 var(--success), 0 0 8px -2px color-mix(in srgb, var(--success) 30%, transparent);
+	}
+
+	tr.cut > td:first-child {
+		box-shadow: inset 3px 0 0 var(--warning);
 	}
 
 	tr.cut {
-		opacity: 0.45;
+		opacity: 0.5;
+		background: color-mix(in srgb, var(--warning) 6%, transparent);
+	}
+
+	tr.cursor.cut {
+		opacity: 1;
+		background: var(--bg-hover);
+	}
+
+	tr.cursor.cut > td:first-child {
+		box-shadow: inset 4px 0 0 var(--warning), 0 0 8px -2px color-mix(in srgb, var(--warning) 30%, transparent);
 	}
 
 	tr.creating {

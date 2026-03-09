@@ -117,6 +117,11 @@ pub fn create_file(path: &Path) -> Result<(), AppError> {
 }
 
 pub fn rename_entry(from: &Path, to: &Path) -> Result<(), AppError> {
+    if from != to && to.exists() {
+        return Err(AppError::AlreadyExists {
+            path: to.display().to_string(),
+        });
+    }
     fs::rename(from, to).map_err(|e| AppError::io_with_path(e, from.display().to_string()))
 }
 
@@ -126,11 +131,40 @@ pub fn delete_entry(path: &Path) -> Result<(), AppError> {
     })
 }
 
+/// Returns a unique destination path by appending " (N)" if `to` already exists.
+/// For files, the suffix is inserted before the extension: `foo (2).txt`.
+/// For directories (or extensionless files): `foo (2)`.
+pub fn unique_dest_path(to: &Path) -> std::path::PathBuf {
+    if !to.exists() {
+        return to.to_path_buf();
+    }
+    let stem = to
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    let ext = to.extension().map(|e| e.to_string_lossy().to_string());
+    let parent = to.parent().unwrap_or(Path::new("/"));
+
+    for n in 2..u32::MAX {
+        let name = match &ext {
+            Some(e) => format!("{stem} ({n}).{e}"),
+            None => format!("{stem} ({n})"),
+        };
+        let candidate = parent.join(&name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    to.to_path_buf()
+}
+
 pub fn copy_entry(from: &Path, to: &Path) -> Result<(), AppError> {
+    let dest = unique_dest_path(to);
     if from.is_dir() {
-        copy_dir_recursive(from, to)
+        copy_dir_recursive(from, &dest)
     } else {
-        fs::copy(from, to)
+        fs::copy(from, &dest)
             .map(|_| ())
             .map_err(|e| AppError::io_with_path(e, from.display().to_string()))
     }
@@ -158,12 +192,20 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), AppError> {
 }
 
 pub fn move_entry(from: &Path, to: &Path) -> Result<(), AppError> {
+    let dest = unique_dest_path(to);
     // Try rename first (same filesystem, instant)
-    if fs::rename(from, to).is_ok() {
+    if fs::rename(from, &dest).is_ok() {
         return Ok(());
     }
     // Fall back to copy + delete (cross-filesystem)
-    copy_entry(from, to)?;
+    // copy_entry already calls unique_dest_path, but dest is already unique here
+    if from.is_dir() {
+        copy_dir_recursive(from, &dest)?;
+    } else {
+        fs::copy(from, &dest)
+            .map(|_| ())
+            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
+    }
     if from.is_dir() {
         fs::remove_dir_all(from)
             .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
@@ -345,6 +387,58 @@ mod tests {
         assert!(!from.exists()); // source removed
         assert!(to.exists());
         assert_eq!(fs::read_to_string(&to).unwrap(), "content");
+    }
+
+    #[test]
+    fn unique_dest_path_no_conflict() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("file.txt");
+        assert_eq!(unique_dest_path(&target), target);
+    }
+
+    #[test]
+    fn unique_dest_path_with_conflict() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("file.txt");
+        fs::write(&target, "").unwrap();
+
+        let result = unique_dest_path(&target);
+        assert_eq!(result, tmp.path().join("file (2).txt"));
+    }
+
+    #[test]
+    fn unique_dest_path_multiple_conflicts() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("file.txt"), "").unwrap();
+        fs::write(tmp.path().join("file (2).txt"), "").unwrap();
+        fs::write(tmp.path().join("file (3).txt"), "").unwrap();
+
+        let result = unique_dest_path(&tmp.path().join("file.txt"));
+        assert_eq!(result, tmp.path().join("file (4).txt"));
+    }
+
+    #[test]
+    fn unique_dest_path_no_extension() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("folder");
+        fs::create_dir(&target).unwrap();
+
+        let result = unique_dest_path(&target);
+        assert_eq!(result, tmp.path().join("folder (2)"));
+    }
+
+    #[test]
+    fn copy_entry_same_dir_auto_renames() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("test.txt");
+        fs::write(&file, "original").unwrap();
+
+        copy_entry(&file, &file).unwrap();
+
+        assert!(file.exists());
+        let copy = tmp.path().join("test (2).txt");
+        assert!(copy.exists());
+        assert_eq!(fs::read_to_string(&copy).unwrap(), "original");
     }
 
     #[test]
