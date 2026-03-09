@@ -1,4 +1,5 @@
 <script lang="ts">
+import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
 import { formatSize } from "$lib/utils";
 
 let {
@@ -11,6 +12,10 @@ let {
 	oncancel: () => void;
 } = $props();
 </script>
+
+<svelte:window onkeydown={(e) => {
+	if (matchesKeybind(e, keybinds.escape)) oncancel();
+}} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="busy-overlay" onwheel={(e) => e.preventDefault()} onclick={(e) => e.stopPropagation()}>
@@ -25,7 +30,7 @@ let {
 			</div>
 			<span class="busy-detail">{formatSize(progress.processed)} / {formatSize(progress.total)}</span>
 		{/if}
-		<button class="busy-cancel" onclick={oncancel}>Cancel</button>
+		<button class="busy-cancel" onclick={oncancel}>Cancel <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
 	</div>
 </div>
 
@@ -112,5 +117,15 @@ let {
 	.busy-cancel:hover {
 		background: var(--bg-surface);
 		color: var(--text-primary);
+	}
+
+	kbd {
+		font-size: 10px;
+		font-family: var(--font-mono, monospace);
+		padding: 1px 4px;
+		border-radius: 3px;
+		background: rgba(255, 255, 255, 0.1);
+		margin-left: 4px;
+		opacity: 0.7;
 	}
 </style>

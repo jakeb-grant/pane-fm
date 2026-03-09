@@ -1,4 +1,6 @@
 <script lang="ts">
+import { keybinds, matchesKeybind } from "$lib/keybinds";
+
 export interface MenuItem {
 	label: string;
 	action: () => void;
@@ -24,9 +26,48 @@ let {
 	onclose: () => void;
 } = $props();
 
+let focusedIndex = $state(0);
+
+// Get indices of actionable (non-separator) items
+const actionableIndices = $derived(
+	items.map((item, i) => (!item.separator ? i : -1)).filter((i) => i !== -1),
+);
+
+function moveFocus(delta: number) {
+	const current = actionableIndices.indexOf(focusedIndex);
+	const next = current + delta;
+	if (next >= 0 && next < actionableIndices.length) {
+		focusedIndex = actionableIndices[next];
+	}
+}
+
+function activateFocused() {
+	const item = items[focusedIndex];
+	if (item && !item.separator) {
+		item.action();
+		onclose();
+	}
+}
+
 function handleClick(action: () => void) {
 	action();
 	onclose();
+}
+
+function handleKeydown(e: KeyboardEvent) {
+	if (matchesKeybind(e, keybinds.menuDown)) {
+		e.preventDefault();
+		moveFocus(1);
+	} else if (matchesKeybind(e, keybinds.menuUp)) {
+		e.preventDefault();
+		moveFocus(-1);
+	} else if (matchesKeybind(e, keybinds.menuAccept)) {
+		e.preventDefault();
+		activateFocused();
+	} else if (matchesKeybind(e, keybinds.escape)) {
+		e.preventDefault();
+		onclose();
+	}
 }
 
 let menuStyle = $derived(() => {
@@ -40,6 +81,8 @@ let menuStyle = $derived(() => {
 });
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="context-overlay" onclick={onclose} onwheel={(e) => e.preventDefault()} oncontextmenu={(e) => { e.preventDefault(); onclose(); }}></div>
 
@@ -48,7 +91,6 @@ let menuStyle = $derived(() => {
 	class="context-menu"
 	style={menuStyle()}
 	onclick={(e) => e.stopPropagation()}
-	onkeydown={(e) => e.key === "Escape" && onclose()}
 >
 	{#each items as item, i (i)}
 		{#if item.separator}
@@ -57,6 +99,7 @@ let menuStyle = $derived(() => {
 			<button
 				class="menu-item"
 				class:danger={item.danger}
+				class:focused={i === focusedIndex}
 				onclick={() => handleClick(item.action)}
 			>
 				{item.label}
@@ -97,7 +140,8 @@ let menuStyle = $derived(() => {
 		cursor: pointer;
 	}
 
-	.menu-item:hover {
+	.menu-item:hover,
+	.menu-item.focused {
 		background: var(--bg-hover);
 	}
 
@@ -105,7 +149,8 @@ let menuStyle = $derived(() => {
 		color: var(--danger);
 	}
 
-	.menu-item.danger:hover {
+	.menu-item.danger:hover,
+	.menu-item.danger.focused {
 		background: color-mix(in srgb, var(--danger) 15%, transparent);
 	}
 

@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { onDestroy, onMount } from "svelte";
 import { type DirStats, type FileProperties, getDirStats } from "$lib/commands";
 import { getIconForEntry } from "$lib/icons";
+import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
 import { formatSize } from "$lib/utils";
 
 let {
@@ -55,7 +56,9 @@ onDestroy(() => {
 });
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
+<svelte:window onkeydown={(e) => {
+	if (matchesKeybind(e, keybinds.menuClose) || matchesKeybind(e, keybinds.menuAccept)) onclose();
+}} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()}>
@@ -146,7 +149,7 @@ onDestroy(() => {
 		</div>
 
 		<div class="footer">
-			<button class="close-btn" onclick={onclose}>Close</button>
+			<button class="close-btn" onclick={onclose}>Close <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
 		</div>
 	</div>
 </div>
@@ -258,5 +261,15 @@ onDestroy(() => {
 
 	.close-btn:hover {
 		background: var(--bg-hover);
+	}
+
+	kbd {
+		font-size: 10px;
+		font-family: var(--font-mono, monospace);
+		padding: 1px 4px;
+		border-radius: 3px;
+		background: rgba(255, 255, 255, 0.1);
+		margin-left: 4px;
+		opacity: 0.7;
 	}
 </style>

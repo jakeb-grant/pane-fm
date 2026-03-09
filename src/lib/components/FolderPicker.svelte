@@ -3,6 +3,7 @@ import { onMount } from "svelte";
 import type { FileEntry } from "$lib/commands";
 import { getHomeDir, listDirectory, pathExists } from "$lib/commands";
 import { errorMessage } from "$lib/errors";
+import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
 import { parentPath, pathSegments } from "$lib/utils";
 
 let {
@@ -20,6 +21,7 @@ let folders = $state<FileEntry[]>([]);
 let loading = $state(false);
 let err = $state<string | null>(null);
 let places = $state<{ label: string; icon: string; path: string }[]>([]);
+let focusedIndex = $state(0);
 
 let segments = $derived(pathSegments(currentDir));
 
@@ -30,6 +32,7 @@ async function loadDir(path: string) {
 		const entries = await listDirectory(path, false);
 		folders = entries.filter((e) => e.is_dir);
 		currentDir = path;
+		focusedIndex = 0;
 	} catch (e) {
 		err = errorMessage(e) ?? String(e);
 	} finally {
@@ -69,7 +72,26 @@ onMount(async () => {
 });
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
+<svelte:window onkeydown={(e) => {
+	if (matchesKeybind(e, keybinds.escape)) {
+		onclose();
+	} else if (matchesKeybind(e, keybinds.menuDown)) {
+		e.preventDefault();
+		if (focusedIndex < folders.length - 1) focusedIndex++;
+	} else if (matchesKeybind(e, keybinds.menuUp)) {
+		e.preventDefault();
+		if (focusedIndex > 0) focusedIndex--;
+	} else if (matchesKeybind(e, keybinds.menuAccept) || matchesKeybind(e, keybinds.enterDir)) {
+		e.preventDefault();
+		if (folders[focusedIndex]) loadDir(folders[focusedIndex].path);
+	} else if (matchesKeybind(e, keybinds.menuBack) || matchesKeybind(e, keybinds.goParent)) {
+		e.preventDefault();
+		goUp();
+	} else if (matchesKeybind(e, keybinds.confirm)) {
+		e.preventDefault();
+		onselect(currentDir);
+	}
+}} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()}>
@@ -120,8 +142,8 @@ onMount(async () => {
 				{:else if folders.length === 0}
 					<div class="empty">No subfolders</div>
 				{:else}
-					{#each folders as folder (folder.path)}
-						<button class="folder-item" ondblclick={() => loadDir(folder.path)} onclick={() => loadDir(folder.path)}>
+					{#each folders as folder, i (folder.path)}
+						<button class="folder-item" class:focused={i === focusedIndex} ondblclick={() => loadDir(folder.path)} onclick={() => { focusedIndex = i; loadDir(folder.path); }}>
 							<span class="folder-icon">{"\uF07B"}</span>
 							<span class="folder-name">{folder.name}</span>
 						</button>
@@ -133,8 +155,8 @@ onMount(async () => {
 		<div class="footer">
 			<span class="footer-title">{title}</span>
 			<div class="footer-actions">
-				<button class="btn cancel" onclick={onclose}>Cancel</button>
-				<button class="btn confirm" onclick={() => onselect(currentDir)}>Select</button>
+				<button class="btn cancel" onclick={onclose}>Cancel <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
+				<button class="btn confirm" onclick={() => onselect(currentDir)}>Select <kbd>{keybindLabel(keybinds.confirm)}</kbd></button>
 			</div>
 		</div>
 	</div>
@@ -332,7 +354,8 @@ onMount(async () => {
 		text-align: left;
 	}
 
-	.folder-item:hover {
+	.folder-item:hover,
+	.folder-item.focused {
 		background: var(--bg-surface);
 	}
 
@@ -409,5 +432,15 @@ onMount(async () => {
 
 	.btn.confirm:hover {
 		opacity: 0.9;
+	}
+
+	kbd {
+		font-size: 10px;
+		font-family: var(--font-mono, monospace);
+		padding: 1px 4px;
+		border-radius: 3px;
+		background: rgba(255, 255, 255, 0.1);
+		margin-left: 4px;
+		opacity: 0.7;
 	}
 </style>

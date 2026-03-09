@@ -89,7 +89,21 @@ function executeChord(name: ChordName) {
 	}
 }
 
+function isDialogOpen() {
+	return !!(
+		dlg.contextMenu ||
+		dlg.propertiesData ||
+		dlg.folderPicker ||
+		dlg.compressEntries.length > 0 ||
+		dlg.confirmDialog ||
+		dlg.busyMessage
+	);
+}
+
 async function handleWindowKeydown(e: KeyboardEvent) {
+	// Let dialogs handle their own keys
+	if (isDialogOpen()) return;
+
 	if (matchesKeybind(e, keybinds.focusPath)) {
 		e.preventDefault();
 		toolbar?.focusPath();
@@ -219,6 +233,19 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	} else if (matchesKeybind(e, keybinds.newFile)) {
 		e.preventDefault();
 		ops.handleNewFile(fm);
+	} else if (matchesKeybind(e, keybinds.openMenu)) {
+		e.preventDefault();
+		if (fm.cursorEntry && contentEl) {
+			const row = contentEl.querySelector("tr.cursor");
+			if (row) {
+				const rect = row.getBoundingClientRect();
+				dlg.openContextMenu(
+					rect.left + rect.width / 2,
+					rect.top + rect.height,
+					fm.cursorEntry,
+				);
+			}
+		}
 	} else if (matchesKeybind(e, keybinds.properties)) {
 		dlg.handleProperties();
 	} else if (matchesKeybind(e, keybinds.cancelClipboard)) {

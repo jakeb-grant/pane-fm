@@ -1,5 +1,6 @@
 <script lang="ts">
 import { tick } from "svelte";
+import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
 
 let {
 	defaultName,
@@ -38,7 +39,11 @@ function handleSubmit() {
 }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
+<svelte:window onkeydown={(e) => {
+	const inInput = (e.target as HTMLElement)?.tagName === "INPUT";
+	if (matchesKeybind(e, keybinds.escape)) onclose();
+	else if (!inInput && matchesKeybind(e, keybinds.confirm)) handleSubmit();
+}} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()}>
@@ -83,8 +88,8 @@ function handleSubmit() {
 		</div>
 
 		<div class="footer">
-			<button class="btn cancel" onclick={onclose}>Cancel</button>
-			<button class="btn confirm" onclick={handleSubmit} disabled={!baseName.trim()}>Compress</button>
+			<button class="btn cancel" onclick={onclose}>Cancel <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
+			<button class="btn confirm" onclick={handleSubmit} disabled={!baseName.trim()}>Compress <kbd>{keybindLabel(keybinds.confirm)}</kbd></button>
 		</div>
 	</div>
 </div>
@@ -262,5 +267,15 @@ function handleSubmit() {
 	.btn.confirm:disabled {
 		opacity: 0.4;
 		cursor: default;
+	}
+
+	kbd {
+		font-size: 10px;
+		font-family: var(--font-mono, monospace);
+		padding: 1px 4px;
+		border-radius: 3px;
+		background: rgba(255, 255, 255, 0.1);
+		margin-left: 4px;
+		opacity: 0.7;
 	}
 </style>

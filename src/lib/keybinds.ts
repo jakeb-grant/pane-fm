@@ -60,6 +60,16 @@ export const keybinds = {
 	focusPath: { key: "l", ctrl: true },
 	halfPageUp: { key: "u", ctrl: true },
 	halfPageDown: { key: "d", ctrl: true },
+
+	// Dialog keybinds
+	openMenu: "o",
+	confirm: "y",
+	deny: "n",
+	menuDown: ["j", "ArrowDown"],
+	menuUp: ["k", "ArrowUp"],
+	menuAccept: ["l", "Enter"],
+	menuBack: "h",
+	menuClose: ["q", "Escape"],
 } as const satisfies Record<string, KeybindDef>;
 
 function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {
@@ -72,6 +82,18 @@ function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {
 		!!e.altKey === !!bind.alt &&
 		!!e.metaKey === !!bind.meta
 	);
+}
+
+export function keybindLabel(bind: KeybindDef): string {
+	const single = Array.isArray(bind) ? bind[0] : bind;
+	if (typeof single === "string") return single;
+	const parts: string[] = [];
+	if (single.ctrl) parts.push("Ctrl");
+	if (single.alt) parts.push("Alt");
+	if (single.meta) parts.push("Meta");
+	if (single.shift) parts.push("Shift");
+	parts.push(single.key);
+	return parts.join("+");
 }
 
 export function matchesKeybind(e: KeyboardEvent, bind: KeybindDef): boolean {
