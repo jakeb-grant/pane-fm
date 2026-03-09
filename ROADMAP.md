@@ -115,6 +115,27 @@ Yazi-inspired keybinds. Arrow keys always work alongside vim keys.
 - [ ] `D` — permanent delete (bypass trash)
 - [ ] Configurable keybinds via config file
 
+### Multi-select
+Prerequisite for bulk operations and full keybind support.
+
+#### State
+- [ ] `selectedPaths: Set<string>` replacing single `selectedPath`
+- [ ] Selection mode tracking (none / single / visual range)
+- [ ] Visual mode anchor point (start of range for `v` selection)
+
+#### Interactions
+- [ ] Click selects single, Ctrl+click toggles, Shift+click extends range
+- [ ] `Space` — toggle current entry in selection
+- [ ] `v` — enter visual mode (range select as you move with j/k)
+- [ ] `Ctrl-a` — select all visible entries
+- [ ] `Escape` — clear multi-selection
+
+#### Operations on multi-selection
+- [ ] `y`/`x`/`d`/`p` operate on all selected entries
+- [ ] Context menu reflects multi-selection ("Delete 3 items", etc.)
+- [ ] Drag and drop works with multiple selected entries
+- [ ] StatusBar shows selection count ("3 selected")
+
 ## Phase 3: Theming & Drag and Drop
 
 The two features that justify this project's existence.
