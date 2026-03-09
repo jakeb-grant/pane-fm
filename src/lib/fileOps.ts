@@ -53,24 +53,30 @@ export async function handleOpenWith(
 }
 
 export async function handleDelete(fm: FileManager) {
-	if (!fm.selectedEntry) return;
-	const name = fm.selectedEntry.name;
+	const entries = fm.effectiveSelection;
+	if (entries.length === 0) return;
 	try {
-		await deleteEntry(fm.selectedEntry.path);
+		for (const entry of entries) {
+			await deleteEntry(entry.path);
+		}
 		await fm.refresh();
 	} catch (e) {
-		fm.setError(errorMessage(e) ?? `Failed to delete ${name}`);
+		const label =
+			entries.length === 1 ? entries[0].name : `${entries.length} items`;
+		fm.setError(errorMessage(e) ?? `Failed to delete ${label}`);
 	}
 }
 
 export function handleCopy(fm: FileManager) {
-	if (!fm.selectedEntry) return;
-	fm.clipboard = { entries: [fm.selectedEntry], mode: "copy" };
+	const entries = fm.effectiveSelection;
+	if (entries.length === 0) return;
+	fm.clipboard = { entries, mode: "copy" };
 }
 
 export function handleCut(fm: FileManager) {
-	if (!fm.selectedEntry) return;
-	fm.clipboard = { entries: [fm.selectedEntry], mode: "cut" };
+	const entries = fm.effectiveSelection;
+	if (entries.length === 0) return;
+	fm.clipboard = { entries, mode: "cut" };
 }
 
 export async function handlePaste(fm: FileManager) {
@@ -97,8 +103,8 @@ export async function handlePaste(fm: FileManager) {
 }
 
 export function handleRename(fm: FileManager) {
-	if (!fm.selectedEntry) return;
-	fm.renamingPath = fm.selectedEntry.path;
+	if (!fm.cursorEntry) return;
+	fm.renamingPath = fm.cursorEntry.path;
 }
 
 export async function commitRename(
@@ -154,39 +160,42 @@ export function handleMoveTo(
 	fm: FileManager,
 	setFolderPicker: (v: {
 		mode: "move" | "copy" | "extract";
-		entry: FileEntry;
+		entries: FileEntry[];
 	}) => void,
 ) {
-	if (!fm.selectedEntry) return;
-	setFolderPicker({ mode: "move", entry: fm.selectedEntry });
+	const entries = fm.effectiveSelection;
+	if (entries.length === 0) return;
+	setFolderPicker({ mode: "move", entries });
 }
 
 export function handleCopyTo(
 	fm: FileManager,
 	setFolderPicker: (v: {
 		mode: "move" | "copy" | "extract";
-		entry: FileEntry;
+		entries: FileEntry[];
 	}) => void,
 ) {
-	if (!fm.selectedEntry) return;
-	setFolderPicker({ mode: "copy", entry: fm.selectedEntry });
+	const entries = fm.effectiveSelection;
+	if (entries.length === 0) return;
+	setFolderPicker({ mode: "copy", entries });
 }
 
 export async function handleFolderPickerSelect(
 	fm: FileManager,
-	folderPicker: { mode: "move" | "copy" | "extract"; entry: FileEntry },
+	folderPicker: { mode: "move" | "copy" | "extract"; entries: FileEntry[] },
 	destDir: string,
 ) {
-	const src = folderPicker.entry;
 	const mode = folderPicker.mode;
 
-	// Extract mode is handled by 1.3 (dialog/busy state) — this only handles move/copy
-	const dest = destDir === "/" ? `/${src.name}` : `${destDir}/${src.name}`;
+	// Extract mode is handled by dialogs.svelte.ts — this only handles move/copy
 	try {
-		if (mode === "move") {
-			await moveEntry(src.path, dest);
-		} else {
-			await copyEntry(src.path, dest);
+		for (const src of folderPicker.entries) {
+			const dest = destDir === "/" ? `/${src.name}` : `${destDir}/${src.name}`;
+			if (mode === "move") {
+				await moveEntry(src.path, dest);
+			} else {
+				await copyEntry(src.path, dest);
+			}
 		}
 		await fm.refresh();
 	} catch (e) {
@@ -195,9 +204,12 @@ export async function handleFolderPickerSelect(
 }
 
 export async function handleRestore(fm: FileManager) {
-	if (!fm.selectedEntry) return;
+	const entries = fm.effectiveSelection;
+	if (entries.length === 0) return;
 	try {
-		await restoreTrash(fm.selectedEntry.name);
+		for (const entry of entries) {
+			await restoreTrash(entry.name);
+		}
 		await fm.refresh();
 	} catch (e) {
 		fm.setError(errorMessage(e) ?? "Failed to restore");
@@ -219,9 +231,9 @@ export async function handleProperties(
 		v: ReturnType<typeof getProperties> extends Promise<infer T> ? T : never,
 	) => void,
 ) {
-	if (!fm.selectedEntry) return;
+	if (!fm.cursorEntry) return;
 	try {
-		const data = await getProperties(fm.selectedEntry.path);
+		const data = await getProperties(fm.cursorEntry.path);
 		setPropertiesData(data);
 	} catch (e) {
 		fm.setError(errorMessage(e) ?? "Failed to get properties");

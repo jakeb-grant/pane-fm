@@ -47,7 +47,7 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.selectRelative(-1);
 	} else if (matchesKeybind(e.key, keybinds.open)) {
 		e.preventDefault();
-		if (fm.selectedEntry) ops.handleOpen(fm, fm.selectedEntry);
+		if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry);
 	} else if (matchesKeybind(e.key, keybinds.goParent)) {
 		e.preventDefault();
 		fm.goUp();
@@ -80,9 +80,9 @@ const menuActions: ContextMenuActions = {
 	paste: () => ops.handlePaste(fm),
 	rename: () => ops.handleRename(fm),
 	moveTo: () =>
-		ops.handleMoveTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entry)),
+		ops.handleMoveTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entries)),
 	copyTo: () =>
-		ops.handleCopyTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entry)),
+		ops.handleCopyTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entries)),
 	delete: () => ops.handleDelete(fm),
 	extract: dlg.handleExtract,
 	extractTo: dlg.handleExtractTo,

@@ -137,12 +137,12 @@ day one.
 - [x] `navigate()` clears both cursor and selectedPaths
 
 #### Step 2: Update `fileOps.ts`
-- [ ] `handleCopy`/`handleCut` → use `fm.effectiveSelection` (clipboard already holds `FileEntry[]`)
-- [ ] `handleDelete` → loop over `fm.effectiveSelection`
-- [ ] `handleMoveTo`/`handleCopyTo` → pass `effectiveSelection` to folder picker
-- [ ] `handleRestore` → loop over effective selection
-- [ ] `handleRename`, `handleProperties`, `handleOpen` → stay single-entry, use `cursorEntry`
-- [ ] `handlePaste` → already loops `clipboard.entries`, no change needed
+- [x] `handleCopy`/`handleCut` → use `fm.effectiveSelection` (clipboard already holds `FileEntry[]`)
+- [x] `handleDelete` → loop over `fm.effectiveSelection`
+- [x] `handleMoveTo`/`handleCopyTo` → pass `effectiveSelection` to folder picker
+- [x] `handleRestore` → loop over effective selection
+- [x] `handleRename`, `handleProperties`, `handleOpen` → stay single-entry, use `cursorEntry`
+- [x] `handlePaste` → already loops `clipboard.entries`, no change needed
 
 #### Step 3: Update `dialogs.svelte.ts`
 - [ ] `handleCompress` → pass all effective entries' paths (Rust `compress` already accepts `paths[]`)

@@ -18,7 +18,7 @@ export function createDialogManager(fm: FileManager) {
 	// Folder picker
 	let folderPicker = $state<{
 		mode: "move" | "copy" | "extract";
-		entry: FileEntry;
+		entries: FileEntry[];
 	} | null>(null);
 
 	// Compress dialog
@@ -64,9 +64,9 @@ export function createDialogManager(fm: FileManager) {
 
 	function openFolderPicker(
 		mode: "move" | "copy" | "extract",
-		entry: FileEntry,
+		entries: FileEntry[],
 	) {
-		folderPicker = { mode, entry };
+		folderPicker = { mode, entries };
 	}
 
 	function closeFolderPicker() {
@@ -115,21 +115,21 @@ export function createDialogManager(fm: FileManager) {
 	}
 
 	async function handleExtract() {
-		if (!fm.selectedEntry) return;
-		const entry = fm.selectedEntry;
+		if (!fm.cursorEntry) return;
+		const entry = fm.cursorEntry;
 		const dest = parentPath(entry.path);
 		// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
 		await runBusyOperation("Extracting\u2026", () => extract(entry.path, dest));
 	}
 
 	function handleExtractTo() {
-		if (!fm.selectedEntry) return;
-		openFolderPicker("extract", fm.selectedEntry);
+		if (!fm.cursorEntry) return;
+		openFolderPicker("extract", [fm.cursorEntry]);
 	}
 
 	function handleCompress() {
-		if (!fm.selectedEntry) return;
-		openCompress(fm.selectedEntry);
+		if (!fm.cursorEntry) return;
+		openCompress(fm.cursorEntry);
 	}
 
 	async function handleCompressConfirm(archiveName: string) {
@@ -158,7 +158,7 @@ export function createDialogManager(fm: FileManager) {
 		if (fp.mode === "extract") {
 			// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
 			await runBusyOperation("Extracting\u2026", () =>
-				extract(fp.entry.path, destDir),
+				extract(fp.entries[0].path, destDir),
 			);
 			return;
 		}
@@ -167,7 +167,7 @@ export function createDialogManager(fm: FileManager) {
 	}
 
 	async function handleProperties() {
-		if (!fm.selectedEntry) return;
+		if (!fm.cursorEntry) return;
 		await ops.handleProperties(fm, openProperties);
 	}
 
