@@ -144,3 +144,20 @@ export interface DirStats {
 export function getDirStats(path: string): Promise<DirStats> {
 	return invoke("get_dir_stats", { path });
 }
+
+export interface GeneralConfig {
+	show_hidden?: boolean;
+	sort_by?: string;
+	sort_ascending?: boolean;
+}
+
+export interface AppConfig {
+	general: GeneralConfig;
+	keybinds: Record<string, string | string[]>;
+	chords: Record<string, string[]>;
+	warning?: string;
+}
+
+export function getConfig(): Promise<AppConfig> {
+	return invoke("get_config");
+}

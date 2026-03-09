@@ -27,6 +27,10 @@ pub enum AppError {
     Trash {
         message: String,
     },
+    #[allow(dead_code)]
+    Config {
+        message: String,
+    },
 }
 
 impl std::fmt::Display for AppError {
@@ -46,6 +50,7 @@ impl std::fmt::Display for AppError {
             AppError::Archive { message } => write!(f, "Archive error: {message}"),
             AppError::Desktop { message } => write!(f, "Desktop error: {message}"),
             AppError::Trash { message } => write!(f, "Trash error: {message}"),
+            AppError::Config { message } => write!(f, "Config error: {message}"),
         }
     }
 }

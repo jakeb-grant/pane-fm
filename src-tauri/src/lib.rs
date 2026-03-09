@@ -1,4 +1,5 @@
 mod commands;
+mod config;
 mod error;
 mod fs_ops;
 
@@ -30,6 +31,7 @@ pub fn run() {
             commands::archive::compress,
             commands::archive::cancel_operation,
             commands::archive::extract,
+            commands::config::get_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

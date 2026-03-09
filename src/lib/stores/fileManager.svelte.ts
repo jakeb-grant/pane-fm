@@ -9,6 +9,16 @@ import {
 import { errorMessage } from "$lib/errors";
 import { fuzzyMatch, parentPath } from "$lib/utils";
 
+let configDefaults: {
+	showHidden?: boolean;
+	sortBy?: string;
+	sortAscending?: boolean;
+} = {};
+
+export function setConfigDefaults(opts: typeof configDefaults): void {
+	configDefaults = opts;
+}
+
 function loadPreference<T>(key: string, fallback: T): T {
 	if (typeof window === "undefined") return fallback;
 	const stored = localStorage.getItem(`hyprfiles.${key}`);
@@ -39,9 +49,15 @@ export function createFileManager() {
 	// File state
 	let entries = $state<FileEntry[]>([]);
 	let drives = $state<{ name: string; path: string; icon: string }[]>([]);
-	let sortBy = $state(loadPreference("sortBy", "name"));
-	let sortAsc = $state(loadPreference("sortAsc", true));
-	let showHidden = $state(loadPreference("showHidden", false));
+	let sortBy = $state(
+		loadPreference("sortBy", configDefaults.sortBy ?? "name"),
+	);
+	let sortAsc = $state(
+		loadPreference("sortAsc", configDefaults.sortAscending ?? true),
+	);
+	let showHidden = $state(
+		loadPreference("showHidden", configDefaults.showHidden ?? false),
+	);
 
 	// Cursor state (the focused/highlighted entry)
 	let cursorPath = $state<string | null>(null);
@@ -491,6 +507,14 @@ export function createFileManager() {
 		},
 		setError,
 		init,
+		applyConfigDefaults() {
+			sortBy = loadPreference("sortBy", configDefaults.sortBy ?? "name");
+			sortAsc = loadPreference("sortAsc", configDefaults.sortAscending ?? true);
+			showHidden = loadPreference(
+				"showHidden",
+				configDefaults.showHidden ?? false,
+			);
+		},
 	};
 }
 

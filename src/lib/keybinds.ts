@@ -6,13 +6,26 @@ export interface Keybind {
 	meta?: boolean;
 }
 
-type KeybindDef = string | Keybind | readonly (string | Keybind)[];
+type KeybindDef = string | Keybind | (string | Keybind)[];
 
 export interface ChordDef {
-	keys: readonly [string, string];
+	keys: [string, string];
 }
 
-export const chords = {
+export type ChordName =
+	| "goTop"
+	| "goHome"
+	| "goDownloads"
+	| "goTrash"
+	| "nextTab"
+	| "prevTab"
+	| "sortName"
+	| "sortSize"
+	| "sortModified"
+	| "copyPath"
+	| "copyFilename";
+
+export const chords: Record<string, ChordDef> = {
 	goTop: { keys: ["g", "g"] },
 	goHome: { keys: ["g", "h"] },
 	goDownloads: { keys: ["g", "d"] },
@@ -24,15 +37,13 @@ export const chords = {
 	sortModified: { keys: [",", "m"] },
 	copyPath: { keys: ["c", "c"] },
 	copyFilename: { keys: ["c", "f"] },
-} as const satisfies Record<string, ChordDef>;
+};
 
-export type ChordName = keyof typeof chords;
-
-export const chordPrefixes: Set<string> = new Set(
+export let chordPrefixes: Set<string> = new Set(
 	Object.values(chords).map((c) => c.keys[0]),
 );
 
-export const keybinds = {
+export const keybinds: Record<string, KeybindDef> = {
 	filter: "/",
 	moveDown: ["j", "ArrowDown"],
 	moveUp: ["k", "ArrowUp"],
@@ -77,7 +88,7 @@ export const keybinds = {
 	menuAccept: ["l", "Enter"],
 	menuBack: "h",
 	menuClose: ["q", "Escape"],
-} as const satisfies Record<string, KeybindDef>;
+};
 
 function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {
 	if (typeof bind === "string") {
@@ -108,4 +119,48 @@ export function matchesKeybind(e: KeyboardEvent, bind: KeybindDef): boolean {
 		return matchesSingle(e, bind as string | Keybind);
 	}
 	return bind.some((b) => matchesSingle(e, b));
+}
+
+function snakeToCamel(s: string): string {
+	return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+function parseKeybindString(s: string): string | Keybind {
+	const parts = s.split("+");
+	if (parts.length === 1) return s;
+	const key = parts[parts.length - 1];
+	const mods = new Set(parts.slice(0, -1).map((m) => m.toLowerCase()));
+	return {
+		key,
+		ctrl: mods.has("ctrl") || undefined,
+		shift: mods.has("shift") || undefined,
+		alt: mods.has("alt") || undefined,
+		meta: mods.has("meta") || undefined,
+	};
+}
+
+function parseKeybindValue(
+	value: string | string[],
+): string | Keybind | (string | Keybind)[] {
+	if (typeof value === "string") return parseKeybindString(value);
+	return value.map(parseKeybindString);
+}
+
+export function applyKeybindOverrides(
+	keybindOverrides: Record<string, string | string[]>,
+	chordOverrides: Record<string, string[]>,
+): void {
+	for (const [snakeKey, value] of Object.entries(keybindOverrides)) {
+		const camelKey = snakeToCamel(snakeKey);
+		keybinds[camelKey] = parseKeybindValue(value);
+	}
+
+	for (const [snakeKey, keys] of Object.entries(chordOverrides)) {
+		const camelKey = snakeToCamel(snakeKey);
+		if (keys.length === 2) {
+			chords[camelKey] = { keys: [keys[0], keys[1]] };
+		}
+	}
+
+	chordPrefixes = new Set(Object.values(chords).map((c) => c.keys[0]));
 }

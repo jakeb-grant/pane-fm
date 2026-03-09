@@ -115,7 +115,7 @@ Yazi-inspired keybinds. Arrow keys always work alongside vim keys.
 - [x] `c` prefix — copy to system clipboard (`cc` path, `cf` filename)
 - [x] `o` — open context menu at cursor
 - [x] `D` — permanent delete (bypass trash)
-- [ ] Configurable keybinds via config file
+- [x] Configurable keybinds via config file
 
 #### Dialog keyboard support
 - [x] Gate window keydown when dialogs are open (prevent keybind bleed)
@@ -186,7 +186,7 @@ The two features that justify this project's existence.
 
 ### Theming
 - [ ] CSS-based theme system — app loads user CSS at runtime
-- [ ] TOML config file for non-visual settings (~/.config/hyprfiles/config.toml)
+- [x] TOML config file for non-visual settings (~/.config/hyprfiles/config.toml)
 - [ ] CSS custom properties for all colors, spacing, fonts, radii, etc.
 - [ ] Hot-reload themes (watch config/theme files, apply without restart)
 - [ ] Ship 3 starter themes: dark minimal, catppuccin, nord

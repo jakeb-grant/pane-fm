@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onDestroy, onMount, tick } from "svelte";
+import { getConfig } from "$lib/commands";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
 import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
@@ -21,6 +22,7 @@ import {
 } from "$lib/contextMenu";
 import * as ops from "$lib/fileOps";
 import {
+	applyKeybindOverrides,
 	type ChordName,
 	chordPrefixes,
 	chords,
@@ -28,6 +30,7 @@ import {
 	matchesKeybind,
 } from "$lib/keybinds";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
+import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
 import { createTabManager } from "$lib/stores/tabs.svelte";
 
 const tabs = createTabManager();
@@ -395,7 +398,22 @@ function clipboardText(): string {
 }
 
 onMount(async () => {
+	let configWarning: string | undefined;
+	try {
+		const config = await getConfig();
+		applyKeybindOverrides(config.keybinds, config.chords);
+		setConfigDefaults({
+			showHidden: config.general.show_hidden ?? undefined,
+			sortBy: config.general.sort_by ?? undefined,
+			sortAscending: config.general.sort_ascending ?? undefined,
+		});
+		tabs.activeFm.applyConfigDefaults();
+		configWarning = config.warning ?? undefined;
+	} catch {
+		// Config load failed (e.g. command not available) — continue with defaults
+	}
 	await tabs.init();
+	if (configWarning) tabs.activeFm.setError(configWarning);
 	await dlg.subscribeProgress();
 });
 

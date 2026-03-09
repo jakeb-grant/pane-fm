@@ -7,7 +7,8 @@ export type AppError =
 	| { kind: "Cancelled" }
 	| { kind: "Archive"; message: string }
 	| { kind: "Desktop"; message: string }
-	| { kind: "Trash"; message: string };
+	| { kind: "Trash"; message: string }
+	| { kind: "Config"; message: string };
 
 export function isAppError(e: unknown): e is AppError {
 	return (
@@ -42,6 +43,8 @@ export function errorMessage(e: unknown): string | null {
 		case "Desktop":
 			return e.message;
 		case "Trash":
+			return e.message;
+		case "Config":
 			return e.message;
 		default:
 			return String(e);
