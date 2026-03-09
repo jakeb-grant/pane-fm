@@ -53,6 +53,7 @@ export const keybinds = {
 	cancelClipboard: ["Y", "X"],
 	historyBack: "H",
 	historyForward: "L",
+	visualMode: "v",
 	properties: "i",
 	focusPath: { key: "l", ctrl: true },
 	halfPageUp: { key: "u", ctrl: true },

@@ -150,7 +150,9 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		return;
 	} else if (matchesKeybind(e, keybinds.escape)) {
 		e.preventDefault();
-		if (filterBarVisible) {
+		if (fm.visualMode) {
+			fm.exitVisualMode();
+		} else if (filterBarVisible) {
 			handleFilterClose();
 		} else if (fm.clipboard) {
 			fm.clipboard = null;
@@ -162,6 +164,10 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	} else if (matchesKeybind(e, keybinds.selectAll)) {
 		e.preventDefault();
 		fm.selectAll();
+	} else if (matchesKeybind(e, keybinds.visualMode)) {
+		e.preventDefault();
+		if (fm.visualMode) fm.exitVisualMode();
+		else fm.enterVisualMode();
 	} else if (matchesKeybind(e, keybinds.toggleSelect)) {
 		e.preventDefault();
 		if (fm.cursorEntry) fm.toggleSelect(fm.cursorEntry);
@@ -380,7 +386,9 @@ onDestroy(() => {
 		{/if}
 	</div>
 
-	{#if fm.selectedPaths.size > 0}
+	{#if fm.visualMode}
+		<StatusBar text="VISUAL — {fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'}" onclear={() => fm.exitVisualMode()} />
+	{:else if fm.selectedPaths.size > 0}
 		<StatusBar text="{fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'} selected" onclear={() => fm.clearMultiSelection()} />
 	{:else if fm.clipboard}
 		<StatusBar text={clipboardText()} onclear={() => fm.clipboard = null} />

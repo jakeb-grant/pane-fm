@@ -50,6 +50,9 @@ export function createFileManager() {
 	// Multi-selection state
 	let selectedPaths = $state<Set<string>>(new Set());
 
+	// Visual mode state
+	let visualAnchor = $state<string | null>(null);
+
 	// Edit state
 	let renamingPath = $state<string | null>(null);
 	let creatingEntry = $state<"file" | "directory" | null>(null);
@@ -113,6 +116,7 @@ export function createFileManager() {
 	});
 
 	const isTrash = $derived(currentPath === "trash://");
+	const visualMode = $derived(visualAnchor !== null);
 
 	// Actions
 	async function navigate(
@@ -130,6 +134,7 @@ export function createFileManager() {
 		cursorPath = null;
 		cursorEntry = null;
 		selectedPaths = new Set();
+		visualAnchor = null;
 		filterQuery = "";
 
 		try {
@@ -237,6 +242,7 @@ export function createFileManager() {
 		cursorPath = null;
 		cursorEntry = null;
 		selectedPaths = new Set();
+		visualAnchor = null;
 	}
 
 	function selectByIndex(index: number) {
@@ -244,6 +250,9 @@ export function createFileManager() {
 		if (list.length === 0) return;
 		const clamped = Math.max(0, Math.min(index, list.length - 1));
 		moveCursor(list[clamped]);
+		if (visualAnchor) {
+			recomputeVisualRange(list);
+		}
 	}
 
 	function selectRelative(delta: number) {
@@ -252,6 +261,29 @@ export function createFileManager() {
 		const currentIndex = list.findIndex((e) => e.path === cursorPath);
 		const next = currentIndex === -1 ? 0 : currentIndex + delta;
 		selectByIndex(next);
+	}
+
+	function recomputeVisualRange(list: FileEntry[]) {
+		const anchorIdx = list.findIndex((e) => e.path === visualAnchor);
+		const curIdx = list.findIndex((e) => e.path === cursorPath);
+		if (anchorIdx === -1 || curIdx === -1) return;
+		const start = Math.min(anchorIdx, curIdx);
+		const end = Math.max(anchorIdx, curIdx);
+		const next = new Set<string>();
+		for (let i = start; i <= end; i++) {
+			next.add(list[i].path);
+		}
+		selectedPaths = next;
+	}
+
+	function enterVisualMode() {
+		if (!cursorPath) return;
+		visualAnchor = cursorPath;
+		selectedPaths = new Set([cursorPath]);
+	}
+
+	function exitVisualMode() {
+		visualAnchor = null;
 	}
 
 	function toggleSelect(entry: FileEntry) {
@@ -386,6 +418,9 @@ export function createFileManager() {
 		get isTrash() {
 			return isTrash;
 		},
+		get visualMode() {
+			return visualMode;
+		},
 		get history() {
 			return history;
 		},
@@ -433,6 +468,8 @@ export function createFileManager() {
 		selectRange,
 		selectAll,
 		clearMultiSelection,
+		enterVisualMode,
+		exitVisualMode,
 		setError,
 		init,
 	};

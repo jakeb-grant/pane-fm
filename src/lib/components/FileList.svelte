@@ -292,7 +292,7 @@ function sortIndicator(column: string): string {
 		background: var(--bg-surface);
 	}
 
-	:global(.hide-cursor) tbody tr:hover {
+	:global(.hide-cursor) tbody tr:hover:not(.cursor):not(.selected):not(.cut):not(.copied) {
 		background: none;
 	}
 
