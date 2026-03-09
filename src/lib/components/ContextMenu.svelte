@@ -40,7 +40,8 @@ let menuStyle = $derived(() => {
 });
 </script>
 
-<svelte:window onclick={onclose} />
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="context-overlay" onclick={onclose} onwheel={(e) => e.preventDefault()} oncontextmenu={(e) => { e.preventDefault(); onclose(); }}></div>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
@@ -65,6 +66,12 @@ let menuStyle = $derived(() => {
 </div>
 
 <style>
+	.context-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 99;
+	}
+
 	.context-menu {
 		position: fixed;
 		z-index: 100;

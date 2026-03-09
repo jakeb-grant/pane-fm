@@ -12,7 +12,8 @@ let {
 } = $props();
 </script>
 
-<div class="busy-overlay">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="busy-overlay" onwheel={(e) => e.preventDefault()} onclick={(e) => e.stopPropagation()}>
 	<div class="busy-card">
 		<div class="busy-header">
 			<div class="busy-spinner"></div>

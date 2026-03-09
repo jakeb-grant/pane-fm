@@ -12,7 +12,8 @@ export const keybinds = {
 	filter: "/",
 	moveDown: ["j", "ArrowDown"],
 	moveUp: ["k", "ArrowUp"],
-	open: ["l", "ArrowRight", "Enter"],
+	open: ["l", "Enter"],
+	enterDir: "ArrowRight",
 	goParent: ["h", "ArrowLeft"],
 	goTop: "Home",
 	goBottom: ["G", "End"],
@@ -30,6 +31,7 @@ export const keybinds = {
 	cancelClipboard: ["Y", "X"],
 	historyBack: "H",
 	historyForward: "L",
+	properties: "i",
 } as const satisfies Record<string, KeybindDef>;
 
 function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {

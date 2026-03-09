@@ -27,10 +27,13 @@ const dlg = createDialogManager(fm);
 
 let filterBarVisible = $state(false);
 let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
+let mouseCursorHidden = $state(false);
 
 async function handleWindowKeydown(e: KeyboardEvent) {
 	const tag = (e.target as HTMLElement)?.tagName;
 	if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+	let handled = true;
 
 	if (matchesKeybind(e, keybinds.filter)) {
 		e.preventDefault();
@@ -38,9 +41,7 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		await tick();
 		filterBar?.focusInput();
 		return;
-	}
-
-	if (matchesKeybind(e, keybinds.escape)) {
+	} else if (matchesKeybind(e, keybinds.escape)) {
 		e.preventDefault();
 		if (filterBarVisible) {
 			handleFilterClose();
@@ -66,6 +67,9 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	} else if (matchesKeybind(e, keybinds.open)) {
 		e.preventDefault();
 		if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry);
+	} else if (matchesKeybind(e, keybinds.enterDir)) {
+		e.preventDefault();
+		if (fm.cursorEntry?.is_dir) fm.navigate(fm.cursorEntry.path);
 	} else if (matchesKeybind(e, keybinds.goParent)) {
 		e.preventDefault();
 		fm.goUp();
@@ -94,13 +98,19 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	} else if (matchesKeybind(e, keybinds.newFile)) {
 		e.preventDefault();
 		ops.handleNewFile(fm);
+	} else if (matchesKeybind(e, keybinds.properties)) {
+		dlg.handleProperties();
 	} else if (matchesKeybind(e, keybinds.cancelClipboard)) {
 		fm.clipboard = null;
 	} else if (matchesKeybind(e, keybinds.historyBack)) {
 		fm.goBack();
 	} else if (matchesKeybind(e, keybinds.historyForward)) {
 		fm.goForward();
+	} else {
+		handled = false;
 	}
+
+	if (handled) mouseCursorHidden = true;
 }
 
 function handleFilterClose() {
@@ -186,9 +196,9 @@ onDestroy(() => {
 });
 </script>
 
-<svelte:window onkeydown={handleWindowKeydown} />
+<svelte:window onkeydown={handleWindowKeydown} onmousemove={() => { mouseCursorHidden = false; }} />
 
-<div class="app">
+<div class="app" class:hide-cursor={mouseCursorHidden}>
 	<Toolbar
 		canGoBack={fm.historyIndex > 0}
 		canGoForward={fm.historyIndex < fm.history.length - 1}
@@ -326,6 +336,14 @@ onDestroy(() => {
 		display: flex;
 		flex-direction: column;
 		height: 100vh;
+	}
+
+	.app.hide-cursor {
+		cursor: none;
+	}
+
+	.app.hide-cursor :global(*) {
+		cursor: none !important;
 	}
 
 	.error-bar {
