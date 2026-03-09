@@ -211,6 +211,23 @@ export function createDialogManager(fm: FileManager) {
 		});
 	}
 
+	function handlePermanentDelete() {
+		const entries = fm.effectiveSelection;
+		if (entries.length === 0) return;
+		const label =
+			entries.length === 1 ? entries[0].name : `${entries.length} items`;
+		confirm({
+			title: "Permanently Delete",
+			message: `Permanently delete ${label}? This cannot be undone.`,
+			confirmLabel: "Delete Forever",
+			danger: true,
+			onconfirm: async () => {
+				closeConfirm();
+				await ops.handlePermanentDelete(fm);
+			},
+		});
+	}
+
 	function handleEmptyTrash() {
 		confirm({
 			title: "Empty Trash",
@@ -266,6 +283,7 @@ export function createDialogManager(fm: FileManager) {
 
 		// Orchestration
 		handleDelete,
+		handlePermanentDelete,
 		handleEmptyTrash,
 		handleExtract,
 		handleExtractTo,

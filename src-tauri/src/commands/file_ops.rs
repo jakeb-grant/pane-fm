@@ -53,6 +53,11 @@ pub fn delete_entry(path: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+pub fn permanent_delete(path: String) -> Result<(), AppError> {
+    fs_ops::permanent_delete(&PathBuf::from(path))
+}
+
+#[tauri::command]
 pub fn copy_entry(from: String, to: String) -> Result<(), AppError> {
     fs_ops::copy_entry(&PathBuf::from(from), &PathBuf::from(to))
 }

@@ -40,6 +40,10 @@ export function deleteEntry(path: string): Promise<void> {
 	return invoke("delete_entry", { path });
 }
 
+export function permanentDelete(path: string): Promise<void> {
+	return invoke("permanent_delete", { path });
+}
+
 export function copyEntry(from: string, to: string): Promise<void> {
 	return invoke("copy_entry", { from, to });
 }

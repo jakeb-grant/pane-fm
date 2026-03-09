@@ -36,6 +36,7 @@ let filterBarVisible = $state(false);
 let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
 let toolbar = $state<ReturnType<typeof Toolbar> | null>(null);
 let mouseCursorHidden = $state(false);
+let contentEl = $state<HTMLDivElement | null>(null);
 let lastMousePos = { x: 0, y: 0 };
 let pendingChord = $state<string | null>(null);
 let chordTimer: ReturnType<typeof setTimeout> | null = null;
@@ -205,6 +206,8 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		ops.handleCut(fm);
 	} else if (matchesKeybind(e, keybinds.paste)) {
 		ops.handlePaste(fm);
+	} else if (matchesKeybind(e, keybinds.permanentDelete)) {
+		dlg.handlePermanentDelete();
 	} else if (matchesKeybind(e, keybinds.trash)) {
 		dlg.handleDelete();
 	} else if (matchesKeybind(e, keybinds.rename)) {
@@ -229,6 +232,10 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	}
 
 	if (handled) mouseCursorHidden = true;
+}
+
+function restoreFocus() {
+	tick().then(() => contentEl?.focus());
 }
 
 function handleFilterClose() {
@@ -370,7 +377,7 @@ onDestroy(() => {
 					/>
 				{/if}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="content" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}>
+				<div class="content" bind:this={contentEl} tabindex="-1" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}>
 				<FileList
 						entries={fm.filteredEntries}
 						cursorPath={fm.cursorPath}
@@ -410,14 +417,14 @@ onDestroy(() => {
 		x={dlg.contextMenu.x}
 		y={dlg.contextMenu.y}
 		items={buildMenuItems()}
-		onclose={dlg.closeContextMenu}
+		onclose={() => { dlg.closeContextMenu(); restoreFocus(); }}
 	/>
 {/if}
 
 {#if dlg.propertiesData}
 	<PropertiesDialog
 		properties={dlg.propertiesData}
-		onclose={dlg.closeProperties}
+		onclose={() => { dlg.closeProperties(); restoreFocus(); }}
 	/>
 {/if}
 
@@ -425,7 +432,7 @@ onDestroy(() => {
 	<FolderPicker
 		title={dlg.folderPicker.mode === "move" ? "Move to\u2026" : dlg.folderPicker.mode === "extract" ? "Extract to\u2026" : "Copy to\u2026"}
 		onselect={dlg.handleFolderPickerSelect}
-		onclose={dlg.closeFolderPicker}
+		onclose={() => { dlg.closeFolderPicker(); restoreFocus(); }}
 	/>
 {/if}
 
@@ -433,7 +440,7 @@ onDestroy(() => {
 	<CompressDialog
 		defaultName={dlg.compressEntries.length === 1 ? dlg.compressEntries[0].name : "archive"}
 		onconfirm={dlg.handleCompressConfirm}
-		onclose={dlg.closeCompress}
+		onclose={() => { dlg.closeCompress(); restoreFocus(); }}
 	/>
 {/if}
 
@@ -444,7 +451,7 @@ onDestroy(() => {
 		confirmLabel={dlg.confirmDialog.confirmLabel}
 		danger={dlg.confirmDialog.danger}
 		onconfirm={dlg.confirmDialog.onconfirm}
-		onclose={dlg.closeConfirm}
+		onclose={() => { dlg.closeConfirm(); restoreFocus(); }}
 	/>
 {/if}
 

@@ -10,6 +10,7 @@ import {
 	moveEntry,
 	openDefault,
 	openWithApp,
+	permanentDelete,
 	renameEntry,
 	restoreTrash,
 } from "$lib/commands";
@@ -58,6 +59,21 @@ export async function handleDelete(fm: FileManager) {
 	try {
 		for (const entry of entries) {
 			await deleteEntry(entry.path);
+		}
+		await fm.refresh();
+	} catch (e) {
+		const label =
+			entries.length === 1 ? entries[0].name : `${entries.length} items`;
+		fm.setError(errorMessage(e) ?? `Failed to delete ${label}`);
+	}
+}
+
+export async function handlePermanentDelete(fm: FileManager) {
+	const entries = fm.effectiveSelection;
+	if (entries.length === 0) return;
+	try {
+		for (const entry of entries) {
+			await permanentDelete(entry.path);
 		}
 		await fm.refresh();
 	} catch (e) {

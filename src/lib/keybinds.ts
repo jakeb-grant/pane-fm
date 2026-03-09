@@ -48,6 +48,7 @@ export const keybinds = {
 	cut: "x",
 	paste: "p",
 	trash: "d",
+	permanentDelete: { key: "D", shift: true },
 	rename: "r",
 	newFile: "a",
 	newFolder: { key: "A", shift: true },

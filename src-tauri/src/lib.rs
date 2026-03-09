@@ -13,6 +13,7 @@ pub fn run() {
             commands::file_ops::create_file,
             commands::file_ops::rename_entry,
             commands::file_ops::delete_entry,
+            commands::file_ops::permanent_delete,
             commands::file_ops::copy_entry,
             commands::file_ops::move_entry,
             commands::file_ops::path_exists,

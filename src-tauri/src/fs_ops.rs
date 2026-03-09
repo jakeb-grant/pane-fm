@@ -191,6 +191,17 @@ pub fn delete_entry(path: &Path) -> Result<(), AppError> {
     })
 }
 
+pub fn permanent_delete(path: &Path) -> Result<(), AppError> {
+    let meta =
+        fs::symlink_metadata(path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+    if meta.is_dir() {
+        fs::remove_dir_all(path)
+    } else {
+        fs::remove_file(path)
+    }
+    .map_err(|e| AppError::io_with_path(e, path.display().to_string()))
+}
+
 /// Returns a unique destination path by appending " (N)" if `to` already exists.
 /// For files, the suffix is inserted before the extension: `foo (2).txt`.
 /// For directories (or extensionless files): `foo (2)`.
