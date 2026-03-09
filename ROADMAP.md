@@ -70,7 +70,7 @@ Make it fast and comfortable to navigate. Keyboard users should feel at home.
 - [x] Editable path bar with directory autocomplete
 - [x] Sidebar with bookmarks / pinned directories (XDG dirs via `dirs` crate)
 - [x] Back/forward history stack
-- [ ] Tabs (open multiple directories)
+- [x] Tabs (open multiple directories)
 - [x] Fuzzy search / filter within current directory
 
 ### Views
