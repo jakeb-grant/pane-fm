@@ -46,10 +46,14 @@ function onkeydown(e: KeyboardEvent) {
 	} else if (e.key === "Enter") {
 		e.preventDefault();
 		onopen();
-	} else if (matchesKeybind(e, keybinds.filterAccept)) {
+	} else if (matchesKeybind(e, keybinds.filter)) {
 		e.preventDefault();
 		inputEl?.blur();
-		onaccept();
+		if (query) {
+			onaccept();
+		} else {
+			onclose();
+		}
 	}
 }
 </script>

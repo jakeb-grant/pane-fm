@@ -11,6 +11,7 @@ import FolderPicker from "$lib/components/FolderPicker.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
 import StatusBar from "$lib/components/StatusBar.svelte";
+import TabBar from "$lib/components/TabBar.svelte";
 // biome-ignore lint/style/useImportType: component used in template
 import Toolbar from "$lib/components/Toolbar.svelte";
 import {
@@ -27,14 +28,25 @@ import {
 	matchesKeybind,
 } from "$lib/keybinds";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
-import { createFileManager } from "$lib/stores/fileManager.svelte";
+import { createTabManager } from "$lib/stores/tabs.svelte";
 
-const fm = createFileManager();
-const dlg = createDialogManager(fm);
+const tabs = createTabManager();
+const dlg = createDialogManager(() => fm);
+let fm = $derived(tabs.activeFm);
 
 let filterBarVisible = $state(false);
 let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
 let toolbar = $state<ReturnType<typeof Toolbar> | null>(null);
+
+// Sync filter bar visibility when switching tabs
+let prevTabIndex = tabs.activeIndex;
+$effect(() => {
+	const idx = tabs.activeIndex;
+	if (idx !== prevTabIndex) {
+		prevTabIndex = idx;
+		filterBarVisible = !!fm.filterQuery;
+	}
+});
 let mouseCursorHidden = $state(false);
 let contentEl = $state<HTMLDivElement | null>(null);
 let lastMousePos = { x: 0, y: 0 };
@@ -86,6 +98,12 @@ function executeChord(name: ChordName) {
 		case "copyFilename":
 			if (fm.cursorEntry) navigator.clipboard.writeText(fm.cursorEntry.name);
 			break;
+		case "nextTab":
+			tabs.nextTab();
+			break;
+		case "prevTab":
+			tabs.prevTab();
+			break;
 	}
 }
 
@@ -109,11 +127,6 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		toolbar?.focusPath();
 		return;
 	}
-	if (matchesKeybind(e, keybinds.filterAccept)) {
-		e.preventDefault();
-		if (filterBarVisible) filterBarVisible = false;
-		return;
-	}
 	if (matchesKeybind(e, keybinds.halfPageUp)) {
 		e.preventDefault();
 		fm.selectRelative(-15);
@@ -131,6 +144,16 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	if (tag === "INPUT" || tag === "TEXTAREA") return;
 
 	// Chord handling: two-key sequences like gg, gh, ,s
+	// Ignore modifier-only keys so Shift/Ctrl don't break chords like gT
+	if (
+		pendingChord &&
+		(e.key === "Shift" ||
+			e.key === "Control" ||
+			e.key === "Alt" ||
+			e.key === "Meta")
+	) {
+		return;
+	}
 	if (pendingChord) {
 		const chord = matchChord(pendingChord, e.key);
 		clearChord();
@@ -160,13 +183,40 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		}
 	}
 
+	// Tab keybinds — check digit keys for tab switching (1-9)
+	if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key >= "1" && e.key <= "9") {
+		const idx = Number.parseInt(e.key, 10) - 1;
+		if (idx < tabs.tabs.length) {
+			e.preventDefault();
+			tabs.switchTab(idx);
+			mouseCursorHidden = true;
+			return;
+		}
+	}
+
 	let handled = true;
 
-	if (matchesKeybind(e, keybinds.filter)) {
+	if (matchesKeybind(e, keybinds.newTab)) {
 		e.preventDefault();
-		filterBarVisible = true;
-		await tick();
-		filterBar?.focusInput();
+		tabs.newTab();
+	} else if (matchesKeybind(e, keybinds.closeTab)) {
+		e.preventDefault();
+		tabs.closeTab(tabs.activeIndex);
+	} else if (matchesKeybind(e, keybinds.filter)) {
+		e.preventDefault();
+		if (filterBarVisible) {
+			if (fm.filterQuery) {
+				// Lock: dismiss bar, keep filter active
+				filterBarVisible = false;
+			} else {
+				// Empty filter: close entirely
+				handleFilterClose();
+			}
+		} else {
+			filterBarVisible = true;
+			await tick();
+			filterBar?.focusInput();
+		}
 		return;
 	} else if (fm.filterQuery && matchesKeybind(e, keybinds.filterNext)) {
 		e.preventDefault();
@@ -301,7 +351,7 @@ const menuActions: ContextMenuActions = {
 	emptyTrash: () => dlg.handleEmptyTrash(),
 	newFolder: () => ops.handleNewFolder(fm),
 	newFile: () => ops.handleNewFile(fm),
-	toggleHidden: fm.toggleHidden,
+	toggleHidden: () => fm.toggleHidden(),
 	launchApp: (filePath, desktopId) =>
 		ops.launchOpenWithApp(fm, filePath, desktopId),
 };
@@ -345,7 +395,7 @@ function clipboardText(): string {
 }
 
 onMount(async () => {
-	await fm.init();
+	await tabs.init();
 	await dlg.subscribeProgress();
 });
 
@@ -357,28 +407,37 @@ onDestroy(() => {
 <svelte:window onkeydown={handleWindowKeydown} onmousemove={(e) => { if (e.screenX !== lastMousePos.x || e.screenY !== lastMousePos.y) { lastMousePos = { x: e.screenX, y: e.screenY }; mouseCursorHidden = false; }}} />
 
 <div class="app" class:hide-cursor={mouseCursorHidden}>
-	<Toolbar
-		bind:this={toolbar}
-		canGoBack={fm.historyIndex > 0}
-		canGoForward={fm.historyIndex < fm.history.length - 1}
-		ongoback={fm.goBack}
-		ongoforward={fm.goForward}
-		ongoup={fm.goUp}
-		currentPath={fm.currentPath}
-		onnavigate={fm.navigate}
-		showHidden={fm.showHidden}
-		ontogglehidden={fm.toggleHidden}
-	/>
+	<Sidebar currentPath={fm.currentPath} onnavigate={(path) => fm.navigate(path)} drives={fm.drives} homeDir={fm.homeDir} />
 
-	{#if fm.error}
-		<div class="error-bar">
-			<span>{fm.error}</span>
-			<button onclick={() => fm.setError(null)}>✕</button>
-		</div>
-	{/if}
+	<div class="main-column">
+		{#if tabs.tabs.length > 1}
+			<TabBar
+				tabs={tabs.tabs.map((tab, i) => ({ id: tab.id, label: tabs.tabLabels[i] }))}
+				activeIndex={tabs.activeIndex}
+				onswitch={tabs.switchTab}
+				onclose={tabs.closeTab}
+				onnew={tabs.newTab}
+			/>
+		{/if}
+		<Toolbar
+			bind:this={toolbar}
+			canGoBack={fm.historyIndex > 0}
+			canGoForward={fm.historyIndex < fm.history.length - 1}
+			ongoback={fm.goBack}
+			ongoforward={fm.goForward}
+			ongoup={fm.goUp}
+			currentPath={fm.currentPath}
+			onnavigate={fm.navigate}
+			showHidden={fm.showHidden}
+			ontogglehidden={fm.toggleHidden}
+		/>
 
-	<div class="main">
-		<Sidebar currentPath={fm.currentPath} onnavigate={fm.navigate} drives={fm.drives} homeDir={fm.homeDir} />
+		{#if fm.error}
+			<div class="error-bar">
+				<span>{fm.error}</span>
+				<button onclick={() => fm.setError(null)}>✕</button>
+			</div>
+		{/if}
 
 		{#if fm.loading}
 			<div class="loading">Loading...</div>
@@ -433,16 +492,15 @@ onDestroy(() => {
 				</div>
 			</div>
 		{/if}
+
+		{#if fm.visualMode}
+			<StatusBar text="VISUAL — {fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'}" onclear={() => fm.exitVisualMode()} />
+		{:else if fm.selectedPaths.size > 0}
+			<StatusBar text="{fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'} selected" onclear={() => fm.clearMultiSelection()} />
+		{:else if fm.clipboard}
+			<StatusBar text={clipboardText()} onclear={() => fm.clipboard = null} />
+		{/if}
 	</div>
-
-	{#if fm.visualMode}
-		<StatusBar text="VISUAL — {fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'}" onclear={() => fm.exitVisualMode()} />
-	{:else if fm.selectedPaths.size > 0}
-		<StatusBar text="{fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'} selected" onclear={() => fm.clearMultiSelection()} />
-	{:else if fm.clipboard}
-		<StatusBar text={clipboardText()} onclear={() => fm.clipboard = null} />
-	{/if}
-
 </div>
 
 {#if dlg.contextMenu}
@@ -499,8 +557,14 @@ onDestroy(() => {
 <style>
 	.app {
 		display: flex;
-		flex-direction: column;
 		height: 100vh;
+	}
+
+	.main-column {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
 	}
 
 	.app.hide-cursor {
@@ -527,14 +591,6 @@ onDestroy(() => {
 		color: var(--danger);
 		cursor: pointer;
 		font-size: 14px;
-	}
-
-	.main {
-		flex: 1 1 0;
-		display: flex;
-		overflow: hidden;
-		background: var(--bg-secondary);
-		min-height: 0;
 	}
 
 	.loading {

@@ -16,7 +16,9 @@ export const chords = {
 	goTop: { keys: ["g", "g"] },
 	goHome: { keys: ["g", "h"] },
 	goDownloads: { keys: ["g", "d"] },
-	goTrash: { keys: ["g", "t"] },
+	goTrash: { keys: ["g", "x"] },
+	nextTab: { keys: ["g", "t"] },
+	prevTab: { keys: ["g", "T"] },
 	sortName: { keys: [",", "n"] },
 	sortSize: { keys: [",", "s"] },
 	sortModified: { keys: [",", "m"] },
@@ -32,7 +34,6 @@ export const chordPrefixes: Set<string> = new Set(
 
 export const keybinds = {
 	filter: "/",
-	filterAccept: { key: "/", ctrl: true },
 	moveDown: ["j", "ArrowDown"],
 	moveUp: ["k", "ArrowUp"],
 	open: ["l", "Enter"],
@@ -62,6 +63,10 @@ export const keybinds = {
 	focusPath: { key: "l", ctrl: true },
 	halfPageUp: { key: "u", ctrl: true },
 	halfPageDown: { key: "d", ctrl: true },
+
+	// Tab keybinds
+	newTab: "t",
+	closeTab: "q",
 
 	// Dialog keybinds
 	openMenu: "o",

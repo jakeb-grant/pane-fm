@@ -11,7 +11,7 @@ import * as ops from "$lib/fileOps";
 import type { FileManager } from "$lib/stores/fileManager.svelte";
 import { parentPath } from "$lib/utils";
 
-export function createDialogManager(fm: FileManager) {
+export function createDialogManager(getFm: () => FileManager) {
 	// Properties dialog
 	let propertiesData = $state<FileProperties | null>(null);
 
@@ -96,7 +96,7 @@ export function createDialogManager(fm: FileManager) {
 
 	function closeContextMenu() {
 		contextMenu = null;
-		fm.openWithApps = [];
+		getFm().openWithApps = [];
 	}
 
 	// --- Busy operation orchestration ---
@@ -113,17 +113,18 @@ export function createDialogManager(fm: FileManager) {
 		} catch (e) {
 			if (!isCancelled(e)) {
 				const msg = errorMessage(e);
-				fm.setError(
+				getFm().setError(
 					msg ?? `Failed to ${label.toLowerCase().replace("\u2026", "")}`,
 				);
 			}
 		}
 		busyMessage = null;
 		busyProgress = null;
-		await fm.refresh();
+		await getFm().refresh();
 	}
 
 	async function handleExtract() {
+		const fm = getFm();
 		if (!fm.cursorEntry) return;
 		const entry = fm.cursorEntry;
 		const dest = parentPath(entry.path);
@@ -132,12 +133,13 @@ export function createDialogManager(fm: FileManager) {
 	}
 
 	function handleExtractTo() {
+		const fm = getFm();
 		if (!fm.cursorEntry) return;
 		openFolderPicker("extract", [fm.cursorEntry]);
 	}
 
 	function handleCompress() {
-		const entries = fm.effectiveSelection;
+		const entries = getFm().effectiveSelection;
 		if (entries.length === 0) return;
 		openCompress(entries);
 	}
@@ -146,10 +148,9 @@ export function createDialogManager(fm: FileManager) {
 		if (compressEntries.length === 0) return;
 		const paths = compressEntries.map((e) => e.path);
 		closeCompress();
+		const currentPath = getFm().currentPath;
 		const dest =
-			fm.currentPath === "/"
-				? `/${archiveName}`
-				: `${fm.currentPath}/${archiveName}`;
+			currentPath === "/" ? `/${archiveName}` : `${currentPath}/${archiveName}`;
 		// biome-ignore lint/security/noSecrets: ellipsis character, not a secret
 		await runBusyOperation("Compressing\u2026", () => compress(paths, dest));
 	}
@@ -171,7 +172,7 @@ export function createDialogManager(fm: FileManager) {
 			return;
 		}
 
-		await ops.handleFolderPickerSelect(fm, fp, destDir);
+		await ops.handleFolderPickerSelect(getFm(), fp, destDir);
 	}
 
 	function confirm(opts: {
@@ -195,7 +196,7 @@ export function createDialogManager(fm: FileManager) {
 	}
 
 	function handleDelete() {
-		const entries = fm.effectiveSelection;
+		const entries = getFm().effectiveSelection;
 		if (entries.length === 0) return;
 		const label =
 			entries.length === 1 ? entries[0].name : `${entries.length} items`;
@@ -206,13 +207,13 @@ export function createDialogManager(fm: FileManager) {
 			danger: true,
 			onconfirm: async () => {
 				closeConfirm();
-				await ops.handleDelete(fm);
+				await ops.handleDelete(getFm());
 			},
 		});
 	}
 
 	function handlePermanentDelete() {
-		const entries = fm.effectiveSelection;
+		const entries = getFm().effectiveSelection;
 		if (entries.length === 0) return;
 		const label =
 			entries.length === 1 ? entries[0].name : `${entries.length} items`;
@@ -223,7 +224,7 @@ export function createDialogManager(fm: FileManager) {
 			danger: true,
 			onconfirm: async () => {
 				closeConfirm();
-				await ops.handlePermanentDelete(fm);
+				await ops.handlePermanentDelete(getFm());
 			},
 		});
 	}
@@ -236,12 +237,13 @@ export function createDialogManager(fm: FileManager) {
 			danger: true,
 			onconfirm: async () => {
 				closeConfirm();
-				await ops.handleEmptyTrash(fm);
+				await ops.handleEmptyTrash(getFm());
 			},
 		});
 	}
 
 	async function handleProperties() {
+		const fm = getFm();
 		if (!fm.cursorEntry) return;
 		await ops.handleProperties(fm, openProperties);
 	}

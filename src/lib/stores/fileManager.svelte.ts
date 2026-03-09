@@ -482,6 +482,13 @@ export function createFileManager() {
 		clearMultiSelection,
 		enterVisualMode,
 		exitVisualMode,
+		clearTransient() {
+			selectedPaths = new Set();
+			visualAnchor = null;
+			renamingPath = null;
+			creatingEntry = null;
+			openWithApps = [];
+		},
 		setError,
 		init,
 	};
