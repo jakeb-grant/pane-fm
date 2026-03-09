@@ -98,22 +98,35 @@ Yazi-inspired keybinds. Arrow keys always work alongside vim keys.
 - [x] `r` — rename
 - [x] `a`/`A` — create file / create folder
 - [x] `Y`/`X` — cancel yank
-- [ ] `gg` — go to top (chord)
+- [x] `gg` — go to top (chord)
 - [x] `G` — go to bottom
 - [x] `H`/`L` — history back/forward
 - [x] `Escape` — cascading clear (filter → selection)
 
 #### New functionality needed
 - [x] `Space` — toggle selection on entry (multi-select)
-- [ ] `v` — visual mode (range select)
+- [x] `v` — visual mode (range select)
 - [x] `Ctrl-a` — select all
 - [x] `Ctrl-u`/`Ctrl-d` — half page up/down
+- [x] `Ctrl-/` — lock filter (dismiss input, keep filtered list)
 - [ ] `n`/`N` — next/prev filter match (cycle through matches)
-- [ ] `,` prefix — sort chords (`,s` size, `,m` modified, `,n` name)
-- [ ] `g` prefix — goto chords (`gh` home, `gd` downloads)
-- [ ] `c` prefix — copy to system clipboard (`cc` path, `cf` filename)
-- [ ] `D` — permanent delete (bypass trash)
+- [x] `,` prefix — sort chords (`,s` size, `,m` modified, `,n` name)
+- [x] `g` prefix — goto chords (`gh` home, `gd` downloads, `gt` trash)
+- [x] `c` prefix — copy to system clipboard (`cc` path, `cf` filename)
+- [x] `o` — open context menu at cursor
+- [x] `D` — permanent delete (bypass trash)
 - [ ] Configurable keybinds via config file
+
+#### Dialog keyboard support
+- [x] Gate window keydown when dialogs are open (prevent keybind bleed)
+- [x] ConfirmDialog — `y`/`n` to confirm/cancel
+- [x] ContextMenu — `j`/`k`/arrows to navigate, `Enter`/`l` to activate
+- [x] FolderPicker — `j`/`k`/arrows to browse, `Enter`/`l`/`Right` to enter, `h`/`Left` up
+- [x] PropertiesDialog — `q`/`Enter`/`Escape` to close
+- [x] CompressDialog — `Escape` to cancel, `y` to confirm
+- [x] BusyOverlay — `Escape` to cancel
+- [x] All buttons show config-driven `<kbd>` labels
+- [x] Focus restored to file list on dialog close
 
 ### Multi-select
 Prerequisite for bulk operations and full keybind support. Do this before
