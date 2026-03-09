@@ -56,6 +56,8 @@ export const keybinds = {
 	historyBack: "H",
 	historyForward: "L",
 	visualMode: "v",
+	filterNext: "n",
+	filterPrev: { key: "N", shift: true },
 	properties: "i",
 	focusPath: { key: "l", ctrl: true },
 	halfPageUp: { key: "u", ctrl: true },

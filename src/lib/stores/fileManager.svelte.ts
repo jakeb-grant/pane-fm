@@ -263,6 +263,17 @@ export function createFileManager() {
 		selectByIndex(next);
 	}
 
+	function selectRelativeWrap(delta: number) {
+		const list = filteredEntries;
+		if (list.length === 0) return;
+		const currentIndex = list.findIndex((e) => e.path === cursorPath);
+		const next =
+			currentIndex === -1
+				? 0
+				: (((currentIndex + delta) % list.length) + list.length) % list.length;
+		selectByIndex(next);
+	}
+
 	function recomputeVisualRange(list: FileEntry[]) {
 		const anchorIdx = list.findIndex((e) => e.path === visualAnchor);
 		const curIdx = list.findIndex((e) => e.path === cursorPath);
@@ -464,6 +475,7 @@ export function createFileManager() {
 		clearSelection,
 		selectByIndex,
 		selectRelative,
+		selectRelativeWrap,
 		toggleSelect,
 		selectRange,
 		selectAll,

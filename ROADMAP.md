@@ -109,7 +109,7 @@ Yazi-inspired keybinds. Arrow keys always work alongside vim keys.
 - [x] `Ctrl-a` — select all
 - [x] `Ctrl-u`/`Ctrl-d` — half page up/down
 - [x] `Ctrl-/` — lock filter (dismiss input, keep filtered list)
-- [ ] `n`/`N` — next/prev filter match (cycle through matches)
+- [x] `n`/`N` — next/prev filter match (cycle through matches)
 - [x] `,` prefix — sort chords (`,s` size, `,m` modified, `,n` name)
 - [x] `g` prefix — goto chords (`gh` home, `gd` downloads, `gt` trash)
 - [x] `c` prefix — copy to system clipboard (`cc` path, `cf` filename)

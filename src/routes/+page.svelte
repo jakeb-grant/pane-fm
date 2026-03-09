@@ -168,6 +168,12 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		await tick();
 		filterBar?.focusInput();
 		return;
+	} else if (fm.filterQuery && matchesKeybind(e, keybinds.filterNext)) {
+		e.preventDefault();
+		fm.selectRelativeWrap(1);
+	} else if (fm.filterQuery && matchesKeybind(e, keybinds.filterPrev)) {
+		e.preventDefault();
+		fm.selectRelativeWrap(-1);
 	} else if (matchesKeybind(e, keybinds.escape)) {
 		e.preventDefault();
 		if (fm.visualMode) {
