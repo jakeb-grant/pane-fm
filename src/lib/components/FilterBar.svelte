@@ -1,5 +1,6 @@
 <script lang="ts">
 import { tick } from "svelte";
+import { keybinds, matchesKeybind } from "$lib/keybinds";
 
 interface Props {
 	query: string;
@@ -7,9 +8,23 @@ interface Props {
 	totalCount: number;
 	onchange: (query: string) => void;
 	onclose: () => void;
+	onmovedown: () => void;
+	onmoveup: () => void;
+	onopen: () => void;
+	onaccept: () => void;
 }
 
-let { query, matchCount, totalCount, onchange, onclose }: Props = $props();
+let {
+	query,
+	matchCount,
+	totalCount,
+	onchange,
+	onclose,
+	onmovedown,
+	onmoveup,
+	onopen,
+	onaccept,
+}: Props = $props();
 
 let inputEl = $state<HTMLInputElement | null>(null);
 
@@ -22,6 +37,19 @@ function onkeydown(e: KeyboardEvent) {
 	if (e.key === "Escape") {
 		e.preventDefault();
 		onclose();
+	} else if (e.key === "ArrowDown" || (e.key === "j" && e.ctrlKey)) {
+		e.preventDefault();
+		onmovedown();
+	} else if (e.key === "ArrowUp" || (e.key === "k" && e.ctrlKey)) {
+		e.preventDefault();
+		onmoveup();
+	} else if (e.key === "Enter") {
+		e.preventDefault();
+		onopen();
+	} else if (matchesKeybind(e, keybinds.filterAccept)) {
+		e.preventDefault();
+		inputEl?.blur();
+		onaccept();
 	}
 }
 </script>

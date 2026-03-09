@@ -32,6 +32,7 @@ export const chordPrefixes: Set<string> = new Set(
 
 export const keybinds = {
 	filter: "/",
+	filterAccept: { key: "/", ctrl: true },
 	moveDown: ["j", "ArrowDown"],
 	moveUp: ["k", "ArrowUp"],
 	open: ["l", "Enter"],

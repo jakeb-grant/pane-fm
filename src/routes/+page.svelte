@@ -94,6 +94,11 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		toolbar?.focusPath();
 		return;
 	}
+	if (matchesKeybind(e, keybinds.filterAccept)) {
+		e.preventDefault();
+		if (filterBarVisible) filterBarVisible = false;
+		return;
+	}
 	if (matchesKeybind(e, keybinds.halfPageUp)) {
 		e.preventDefault();
 		fm.selectRelative(-15);
@@ -152,7 +157,7 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		e.preventDefault();
 		if (fm.visualMode) {
 			fm.exitVisualMode();
-		} else if (filterBarVisible) {
+		} else if (filterBarVisible || fm.filterQuery) {
 			handleFilterClose();
 		} else if (fm.clipboard) {
 			fm.clipboard = null;
@@ -350,7 +355,7 @@ onDestroy(() => {
 						{/if}
 					</div>
 				{/if}
-				{#if filterBarVisible}
+				{#if filterBarVisible || fm.filterQuery}
 					<FilterBar
 						bind:this={filterBar}
 						query={fm.filterQuery}
@@ -358,6 +363,10 @@ onDestroy(() => {
 						totalCount={fm.sortedEntries.length}
 						onchange={(q) => fm.setFilterQuery(q)}
 						onclose={handleFilterClose}
+						onmovedown={() => fm.selectRelative(1)}
+						onmoveup={() => fm.selectRelative(-1)}
+						onopen={() => { if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry); }}
+						onaccept={() => { filterBarVisible = false; }}
 					/>
 				{/if}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
