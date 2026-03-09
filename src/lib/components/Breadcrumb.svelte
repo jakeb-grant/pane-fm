@@ -101,6 +101,10 @@ function handleKeydown(e: KeyboardEvent) {
 	}
 }
 
+export function focusInput() {
+	startEditing();
+}
+
 $effect(() => {
 	if (editing && editInput) {
 		editInput.focus();

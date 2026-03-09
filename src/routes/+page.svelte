@@ -11,6 +11,7 @@ import FolderPicker from "$lib/components/FolderPicker.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
 import StatusBar from "$lib/components/StatusBar.svelte";
+// biome-ignore lint/style/useImportType: component used in template
 import Toolbar from "$lib/components/Toolbar.svelte";
 import {
 	type ContextMenuActions,
@@ -27,9 +28,16 @@ const dlg = createDialogManager(fm);
 
 let filterBarVisible = $state(false);
 let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
+let toolbar = $state<ReturnType<typeof Toolbar> | null>(null);
 let mouseCursorHidden = $state(false);
 
 async function handleWindowKeydown(e: KeyboardEvent) {
+	if (matchesKeybind(e, keybinds.focusPath)) {
+		e.preventDefault();
+		toolbar?.focusPath();
+		return;
+	}
+
 	const tag = (e.target as HTMLElement)?.tagName;
 	if (tag === "INPUT" || tag === "TEXTAREA") return;
 
@@ -200,6 +208,7 @@ onDestroy(() => {
 
 <div class="app" class:hide-cursor={mouseCursorHidden}>
 	<Toolbar
+		bind:this={toolbar}
 		canGoBack={fm.historyIndex > 0}
 		canGoForward={fm.historyIndex < fm.history.length - 1}
 		ongoback={fm.goBack}

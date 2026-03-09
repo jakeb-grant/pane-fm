@@ -32,6 +32,7 @@ export const keybinds = {
 	historyBack: "H",
 	historyForward: "L",
 	properties: "i",
+	focusPath: { key: "l", ctrl: true },
 } as const satisfies Record<string, KeybindDef>;
 
 function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {

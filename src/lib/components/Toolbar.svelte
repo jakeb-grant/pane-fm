@@ -1,5 +1,12 @@
 <script lang="ts">
+// biome-ignore lint/style/useImportType: component used in template
 import Breadcrumb from "$lib/components/Breadcrumb.svelte";
+
+let breadcrumb = $state<ReturnType<typeof Breadcrumb> | null>(null);
+
+export function focusPath() {
+	breadcrumb?.focusInput();
+}
 
 let {
 	canGoBack,
@@ -33,7 +40,7 @@ let {
 	</button>
 	<button class="nav-btn icon" onclick={ongoup} title="Up">{"\uf062"}</button>
 	<div class="breadcrumb-wrapper">
-		<Breadcrumb path={currentPath} onnavigate={onnavigate} />
+		<Breadcrumb bind:this={breadcrumb} path={currentPath} onnavigate={onnavigate} />
 	</div>
 	<button class="nav-btn icon" class:active={showHidden} onclick={ontogglehidden} title="Toggle hidden files">
 		{showHidden ? "\uf06e" : "\uf070"}
