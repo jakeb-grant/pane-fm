@@ -42,11 +42,11 @@ let {
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: var(--overlay-bg);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 200;
+		z-index: var(--z-dialog);
 	}
 
 	.dialog {
@@ -54,7 +54,7 @@ let {
 		border: 1px solid var(--border);
 		border-radius: calc(var(--radius) * 2);
 		width: 360px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		box-shadow: var(--shadow-lg);
 		overflow: hidden;
 	}
 
@@ -115,13 +115,4 @@ let {
 		opacity: 0.9;
 	}
 
-	kbd {
-		font-size: 10px;
-		font-family: var(--font-mono, monospace);
-		padding: 1px 4px;
-		border-radius: 3px;
-		background: rgba(255, 255, 255, 0.1);
-		margin-left: 4px;
-		opacity: 0.7;
-	}
 </style>

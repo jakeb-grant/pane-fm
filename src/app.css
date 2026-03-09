@@ -18,6 +18,24 @@
 		"Hack Nerd Font", monospace;
 	--font-icon: var(--font-mono);
 	--font-sans: "Inter", sans-serif;
+
+	/* Overlays & shadows */
+	--overlay-bg: rgba(0, 0, 0, 0.5);
+	--shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
+	--shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+	--kbd-bg: rgba(255, 255, 255, 0.1);
+
+	/* Layout */
+	--scrollbar-width: 8px;
+
+	/* Transitions */
+	--transition-fast: 0.1s;
+	--transition-normal: 0.15s;
+
+	/* Z-index scale */
+	--z-dropdown: 100;
+	--z-dialog: 200;
+	--z-overlay: 300;
 }
 
 * {
@@ -36,8 +54,18 @@ body {
 	height: 100vh;
 }
 
+kbd {
+	font-size: 10px;
+	font-family: var(--font-mono, monospace);
+	padding: 1px 4px;
+	border-radius: 3px;
+	background: var(--kbd-bg);
+	margin-left: 4px;
+	opacity: 0.7;
+}
+
 ::-webkit-scrollbar {
-	width: 8px;
+	width: var(--scrollbar-width);
 }
 
 ::-webkit-scrollbar-track {

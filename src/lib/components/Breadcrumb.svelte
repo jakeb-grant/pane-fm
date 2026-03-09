@@ -225,8 +225,8 @@ $effect(() => {
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		overflow: hidden;
-		z-index: 100;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		z-index: var(--z-dropdown);
+		box-shadow: var(--shadow-sm);
 	}
 
 	.suggestion {

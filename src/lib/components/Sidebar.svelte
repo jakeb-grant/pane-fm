@@ -132,7 +132,7 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 		font-family: var(--font-sans);
 		cursor: pointer;
 		text-align: left;
-		transition: background 0.1s, color 0.1s;
+		transition: background var(--transition-fast), color var(--transition-fast);
 	}
 
 	.sidebar-item:hover:not(:disabled) {

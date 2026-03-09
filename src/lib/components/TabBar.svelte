@@ -60,7 +60,7 @@ let {
 		white-space: nowrap;
 		min-width: 0;
 		max-width: 160px;
-		transition: color 0.1s, border-color 0.1s;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
 	}
 
 	.tab:hover {
@@ -93,7 +93,7 @@ let {
 		flex-shrink: 0;
 		padding: 0 2px;
 		border-radius: 3px;
-		transition: opacity 0.1s;
+		transition: opacity var(--transition-fast);
 	}
 
 	.tab:hover .tab-close {
@@ -113,7 +113,7 @@ let {
 		padding: 4px 10px;
 		cursor: pointer;
 		flex-shrink: 0;
-		transition: color 0.1s;
+		transition: color var(--transition-fast);
 	}
 
 	.tab-new:hover {

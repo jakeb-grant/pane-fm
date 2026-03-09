@@ -185,11 +185,11 @@ day one.
 The two features that justify this project's existence.
 
 ### Theming
-- [ ] CSS-based theme system — app loads user CSS at runtime
+- [x] CSS-based theme system — app loads user CSS at runtime
 - [x] TOML config file for non-visual settings (~/.config/hyprfiles/config.toml)
-- [ ] CSS custom properties for all colors, spacing, fonts, radii, etc.
-- [ ] Hot-reload themes (watch config/theme files, apply without restart)
-- [ ] Ship 3 starter themes: dark minimal, catppuccin, nord
+- [x] CSS custom properties for all colors, spacing, fonts, radii, etc.
+- [x] Hot-reload themes (watch config/theme files, apply without restart)
+- [x] Ship 3 starter themes: dark minimal, catppuccin, nord
 - [ ] Icon display (nerd font glyphs by default, configurable)
 
 ### Drag and Drop
@@ -222,6 +222,7 @@ Features that make hyprfiles a daily driver.
 - [ ] "Open terminal here" (configurable terminal emulator)
 - [ ] Custom context menu actions (user-defined shell scripts)
 - [ ] Hyprland IPC — update window title with current path (raw unix socket)
+- [ ] Config hot-reload (watch config.toml, re-apply keybinds/theme/preferences)
 - [ ] Filesystem watching (live directory updates via notify-debouncer-full)
 
 ## Phase 5: Polish & Distribution

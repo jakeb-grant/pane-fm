@@ -1,0 +1,16 @@
+/* Dark Minimal — pure grayscale with muted accent */
+:root {
+	--bg-primary: #1a1a1a;
+	--bg-secondary: #141414;
+	--bg-surface: #2a2a2a;
+	--bg-hover: #333333;
+	--text-primary: #e0e0e0;
+	--text-secondary: #a0a0a0;
+	--text-muted: #666666;
+	--accent: #7a9ec2;
+	--accent-hover: #8bb0d4;
+	--border: #2a2a2a;
+	--danger: #c47070;
+	--success: #7db87d;
+	--warning: #c9b458;
+}

@@ -160,11 +160,11 @@ onDestroy(() => {
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: var(--overlay-bg);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 200;
+		z-index: var(--z-dialog);
 	}
 
 	.dialog {
@@ -174,7 +174,7 @@ onDestroy(() => {
 		width: 380px;
 		max-height: 80vh;
 		overflow-y: auto;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		box-shadow: var(--shadow-lg);
 	}
 
 	.header {
@@ -265,13 +265,4 @@ onDestroy(() => {
 		background: var(--bg-hover);
 	}
 
-	kbd {
-		font-size: 10px;
-		font-family: var(--font-mono, monospace);
-		padding: 1px 4px;
-		border-radius: 3px;
-		background: rgba(255, 255, 255, 0.1);
-		margin-left: 4px;
-		opacity: 0.7;
-	}
 </style>

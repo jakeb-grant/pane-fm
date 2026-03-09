@@ -114,18 +114,18 @@ let menuStyle = $derived(() => {
 	.context-overlay {
 		position: fixed;
 		inset: 0;
-		z-index: 99;
+		z-index: calc(var(--z-dropdown) - 1);
 	}
 
 	.context-menu {
 		position: fixed;
-		z-index: 100;
+		z-index: var(--z-dropdown);
 		background: var(--bg-secondary);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		padding: 4px;
 		min-width: 200px;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		box-shadow: var(--shadow-sm);
 	}
 
 	.menu-item {

@@ -101,11 +101,11 @@ function handleSubmit() {
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: var(--overlay-bg);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 200;
+		z-index: var(--z-dialog);
 	}
 
 	.dialog {
@@ -113,7 +113,7 @@ function handleSubmit() {
 		border: 1px solid var(--border);
 		border-radius: calc(var(--radius) * 2);
 		width: 380px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		box-shadow: var(--shadow-lg);
 		overflow: hidden;
 	}
 
@@ -198,7 +198,7 @@ function handleSubmit() {
 		font-family: var(--font-mono);
 		padding: 6px 0;
 		cursor: pointer;
-		transition: color 0.15s, background 0.15s;
+		transition: color var(--transition-normal), background var(--transition-normal);
 	}
 
 	.format-btn:hover {
@@ -272,13 +272,4 @@ function handleSubmit() {
 		cursor: default;
 	}
 
-	kbd {
-		font-size: 10px;
-		font-family: var(--font-mono, monospace);
-		padding: 1px 4px;
-		border-radius: 3px;
-		background: rgba(255, 255, 255, 0.1);
-		margin-left: 4px;
-		opacity: 0.7;
-	}
 </style>

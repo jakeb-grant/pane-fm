@@ -65,7 +65,7 @@ let {
 		padding: 4px 6px;
 		cursor: pointer;
 		flex-shrink: 0;
-		transition: color 0.15s;
+		transition: color var(--transition-normal);
 	}
 
 	.nav-btn.icon {

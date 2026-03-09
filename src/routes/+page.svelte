@@ -1,6 +1,7 @@
 <script lang="ts">
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { onDestroy, onMount, tick } from "svelte";
-import { getConfig } from "$lib/commands";
+import { getConfig, loadThemeCss, watchTheme } from "$lib/commands";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
 import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
@@ -32,6 +33,18 @@ import {
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
 import { createTabManager } from "$lib/stores/tabs.svelte";
+
+let themeUnlisten: UnlistenFn | null = null;
+
+function applyThemeCss(css: string) {
+	let el = document.getElementById("hyprfiles-theme");
+	if (!el) {
+		el = document.createElement("style");
+		el.id = "hyprfiles-theme";
+		document.head.appendChild(el);
+	}
+	el.textContent = css;
+}
 
 const tabs = createTabManager();
 const dlg = createDialogManager(() => fm);
@@ -409,6 +422,18 @@ onMount(async () => {
 		});
 		tabs.activeFm.applyConfigDefaults();
 		configWarning = config.warning ?? undefined;
+		if (config.general.theme) {
+			try {
+				const css = await loadThemeCss(config.general.theme);
+				applyThemeCss(css);
+				await watchTheme(config.general.theme);
+				themeUnlisten = await listen<string>("theme-changed", (e) => {
+					applyThemeCss(e.payload);
+				});
+			} catch {
+				// Theme load failed — continue with defaults
+			}
+		}
 	} catch {
 		// Config load failed (e.g. command not available) — continue with defaults
 	}
@@ -419,6 +444,7 @@ onMount(async () => {
 
 onDestroy(() => {
 	dlg.unsubscribeProgress();
+	themeUnlisten?.();
 });
 </script>
 
@@ -658,7 +684,7 @@ onDestroy(() => {
 		cursor: pointer;
 		padding: 2px 8px;
 		border-radius: var(--radius);
-		transition: background 0.15s;
+		transition: background var(--transition-normal);
 	}
 
 	.context-bar-action:hover {

@@ -39,11 +39,11 @@ let {
 	.busy-overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.4);
+		background: var(--overlay-bg);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 300;
+		z-index: var(--z-overlay);
 	}
 
 	.busy-card {
@@ -54,7 +54,7 @@ let {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		box-shadow: var(--shadow-lg);
 		min-width: 280px;
 	}
 
@@ -94,7 +94,7 @@ let {
 		height: 100%;
 		background: var(--accent);
 		border-radius: 2px;
-		transition: width 0.2s ease;
+		transition: width var(--transition-normal) ease;
 	}
 
 	.busy-detail {
@@ -120,13 +120,4 @@ let {
 		color: var(--text-primary);
 	}
 
-	kbd {
-		font-size: 10px;
-		font-family: var(--font-mono, monospace);
-		padding: 1px 4px;
-		border-radius: 3px;
-		background: rgba(255, 255, 255, 0.1);
-		margin-left: 4px;
-		opacity: 0.7;
-	}
 </style>

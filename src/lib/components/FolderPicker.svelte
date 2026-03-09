@@ -168,11 +168,11 @@ onMount(async () => {
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: var(--overlay-bg);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 200;
+		z-index: var(--z-dialog);
 	}
 
 	.dialog {
@@ -183,7 +183,7 @@ onMount(async () => {
 		max-height: 70vh;
 		display: flex;
 		flex-direction: column;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		box-shadow: var(--shadow-lg);
 		overflow: hidden;
 	}
 
@@ -305,7 +305,7 @@ onMount(async () => {
 		font-family: var(--font-sans);
 		cursor: pointer;
 		text-align: left;
-		transition: background 0.1s, color 0.1s;
+		transition: background var(--transition-fast), color var(--transition-fast);
 	}
 
 	.sidebar-item:hover {
@@ -436,13 +436,4 @@ onMount(async () => {
 		opacity: 0.9;
 	}
 
-	kbd {
-		font-size: 10px;
-		font-family: var(--font-mono, monospace);
-		padding: 1px 4px;
-		border-radius: 3px;
-		background: rgba(255, 255, 255, 0.1);
-		margin-left: 4px;
-		opacity: 0.7;
-	}
 </style>

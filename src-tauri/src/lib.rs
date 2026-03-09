@@ -7,6 +7,11 @@ mod fs_ops;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(commands::theme::ThemeWatcher(std::sync::Mutex::new(None)))
+        .setup(|_app| {
+            commands::theme::install_default_themes();
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::file_ops::list_directory,
             commands::file_ops::get_home_dir,
@@ -32,6 +37,8 @@ pub fn run() {
             commands::archive::cancel_operation,
             commands::archive::extract,
             commands::config::get_config,
+            commands::theme::load_theme_css,
+            commands::theme::watch_theme,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

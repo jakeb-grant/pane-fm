@@ -149,6 +149,7 @@ export interface GeneralConfig {
 	show_hidden?: boolean;
 	sort_by?: string;
 	sort_ascending?: boolean;
+	theme?: string;
 }
 
 export interface AppConfig {
@@ -160,4 +161,12 @@ export interface AppConfig {
 
 export function getConfig(): Promise<AppConfig> {
 	return invoke("get_config");
+}
+
+export function loadThemeCss(path: string): Promise<string> {
+	return invoke("load_theme_css", { path });
+}
+
+export function watchTheme(path: string): Promise<void> {
+	return invoke("watch_theme", { path });
 }

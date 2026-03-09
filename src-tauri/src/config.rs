@@ -14,6 +14,26 @@ pub struct GeneralConfig {
     pub show_hidden: Option<bool>,
     pub sort_by: Option<String>,
     pub sort_ascending: Option<bool>,
+    pub theme: Option<String>,
+}
+
+pub fn resolve_theme_path(theme: &str) -> Option<std::path::PathBuf> {
+    let path = if theme.starts_with('/') {
+        std::path::PathBuf::from(theme)
+    } else if let Some(rest) = theme.strip_prefix("~/") {
+        dirs::home_dir()?.join(rest)
+    } else {
+        // Bundled theme name — look in ~/.config/hyprfiles/themes/{theme}.css
+        dirs::config_dir()?
+            .join("hyprfiles")
+            .join("themes")
+            .join(format!("{theme}.css"))
+    };
+    if path.exists() {
+        Some(path)
+    } else {
+        None
+    }
 }
 
 pub fn load_config() -> AppConfig {
