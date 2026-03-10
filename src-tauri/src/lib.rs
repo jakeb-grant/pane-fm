@@ -15,6 +15,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::file_ops::list_directory,
+            commands::file_ops::get_drag_icon,
             commands::file_ops::get_home_dir,
             commands::file_ops::create_directory,
             commands::file_ops::create_file,

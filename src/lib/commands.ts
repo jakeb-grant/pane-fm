@@ -20,6 +20,10 @@ export function listDirectory(
 	return invoke("list_directory", { path, showHidden });
 }
 
+export function getDragIcon(): Promise<string> {
+	return invoke("get_drag_icon");
+}
+
 export function getHomeDir(): Promise<string> {
 	return invoke("get_home_dir");
 }

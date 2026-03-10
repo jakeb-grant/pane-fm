@@ -28,6 +28,7 @@ let {
 	ondropentry,
 	ondragoverentry,
 	ondragleaveentry,
+	ondragleavewindow,
 }: {
 	entries: FileEntry[];
 	cursorPath: string | null;
@@ -52,6 +53,7 @@ let {
 	ondropentry?: (targetDir: FileEntry, ctrlKey: boolean) => void;
 	ondragoverentry?: (entry: FileEntry) => void;
 	ondragleaveentry?: () => void;
+	ondragleavewindow?: () => void;
 } = $props();
 
 const edit = createEditLogic({
@@ -137,6 +139,15 @@ let dragOrigin = $state<{ x: number; y: number; entry: FileEntry } | null>(
 let dragging = $state(false);
 let ghost = $state<HTMLElement | null>(null);
 
+export function cancelDrag() {
+	if (ghost) {
+		ghost.remove();
+		ghost = null;
+	}
+	dragging = false;
+	dragOrigin = null;
+}
+
 function handleMouseDown(entry: FileEntry, e: MouseEvent) {
 	if (e.button !== 0 || renamingPath === entry.path || isTrash) return;
 	e.preventDefault();
@@ -177,6 +188,18 @@ function handleMouseMove(e: MouseEvent) {
 	if (ghost) {
 		ghost.style.top = `${e.clientY + 12}px`;
 		ghost.style.left = `${e.clientX + 12}px`;
+	}
+
+	// Detect mouse at window edge → trigger native drag-out
+	const EDGE_MARGIN = 3;
+	if (
+		e.clientX <= EDGE_MARGIN ||
+		e.clientY <= EDGE_MARGIN ||
+		e.clientX >= window.innerWidth - EDGE_MARGIN ||
+		e.clientY >= window.innerHeight - EDGE_MARGIN
+	) {
+		ondragleavewindow?.();
+		return;
 	}
 
 	// Auto-scroll at edges

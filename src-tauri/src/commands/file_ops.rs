@@ -2,7 +2,7 @@ use crate::error::AppError;
 use crate::fs_ops::{self, FileEntry};
 use serde::Serialize;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[tauri::command]
 pub fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>, AppError> {
@@ -20,6 +20,17 @@ pub fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>,
     } else {
         Ok(entries.into_iter().filter(|e| !e.hidden).collect())
     }
+}
+
+#[tauri::command]
+pub fn get_drag_icon(app: AppHandle) -> Result<String, AppError> {
+    app.path()
+        .resolve("icons/drag.png", tauri::path::BaseDirectory::Resource)
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| AppError::Io {
+            message: format!("Could not resolve drag icon: {e}"),
+            path: None,
+        })
 }
 
 #[tauri::command]

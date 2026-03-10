@@ -1,13 +1,20 @@
 <script lang="ts">
+import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { onDestroy, onMount, tick } from "svelte";
 import type { FileEntry } from "$lib/commands";
-import { getConfig, loadThemeCss, watchTheme } from "$lib/commands";
+import {
+	getConfig,
+	getDragIcon,
+	loadThemeCss,
+	watchTheme,
+} from "$lib/commands";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
 import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
 import ContextMenu from "$lib/components/ContextMenu.svelte";
+// biome-ignore lint/style/useImportType: component used in template
 import FileList from "$lib/components/FileList.svelte";
 // biome-ignore lint/style/useImportType: component used in template
 import FilterBar from "$lib/components/FilterBar.svelte";
@@ -55,6 +62,7 @@ let fm = $derived(tabs.activeFm);
 let filterBarVisible = $state(false);
 let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
 let toolbar = $state<ReturnType<typeof Toolbar> | null>(null);
+let fileList = $state<ReturnType<typeof FileList> | null>(null);
 
 // Sync filter bar visibility when switching tabs
 let prevTabIndex = tabs.activeIndex;
@@ -418,6 +426,24 @@ function handleDragStart(draggedEntries: FileEntry[]) {
 	fm.startDrag(draggedEntries);
 }
 
+let nativeDragPending = false;
+
+function handleNativeDragOut() {
+	if (!fm.isDragging || !dragIconPath || nativeDragPending) return;
+	nativeDragPending = true;
+	const paths = fm.dragEntries.map((en) => en.path);
+	fileList?.cancelDrag();
+	fm.endDrag();
+	setTimeout(() => {
+		startDrag({ item: paths, icon: dragIconPath }, () => {
+			nativeDragPending = false;
+			fm.refresh();
+		}).catch(() => {
+			nativeDragPending = false;
+		});
+	}, 0);
+}
+
 function handleDropOnEntry(targetDir: FileEntry, ctrlKey: boolean) {
 	if (!fm.isDragging || !targetDir.is_dir) return;
 	if (fm.dragEntries.some((en) => en.path === targetDir.path)) {
@@ -468,6 +494,7 @@ function handleDragLeaveTarget() {
 	fm.setDropTarget(null);
 }
 
+let dragIconPath = "";
 let dropUnlisten: (() => void) | null = null;
 
 onMount(async () => {
@@ -500,6 +527,14 @@ onMount(async () => {
 	await tabs.init();
 	if (configWarning) tabs.activeFm.setError(configWarning);
 	await dlg.subscribeProgress();
+
+	getDragIcon()
+		.then((p) => {
+			dragIconPath = p;
+		})
+		.catch(() => {
+			// Icon not available in dev — drag-out disabled
+		});
 
 	dropUnlisten = await getCurrentWebview().onDragDropEvent((event) => {
 		if (event.payload.type === "drop" && event.payload.paths.length > 0) {
@@ -592,6 +627,7 @@ onDestroy(() => {
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div class="content" bind:this={contentEl} tabindex="-1" oncontextmenu={(e) => ops.handleBgContextMenu(fm, e, (menu) => dlg.openContextMenu(menu.x, menu.y, menu.entry))}>
 				<FileList
+						bind:this={fileList}
 						entries={fm.filteredEntries}
 						cursorPath={fm.cursorPath}
 						selectedPaths={fm.selectedPaths}
@@ -615,6 +651,7 @@ onDestroy(() => {
 						ondropentry={handleDropOnEntry}
 						ondragoverentry={(entry) => { if (!fm.dragEntries.some((en) => en.path === entry.path)) fm.setDropTarget(entry.path); }}
 						ondragleaveentry={() => fm.setDropTarget(null)}
+						ondragleavewindow={handleNativeDragOut}
 					/>
 				</div>
 			</div>
