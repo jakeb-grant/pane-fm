@@ -174,3 +174,11 @@ export function loadThemeCss(path: string): Promise<string> {
 export function watchTheme(path: string): Promise<void> {
 	return invoke("watch_theme", { path });
 }
+
+export function watchDirectory(path: string): Promise<void> {
+	return invoke("watch_directory", { path });
+}
+
+export function unwatchDirectory(): Promise<void> {
+	return invoke("unwatch_directory");
+}

@@ -8,6 +8,8 @@ import {
 	getConfig,
 	getDragIcon,
 	loadThemeCss,
+	unwatchDirectory,
+	watchDirectory,
 	watchTheme,
 } from "$lib/commands";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
@@ -44,6 +46,7 @@ import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
 import { createTabManager } from "$lib/stores/tabs.svelte";
 
 let themeUnlisten: UnlistenFn | null = null;
+let dirWatchUnlisten: UnlistenFn | null = null;
 
 function applyThemeCss(css: string) {
 	let el = document.getElementById("hyprfiles-theme");
@@ -494,6 +497,17 @@ function handleDragLeaveTarget() {
 	fm.setDropTarget(null);
 }
 
+$effect(() => {
+	const path = fm.currentPath;
+	if (path === "trash://") {
+		// biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget
+		unwatchDirectory().catch(() => {});
+		return;
+	}
+	// biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget
+	watchDirectory(path).catch(() => {});
+});
+
 let dragIconPath = "";
 let dropUnlisten: (() => void) | null = null;
 
@@ -541,12 +555,23 @@ onMount(async () => {
 			ops.handleDrop(fm, event.payload.paths, fm.currentPath, "copy");
 		}
 	});
+
+	let dirRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+	dirWatchUnlisten = await listen<string>("directory-changed", (event) => {
+		if (event.payload === fm.currentPath) {
+			if (dirRefreshTimer) clearTimeout(dirRefreshTimer);
+			dirRefreshTimer = setTimeout(() => fm.refresh(), 300);
+		}
+	});
 });
 
 onDestroy(() => {
 	dlg.unsubscribeProgress();
 	themeUnlisten?.();
 	dropUnlisten?.();
+	dirWatchUnlisten?.();
+	// biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget
+	unwatchDirectory().catch(() => {});
 });
 </script>
 

@@ -9,6 +9,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_drag::init())
         .manage(commands::theme::ThemeWatcher(std::sync::Mutex::new(None)))
+        .manage(commands::watcher::DirWatcher(std::sync::Mutex::new(None)))
         .setup(|_app| {
             commands::theme::install_default_themes();
             Ok(())
@@ -41,6 +42,8 @@ pub fn run() {
             commands::config::get_config,
             commands::theme::load_theme_css,
             commands::theme::watch_theme,
+            commands::watcher::watch_directory,
+            commands::watcher::unwatch_directory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

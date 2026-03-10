@@ -13,6 +13,7 @@
 | mime_guess | MIME type detection (extension-based) | Phase 1 |
 | infer | MIME type detection (magic bytes fallback) | Phase 1 |
 | dirs | XDG directory paths (~/.config, etc.) | Phase 1 (sidebar, trash, home) |
+| tauri-plugin-drag | Native drag-out to other apps | Phase 3 |
 
 **Already provided by Tauri (do not add separately):**
 - `open` → use `tauri-plugin-opener`
@@ -25,10 +26,12 @@
 
 ### Frontend (package.json)
 
-No additional npm dependencies. Svelte 5 + `@tauri-apps/api` only.
+| Package | Purpose | Notes |
+|---------|---------|-------|
+| `@crabnebula/tauri-plugin-drag` | Native drag-out to other apps | Phase 3 |
 
 - Icons: nerd font glyphs or inline SVGs
-- Drag and drop: HTML5 drag events
+- Drag and drop: mouse-based (HTML5 DnD doesn't work in WebKitGTK)
 - Fuzzy filtering: plain JS function
 - Virtual scrolling: simple Svelte snippet if needed
 - Toasts/notifications: small Svelte component
@@ -195,9 +198,10 @@ The two features that justify this project's existence.
 ### Drag and Drop
 - [x] Internal DnD — drag files to move/copy within the app
 - [x] Visual drag feedback (ghost element, drop indicators)
-- [x] External DnD out — drag files from hyprfiles to browsers/other apps
-- [x] External DnD in — drop files from browsers/other apps into hyprfiles
+- [x] External DnD out — drag files from hyprfiles to browsers/other apps (tauri-plugin-drag, edge detection)
+- [x] External DnD in — drop files from browsers/other apps into hyprfiles (Tauri onDragDropEvent)
 - [x] Modifier keys (hold Ctrl to copy instead of move)
+- [x] Drag to trash with confirmation dialog
 
 ## Phase 4: Power Features
 
@@ -223,7 +227,7 @@ Features that make hyprfiles a daily driver.
 - [ ] Custom context menu actions (user-defined shell scripts)
 - [ ] Hyprland IPC — update window title with current path (raw unix socket)
 - [ ] Config hot-reload (watch config.toml, re-apply keybinds/theme/preferences)
-- [ ] Filesystem watching (live directory updates via notify-debouncer-full)
+- [x] Filesystem watching (live directory updates via notify watcher — real directories only, not trash view)
 
 ## Phase 5: Polish & Distribution
 

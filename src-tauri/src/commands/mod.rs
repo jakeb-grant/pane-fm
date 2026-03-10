@@ -5,3 +5,4 @@ pub mod drives;
 pub mod file_ops;
 pub mod theme;
 pub mod trash;
+pub mod watcher;
