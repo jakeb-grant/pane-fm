@@ -293,6 +293,13 @@ pub fn create_symlink(target: &Path, link: &Path) -> Result<(), AppError> {
         .map_err(|e| AppError::io_with_path(e, dest.display().to_string()))
 }
 
+pub fn chmod_entry(path: &Path, mode: u32) -> Result<(), AppError> {
+    use std::os::unix::fs::PermissionsExt;
+    let perms = std::fs::Permissions::from_mode(mode);
+    std::fs::set_permissions(path, perms)
+        .map_err(|e| AppError::io_with_path(e, path.display().to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -552,5 +559,19 @@ mod tests {
         create_symlink(&target, &link).unwrap();
         let expected = tmp.path().join("notes (link) (2)");
         assert!(expected.is_symlink());
+    }
+
+    #[test]
+    fn chmod_entry_works() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("test.txt");
+        fs::write(&file, "hello").unwrap();
+        chmod_entry(&file, 0o644).unwrap();
+        let mode = fs::metadata(&file).unwrap().permissions().mode() & 0o7777;
+        assert_eq!(mode, 0o644);
+        chmod_entry(&file, 0o755).unwrap();
+        let mode = fs::metadata(&file).unwrap().permissions().mode() & 0o7777;
+        assert_eq!(mode, 0o755);
     }
 }

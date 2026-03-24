@@ -212,7 +212,7 @@ Features that make hyprfiles a daily driver.
 - [ ] Bulk rename (pattern-based)
 - [ ] Async operations with progress bar (large copies/moves)
 - [ ] Undo/redo for file operations (operation history)
-- [ ] File permissions viewing and editing (chmod dialog)
+- [x] File permissions viewing and editing (chmod dialog)
 - [x] Symlink creation
 
 ### Previews
@@ -225,7 +225,7 @@ Features that make hyprfiles a daily driver.
 ### Integration
 - [x] "Open terminal here" (configurable terminal emulator)
 - [ ] Custom context menu actions (user-defined shell scripts)
-- [ ] Hyprland IPC — update window title with current path (raw unix socket)
+- [x] ~~Hyprland IPC~~ — removed title bar (`decorations: false`), Hyprland manages window
 - [x] Config hot-reload (watch config.toml, re-apply keybinds/theme/preferences)
 - [x] Filesystem watching (live directory updates via notify watcher — real directories only, not trash view)
 

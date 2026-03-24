@@ -60,6 +60,10 @@ export function createSymlink(target: string, link: string): Promise<void> {
 	return invoke("create_symlink", { target, link });
 }
 
+export function chmodEntry(path: string, mode: number): Promise<void> {
+	return invoke("chmod_entry", { path, mode });
+}
+
 export interface DriveEntry {
 	name: string;
 	path: string;

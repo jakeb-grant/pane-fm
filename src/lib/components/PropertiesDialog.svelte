@@ -1,7 +1,13 @@
 <script lang="ts">
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { onDestroy, onMount } from "svelte";
-import { type DirStats, type FileProperties, getDirStats } from "$lib/commands";
+import {
+	chmodEntry,
+	type DirStats,
+	type FileProperties,
+	getDirStats,
+} from "$lib/commands";
+import { errorMessage } from "$lib/errors";
 import { getIconForEntry } from "$lib/icons";
 import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
 import { formatSize } from "$lib/utils";
@@ -18,6 +24,36 @@ let dirSize = $state<number | null>(null);
 let dirCount = $state<number | null>(null);
 let dirStatsLoading = $state(false);
 let unlisten: UnlistenFn | null = null;
+
+let editMode = $state(Number.parseInt(properties.permissions, 8));
+const originalMode = Number.parseInt(properties.permissions, 8);
+let saving = $state(false);
+let permError = $state<string | null>(null);
+
+const octalDisplay = $derived(editMode.toString(8).padStart(3, "0"));
+const isDirty = $derived(editMode !== originalMode);
+
+const permRows = [
+	{ label: "Owner", r: 0o400, w: 0o200, x: 0o100 },
+	{ label: "Group", r: 0o040, w: 0o020, x: 0o010 },
+	{ label: "Other", r: 0o004, w: 0o002, x: 0o001 },
+] as const;
+
+function toggleBit(bit: number) {
+	// biome-ignore lint/suspicious/noBitwiseOperators: XOR toggles permission bits
+	editMode ^= bit;
+}
+
+async function applyPermissions() {
+	saving = true;
+	permError = null;
+	try {
+		await chmodEntry(properties.path, editMode);
+	} catch (e) {
+		permError = errorMessage(e) ?? "Failed to change permissions";
+	}
+	saving = false;
+}
 
 const iconEntry = $derived({
 	name: properties.name,
@@ -138,8 +174,32 @@ onDestroy(() => {
 
 			<div class="row">
 				<span class="label">Permissions</span>
-				<span class="value mono">{properties.permissions}</span>
+				<span class="value mono">{octalDisplay}</span>
 			</div>
+			<div class="perms-grid">
+				{#each permRows as row}
+					<div class="perms-row">
+						<span class="perms-label">{row.label}</span>
+						<div class="perms-buttons">
+							{#each [{ label: "r", bit: row.r }, { label: "w", bit: row.w }, { label: "x", bit: row.x }] as perm}
+								<button
+									class="perm-btn"
+									class:active={!!(editMode & perm.bit)}
+									onclick={() => toggleBit(perm.bit)}
+								>{perm.label}</button>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</div>
+			{#if isDirty}
+				<button class="apply-btn" onclick={applyPermissions} disabled={saving}>
+					{saving ? "Applying\u2026" : "Apply"}
+				</button>
+			{/if}
+			{#if permError}
+				<span class="perms-error">{permError}</span>
+			{/if}
 			<div class="row">
 				<span class="label">Owner</span>
 				<span class="value">{properties.owner}</span>
@@ -263,6 +323,83 @@ onDestroy(() => {
 
 	.close-btn:hover {
 		background: var(--bg-hover);
+	}
+
+	.perms-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin: 6px 0;
+	}
+
+	.perms-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.perms-label {
+		font-size: 12px;
+		color: var(--text-muted);
+		width: 48px;
+	}
+
+	.perms-buttons {
+		display: flex;
+		gap: 4px;
+	}
+
+	.perm-btn {
+		width: 28px;
+		height: 24px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg-surface);
+		color: var(--text-muted);
+		font-family: var(--font-mono);
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.1s, color 0.1s, border-color 0.1s;
+	}
+
+	.perm-btn:hover {
+		border-color: var(--accent);
+	}
+
+	.perm-btn.active {
+		background: var(--accent);
+		color: var(--bg-primary);
+		border-color: var(--accent);
+	}
+
+	.apply-btn {
+		margin-top: 6px;
+		background: var(--accent);
+		border: none;
+		color: var(--bg-primary);
+		font-size: 12px;
+		font-family: var(--font-sans);
+		padding: 4px 12px;
+		border-radius: var(--radius);
+		cursor: pointer;
+		width: 100%;
+	}
+
+	.apply-btn:hover {
+		opacity: 0.9;
+	}
+
+	.apply-btn:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	.perms-error {
+		display: block;
+		margin-top: 4px;
+		font-size: 11px;
+		color: var(--danger, #e55);
 	}
 
 </style>
