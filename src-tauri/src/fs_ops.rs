@@ -2,6 +2,7 @@ use crate::error::AppError;
 use chrono::{DateTime, Local};
 use serde::Serialize;
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 
 #[derive(Debug, Serialize, Clone)]
@@ -293,6 +294,42 @@ pub fn create_symlink(target: &Path, link: &Path) -> Result<(), AppError> {
         .map_err(|e| AppError::io_with_path(e, dest.display().to_string()))
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct FilePreview {
+    pub content: String,
+    pub truncated: bool,
+    pub bytes_read: usize,
+    pub is_binary: bool,
+}
+
+pub fn read_file_preview(path: &Path, max_bytes: usize) -> Result<FilePreview, AppError> {
+    let file =
+        fs::File::open(path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+    let file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let capacity = if file_size == 0 {
+        max_bytes
+    } else {
+        (file_size as usize).min(max_bytes)
+    };
+    let mut buf = Vec::with_capacity(capacity);
+    file.take(max_bytes as u64)
+        .read_to_end(&mut buf)
+        .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+    let truncated = file_size > max_bytes as u64;
+    let is_binary = buf[..buf.len().min(512)].contains(&0);
+    let content = if is_binary {
+        String::new()
+    } else {
+        String::from_utf8_lossy(&buf).into_owned()
+    };
+    Ok(FilePreview {
+        content,
+        truncated,
+        bytes_read: buf.len(),
+        is_binary,
+    })
+}
+
 pub fn chmod_entry(path: &Path, mode: u32) -> Result<(), AppError> {
     use std::os::unix::fs::PermissionsExt;
     let perms = std::fs::Permissions::from_mode(mode);
@@ -559,6 +596,40 @@ mod tests {
         create_symlink(&target, &link).unwrap();
         let expected = tmp.path().join("notes (link) (2)");
         assert!(expected.is_symlink());
+    }
+
+    #[test]
+    fn read_file_preview_basic() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("test.txt");
+        fs::write(&file, "hello\nworld\n").unwrap();
+        let preview = read_file_preview(&file, 65536).unwrap();
+        assert_eq!(preview.content, "hello\nworld\n");
+        assert!(!preview.truncated);
+        assert!(!preview.is_binary);
+        assert_eq!(preview.bytes_read, 12);
+    }
+
+    #[test]
+    fn read_file_preview_truncated() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("big.txt");
+        let content = "x".repeat(1000);
+        fs::write(&file, &content).unwrap();
+        let preview = read_file_preview(&file, 500).unwrap();
+        assert_eq!(preview.content.len(), 500);
+        assert!(preview.truncated);
+        assert!(!preview.is_binary);
+    }
+
+    #[test]
+    fn read_file_preview_binary() {
+        let tmp = TempDir::new().unwrap();
+        let file = tmp.path().join("binary.bin");
+        fs::write(&file, &[0u8, 1, 2, 3, 0xFF, 0xFE]).unwrap();
+        let preview = read_file_preview(&file, 65536).unwrap();
+        assert!(preview.is_binary);
+        assert!(preview.content.is_empty());
     }
 
     #[test]

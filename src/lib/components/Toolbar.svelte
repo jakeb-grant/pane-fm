@@ -19,6 +19,8 @@ let {
 	showHidden,
 	ontogglehidden,
 	onopenhelp,
+	previewEnabled = false,
+	ontogglepreview,
 	isDragging = false,
 	dropTarget = null,
 	ondragoverpath,
@@ -35,6 +37,8 @@ let {
 	showHidden: boolean;
 	ontogglehidden: () => void;
 	onopenhelp: () => void;
+	previewEnabled?: boolean;
+	ontogglepreview?: () => void;
 	isDragging?: boolean;
 	dropTarget?: string | null;
 	ondragoverpath?: (path: string) => void;
@@ -54,6 +58,9 @@ let {
 	<div class="breadcrumb-wrapper">
 		<Breadcrumb bind:this={breadcrumb} path={currentPath} onnavigate={onnavigate} {isDragging} {dropTarget} {ondragoverpath} {ondroppath} {ondragleavepath} />
 	</div>
+	<button class="nav-btn icon small" class:active={previewEnabled} onclick={ontogglepreview} title="Toggle preview (P)">
+		{"\uf518"}
+	</button>
 	<button class="nav-btn icon small" class:active={showHidden} onclick={ontogglehidden} title="Toggle hidden files">
 		{showHidden ? "\uf06e" : "\uf070"}
 	</button>

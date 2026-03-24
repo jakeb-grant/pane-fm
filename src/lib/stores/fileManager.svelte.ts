@@ -86,6 +86,11 @@ export function createFileManager() {
 	// Filter state
 	let filterQuery = $state("");
 
+	// Preview panel state
+	let previewEnabled = $state(loadPreference("previewEnabled", false));
+	let previewWidth = $state(loadPreference("previewWidth", 300));
+	let previewWidthSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
 	// Open With state
 	let openWithApps = $state<
 		Array<{ name: string; desktop_id: string; icon: string }>
@@ -462,6 +467,12 @@ export function createFileManager() {
 		get dropTarget() {
 			return dropTarget;
 		},
+		get previewEnabled() {
+			return previewEnabled;
+		},
+		get previewWidth() {
+			return previewWidth;
+		},
 		get isDragging() {
 			return isDragging;
 		},
@@ -532,6 +543,18 @@ export function createFileManager() {
 		endDrag() {
 			dragEntries = [];
 			dropTarget = null;
+		},
+		togglePreview() {
+			previewEnabled = !previewEnabled;
+			savePreference("previewEnabled", previewEnabled);
+		},
+		setPreviewWidth(w: number) {
+			previewWidth = w;
+			clearTimeout(previewWidthSaveTimer);
+			previewWidthSaveTimer = setTimeout(
+				() => savePreference("previewWidth", w),
+				300,
+			);
 		},
 		setError,
 		init,

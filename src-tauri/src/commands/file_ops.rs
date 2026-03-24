@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::fs_ops::{self, FileEntry};
+use crate::fs_ops::{self, FileEntry, FilePreview};
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
@@ -81,6 +81,11 @@ pub fn move_entry(from: String, to: String) -> Result<(), AppError> {
 #[tauri::command]
 pub fn create_symlink(target: String, link: String) -> Result<(), AppError> {
     fs_ops::create_symlink(&PathBuf::from(target), &PathBuf::from(link))
+}
+
+#[tauri::command]
+pub fn read_file_preview(path: String, max_bytes: usize) -> Result<FilePreview, AppError> {
+    fs_ops::read_file_preview(&PathBuf::from(path), max_bytes)
 }
 
 #[tauri::command]

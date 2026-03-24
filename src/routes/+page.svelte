@@ -3,12 +3,13 @@ import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { onDestroy, onMount, tick } from "svelte";
-import type { FileEntry } from "$lib/commands";
+import type { FileEntry, FilePreview } from "$lib/commands";
 import {
 	type AppConfig,
 	getConfig,
 	getDragIcon,
 	loadThemeCss,
+	readFilePreview,
 	unwatchDirectory,
 	watchConfig,
 	watchDirectory,
@@ -24,17 +25,20 @@ import FileList from "$lib/components/FileList.svelte";
 import FilterBar from "$lib/components/FilterBar.svelte";
 import FolderPicker from "$lib/components/FolderPicker.svelte";
 import HelpDialog from "$lib/components/HelpDialog.svelte";
+import PreviewPanel from "$lib/components/PreviewPanel.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
 import StatusBar from "$lib/components/StatusBar.svelte";
 import TabBar from "$lib/components/TabBar.svelte";
 // biome-ignore lint/style/useImportType: component used in template
 import Toolbar from "$lib/components/Toolbar.svelte";
+import { isTextPreviewable } from "$lib/constants";
 import {
 	type ContextMenuActions,
 	type ContextMenuContext,
 	getContextMenuItems,
 } from "$lib/contextMenu";
+import { errorMessage } from "$lib/errors";
 import * as ops from "$lib/fileOps";
 import {
 	applyKeybindOverrides,
@@ -125,6 +129,56 @@ $effect(() => {
 		filterBarVisible = !!fm.filterQuery;
 	}
 });
+// Preview panel state
+let previewData = $state<FilePreview | null>(null);
+let previewLoading = $state(false);
+let previewError = $state<string | null>(null);
+let previewTimer: ReturnType<typeof setTimeout> | undefined;
+
+$effect(() => {
+	const entry = fm.cursorEntry;
+	const enabled = fm.previewEnabled;
+	clearTimeout(previewTimer);
+
+	if (!enabled || !entry) {
+		previewData = null;
+		previewLoading = false;
+		previewError = null;
+		return;
+	}
+
+	const mime = entry.mime_type;
+	const path = entry.path;
+
+	if (!entry.is_dir && isTextPreviewable(mime)) {
+		previewLoading = true;
+		previewError = null;
+		previewData = null;
+
+		previewTimer = setTimeout(() => {
+			readFilePreview(path)
+				.then((data) => {
+					if (fm.cursorEntry?.path === path) {
+						previewData = data;
+						previewLoading = false;
+					}
+				})
+				.catch((e) => {
+					if (fm.cursorEntry?.path === path) {
+						previewError = errorMessage(e) ?? "Failed to load preview";
+						previewLoading = false;
+					}
+				});
+		}, 50);
+	} else {
+		previewData = null;
+		previewLoading = false;
+		previewError = null;
+	}
+
+	return () => clearTimeout(previewTimer);
+});
+
 let mouseCursorHidden = $state(false);
 let contentEl = $state<HTMLDivElement | null>(null);
 let lastMousePos = { x: 0, y: 0 };
@@ -389,6 +443,8 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.goBack();
 	} else if (matchesKeybind(e, keybinds.historyForward)) {
 		fm.goForward();
+	} else if (matchesKeybind(e, keybinds.togglePreview)) {
+		fm.togglePreview();
 	} else if (matchesKeybind(e, keybinds.openTerminal)) {
 		if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
 	} else if (e.key === "?") {
@@ -678,6 +734,8 @@ onDestroy(() => {
 			showHidden={fm.showHidden}
 			ontogglehidden={fm.toggleHidden}
 			onopenhelp={dlg.openHelp}
+			previewEnabled={fm.previewEnabled}
+			ontogglepreview={() => fm.togglePreview()}
 			isDragging={fm.isDragging}
 			dropTarget={fm.dropTarget}
 			ondragoverpath={handleDragOverTarget}
@@ -751,6 +809,16 @@ onDestroy(() => {
 						ondragleaveentry={() => fm.setDropTarget(null)}
 						ondragleavewindow={handleNativeDragOut}
 					/>
+				{#if fm.previewEnabled}
+					<PreviewPanel
+						entry={fm.cursorEntry}
+						{previewData}
+						{previewLoading}
+						{previewError}
+						width={fm.previewWidth}
+						onresize={(w) => fm.setPreviewWidth(w)}
+					/>
+				{/if}
 				</div>
 			</div>
 		{/if}

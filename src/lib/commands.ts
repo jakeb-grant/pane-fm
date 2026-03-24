@@ -64,6 +64,20 @@ export function chmodEntry(path: string, mode: number): Promise<void> {
 	return invoke("chmod_entry", { path, mode });
 }
 
+export interface FilePreview {
+	content: string;
+	truncated: boolean;
+	bytes_read: number;
+	is_binary: boolean;
+}
+
+export function readFilePreview(
+	path: string,
+	maxBytes = 65536,
+): Promise<FilePreview> {
+	return invoke("read_file_preview", { path, maxBytes });
+}
+
 export interface DriveEntry {
 	name: string;
 	path: string;

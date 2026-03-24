@@ -217,8 +217,8 @@ Features that make hyprfiles a daily driver.
 
 ### Previews
 - [ ] Image thumbnails in grid view
-- [ ] Text file preview panel (syntax highlighted)
-- [ ] Image preview panel
+- [x] Text file preview panel (toggleable, line numbers, truncation)
+- [x] Image preview panel (asset protocol, scaled to fit)
 - [ ] Video/audio thumbnail generation (optional, via ffmpeg)
 - [ ] PDF first-page preview
 

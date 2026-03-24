@@ -80,6 +80,7 @@ export const keybinds: Record<string, KeybindDef> = {
 	closeTab: "q",
 
 	openTerminal: "`",
+	togglePreview: "P",
 
 	// Dialog keybinds
 	openMenu: "o",
