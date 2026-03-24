@@ -10,6 +10,7 @@ pub fn run() {
         .plugin(tauri_plugin_drag::init())
         .manage(commands::theme::ThemeWatcher(std::sync::Mutex::new(None)))
         .manage(commands::watcher::DirWatcher(std::sync::Mutex::new(None)))
+        .manage(commands::config::ConfigWatcher(std::sync::Mutex::new(None)))
         .setup(|_app| {
             commands::theme::install_default_themes();
             Ok(())
@@ -42,6 +43,7 @@ pub fn run() {
             commands::archive::cancel_operation,
             commands::archive::extract,
             commands::config::get_config,
+            commands::config::watch_config,
             commands::theme::load_theme_css,
             commands::theme::watch_theme,
             commands::watcher::watch_directory,

@@ -226,7 +226,7 @@ Features that make hyprfiles a daily driver.
 - [x] "Open terminal here" (configurable terminal emulator)
 - [ ] Custom context menu actions (user-defined shell scripts)
 - [ ] Hyprland IPC — update window title with current path (raw unix socket)
-- [ ] Config hot-reload (watch config.toml, re-apply keybinds/theme/preferences)
+- [x] Config hot-reload (watch config.toml, re-apply keybinds/theme/preferences)
 - [x] Filesystem watching (live directory updates via notify watcher — real directories only, not trash view)
 
 ## Phase 5: Polish & Distribution

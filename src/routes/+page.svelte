@@ -5,10 +5,12 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { onDestroy, onMount, tick } from "svelte";
 import type { FileEntry } from "$lib/commands";
 import {
+	type AppConfig,
 	getConfig,
 	getDragIcon,
 	loadThemeCss,
 	unwatchDirectory,
+	watchConfig,
 	watchDirectory,
 	watchTheme,
 } from "$lib/commands";
@@ -41,6 +43,7 @@ import {
 	chords,
 	keybinds,
 	matchesKeybind,
+	resetKeybinds,
 } from "$lib/keybinds";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
@@ -49,6 +52,8 @@ import { createTabManager } from "$lib/stores/tabs.svelte";
 let themeUnlisten: UnlistenFn | null = null;
 let terminalApp: string | null = null;
 let dirWatchUnlisten: UnlistenFn | null = null;
+let configUnlisten: UnlistenFn | null = null;
+let currentThemeName: string | null = null;
 
 function applyThemeCss(css: string) {
 	let el = document.getElementById("hyprfiles-theme");
@@ -58,6 +63,47 @@ function applyThemeCss(css: string) {
 		document.head.appendChild(el);
 	}
 	el.textContent = css;
+}
+
+async function applyConfig(config: AppConfig) {
+	if (config.warning) {
+		tabs.activeFm.setError(config.warning);
+		return;
+	}
+
+	resetKeybinds();
+	applyKeybindOverrides(config.keybinds, config.chords);
+
+	setConfigDefaults({
+		showHidden: config.general.show_hidden ?? undefined,
+		sortBy: config.general.sort_by ?? undefined,
+		sortAscending: config.general.sort_ascending ?? undefined,
+	});
+	for (const tab of tabs.tabs) {
+		tab.fm.applyConfigDefaults();
+	}
+	terminalApp = config.general.terminal ?? null;
+
+	const newTheme = config.general.theme ?? null;
+	if (newTheme !== currentThemeName) {
+		currentThemeName = newTheme;
+		if (newTheme) {
+			try {
+				const css = await loadThemeCss(newTheme);
+				applyThemeCss(css);
+				await watchTheme(newTheme);
+				if (!themeUnlisten) {
+					themeUnlisten = await listen<string>("theme-changed", (e) => {
+						applyThemeCss(e.payload);
+					});
+				}
+			} catch {
+				applyThemeCss("");
+			}
+		} else {
+			applyThemeCss("");
+		}
+	}
 }
 
 const tabs = createTabManager();
@@ -537,6 +583,7 @@ onMount(async () => {
 		tabs.activeFm.applyConfigDefaults();
 		terminalApp = config.general.terminal ?? null;
 		configWarning = config.warning ?? undefined;
+		currentThemeName = config.general.theme ?? null;
 		if (config.general.theme) {
 			try {
 				const css = await loadThemeCss(config.general.theme);
@@ -552,6 +599,14 @@ onMount(async () => {
 	} catch {
 		// Config load failed (e.g. command not available) — continue with defaults
 	}
+
+	let configDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+	await watchConfig();
+	configUnlisten = await listen<AppConfig>("config-changed", (e) => {
+		if (configDebounceTimer) clearTimeout(configDebounceTimer);
+		configDebounceTimer = setTimeout(() => applyConfig(e.payload), 300);
+	});
+
 	await tabs.init();
 	if (configWarning) tabs.activeFm.setError(configWarning);
 	await dlg.subscribeProgress();
@@ -582,6 +637,7 @@ onMount(async () => {
 onDestroy(() => {
 	dlg.unsubscribeProgress();
 	themeUnlisten?.();
+	configUnlisten?.();
 	dropUnlisten?.();
 	dirWatchUnlisten?.();
 	// biome-ignore lint/suspicious/noEmptyBlockStatements: fire-and-forget

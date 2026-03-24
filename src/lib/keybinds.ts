@@ -92,6 +92,17 @@ export const keybinds: Record<string, KeybindDef> = {
 	menuClose: ["q", "Escape"],
 };
 
+const defaultKeybinds: Record<string, KeybindDef> = { ...keybinds };
+const defaultChords: Record<string, ChordDef> = { ...chords };
+
+export function resetKeybinds(): void {
+	for (const key of Object.keys(keybinds)) delete keybinds[key];
+	Object.assign(keybinds, defaultKeybinds);
+	for (const key of Object.keys(chords)) delete chords[key];
+	Object.assign(chords, defaultChords);
+	chordPrefixes = new Set(Object.values(chords).map((c) => c.keys[0]));
+}
+
 function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {
 	if (typeof bind === "string") {
 		return e.key === bind && !e.ctrlKey && !e.altKey && !e.metaKey;

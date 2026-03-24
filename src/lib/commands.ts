@@ -184,6 +184,10 @@ export function openTerminal(path: string, terminal: string): Promise<void> {
 	return invoke("open_terminal", { path, terminal });
 }
 
+export function watchConfig(): Promise<void> {
+	return invoke("watch_config");
+}
+
 export function watchDirectory(path: string): Promise<void> {
 	return invoke("watch_directory", { path });
 }
