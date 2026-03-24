@@ -7,7 +7,7 @@ import {
 	listTrash,
 } from "$lib/commands";
 import { errorMessage } from "$lib/errors";
-import { fuzzyMatch, parentPath } from "$lib/utils";
+import { fuzzyMatch, globMatch, isGlobPattern, parentPath } from "$lib/utils";
 
 let configDefaults: {
 	showHidden?: boolean;
@@ -126,6 +126,9 @@ export function createFileManager() {
 
 	const filteredEntries = $derived.by(() => {
 		if (!filterQuery) return sortedEntries;
+		if (isGlobPattern(filterQuery)) {
+			return sortedEntries.filter((e) => globMatch(filterQuery, e.name));
+		}
 		return sortedEntries.filter((e) => fuzzyMatch(filterQuery, e.name));
 	});
 

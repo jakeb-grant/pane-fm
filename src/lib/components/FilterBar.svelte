@@ -6,6 +6,7 @@ interface Props {
 	query: string;
 	matchCount: number;
 	totalCount: number;
+	isGlob: boolean;
 	onchange: (query: string) => void;
 	onclose: () => void;
 	onmovedown: () => void;
@@ -18,6 +19,7 @@ let {
 	query,
 	matchCount,
 	totalCount,
+	isGlob,
 	onchange,
 	onclose,
 	onmovedown,
@@ -60,6 +62,7 @@ function onkeydown(e: KeyboardEvent) {
 
 <div class="filter-bar">
 	<span class="filter-icon">/</span>
+	{#if isGlob}<span class="filter-mode">glob</span>{/if}
 	<input
 		bind:this={inputEl}
 		type="text"
@@ -88,6 +91,18 @@ function onkeydown(e: KeyboardEvent) {
 		color: var(--text-muted);
 		font-size: 13px;
 		font-family: var(--font-mono, monospace);
+	}
+
+	.filter-mode {
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		color: var(--accent);
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 0 4px;
+		letter-spacing: 0.03em;
 	}
 
 	.filter-input {

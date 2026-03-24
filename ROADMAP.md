@@ -208,7 +208,7 @@ The two features that justify this project's existence.
 Features that make hyprfiles a daily driver.
 
 ### File Operations
-- [ ] Bulk select with patterns (glob or regex)
+- [x] Bulk select with patterns (glob matching in filter + S to select filtered)
 - [ ] Bulk rename (pattern-based)
 - [ ] Async operations with progress bar (large copies/moves)
 - [ ] Undo/redo for file operations (operation history)

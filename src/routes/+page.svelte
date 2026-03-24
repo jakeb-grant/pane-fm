@@ -48,6 +48,7 @@ import {
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
 import { createTabManager } from "$lib/stores/tabs.svelte";
+import { isGlobPattern } from "$lib/utils";
 
 let themeUnlisten: UnlistenFn | null = null;
 let terminalApp: string | null = null;
@@ -712,6 +713,7 @@ onDestroy(() => {
 						query={fm.filterQuery}
 						matchCount={fm.filteredEntries.length}
 						totalCount={fm.sortedEntries.length}
+						isGlob={isGlobPattern(fm.filterQuery)}
 						onchange={(q) => fm.setFilterQuery(q)}
 						onclose={handleFilterClose}
 						onmovedown={() => fm.selectRelative(1)}

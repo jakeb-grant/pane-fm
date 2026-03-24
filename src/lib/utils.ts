@@ -13,6 +13,56 @@ export function parentPath(path: string): string {
 	return `/${parts.join("/")}`;
 }
 
+export function isGlobPattern(query: string): boolean {
+	return /[*?[]/.test(query);
+}
+
+function escapeRegex(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function globToRegex(glob: string): RegExp {
+	let re = "";
+	let i = 0;
+	while (i < glob.length) {
+		const c = glob[i];
+		if (c === "*") {
+			re += ".*";
+		} else if (c === "?") {
+			re += ".";
+		} else if (c === "[") {
+			const end = glob.indexOf("]", i);
+			if (end === -1) {
+				re += "\\[";
+			} else {
+				re += glob.slice(i, end + 1);
+				i = end;
+			}
+		} else if (c === "{") {
+			const end = glob.indexOf("}", i);
+			if (end === -1) {
+				re += "\\{";
+			} else {
+				const alts = glob
+					.slice(i + 1, end)
+					.split(",")
+					.map(escapeRegex)
+					.join("|");
+				re += `(?:${alts})`;
+				i = end;
+			}
+		} else {
+			re += escapeRegex(c);
+		}
+		i++;
+	}
+	return new RegExp(`^${re}$`, "i");
+}
+
+export function globMatch(pattern: string, text: string): boolean {
+	return globToRegex(pattern).test(text);
+}
+
 export function fuzzyMatch(query: string, text: string): boolean {
 	const q = query.toLowerCase();
 	const t = text.toLowerCase();
