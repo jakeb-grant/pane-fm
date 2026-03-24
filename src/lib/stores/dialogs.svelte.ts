@@ -40,6 +40,9 @@ export function createDialogManager(getFm: () => FileManager) {
 		onconfirm: () => void;
 	} | null>(null);
 
+	// Help dialog
+	let helpOpen = $state(false);
+
 	// Busy overlay
 	let busyMessage = $state<string | null>(null);
 	let busyProgress = $state<{ processed: number; total: number } | null>(null);
@@ -271,6 +274,9 @@ export function createDialogManager(getFm: () => FileManager) {
 		get confirmDialog() {
 			return confirmDialog;
 		},
+		get helpOpen() {
+			return helpOpen;
+		},
 
 		// Dialog open/close
 		openProperties,
@@ -283,6 +289,12 @@ export function createDialogManager(getFm: () => FileManager) {
 		closeContextMenu,
 		confirm,
 		closeConfirm,
+		openHelp() {
+			helpOpen = true;
+		},
+		closeHelp() {
+			helpOpen = false;
+		},
 
 		// Orchestration
 		handleDelete,

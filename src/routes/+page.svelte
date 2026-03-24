@@ -21,6 +21,7 @@ import FileList from "$lib/components/FileList.svelte";
 // biome-ignore lint/style/useImportType: component used in template
 import FilterBar from "$lib/components/FilterBar.svelte";
 import FolderPicker from "$lib/components/FolderPicker.svelte";
+import HelpDialog from "$lib/components/HelpDialog.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
 import StatusBar from "$lib/components/StatusBar.svelte";
@@ -143,7 +144,8 @@ function isDialogOpen() {
 		dlg.folderPicker ||
 		dlg.compressEntries.length > 0 ||
 		dlg.confirmDialog ||
-		dlg.busyMessage
+		dlg.busyMessage ||
+		dlg.helpOpen
 	);
 }
 
@@ -339,6 +341,9 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.goBack();
 	} else if (matchesKeybind(e, keybinds.historyForward)) {
 		fm.goForward();
+	} else if (e.key === "?") {
+		e.preventDefault();
+		dlg.openHelp();
 	} else {
 		handled = false;
 	}
@@ -606,6 +611,7 @@ onDestroy(() => {
 			onnavigate={fm.navigate}
 			showHidden={fm.showHidden}
 			ontogglehidden={fm.toggleHidden}
+			onopenhelp={dlg.openHelp}
 			isDragging={fm.isDragging}
 			dropTarget={fm.dropTarget}
 			ondragoverpath={handleDragOverTarget}
@@ -741,6 +747,10 @@ onDestroy(() => {
 		progress={dlg.busyProgress}
 		oncancel={dlg.handleCancelOperation}
 	/>
+{/if}
+
+{#if dlg.helpOpen}
+	<HelpDialog onclose={() => { dlg.closeHelp(); restoreFocus(); }} />
 {/if}
 
 <style>

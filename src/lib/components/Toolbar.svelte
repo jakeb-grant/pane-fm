@@ -18,6 +18,7 @@ let {
 	onnavigate,
 	showHidden,
 	ontogglehidden,
+	onopenhelp,
 	isDragging = false,
 	dropTarget = null,
 	ondragoverpath,
@@ -33,6 +34,7 @@ let {
 	onnavigate: (path: string) => void;
 	showHidden: boolean;
 	ontogglehidden: () => void;
+	onopenhelp: () => void;
 	isDragging?: boolean;
 	dropTarget?: string | null;
 	ondragoverpath?: (path: string) => void;
@@ -52,8 +54,11 @@ let {
 	<div class="breadcrumb-wrapper">
 		<Breadcrumb bind:this={breadcrumb} path={currentPath} onnavigate={onnavigate} {isDragging} {dropTarget} {ondragoverpath} {ondroppath} {ondragleavepath} />
 	</div>
-	<button class="nav-btn icon" class:active={showHidden} onclick={ontogglehidden} title="Toggle hidden files">
+	<button class="nav-btn icon small" class:active={showHidden} onclick={ontogglehidden} title="Toggle hidden files">
 		{showHidden ? "\uf06e" : "\uf070"}
+	</button>
+	<button class="nav-btn icon small" onclick={onopenhelp} title="Keybinds (?)">
+		{"\uf059"}
 	</button>
 </div>
 
@@ -89,6 +94,10 @@ let {
 	.nav-btn:disabled {
 		opacity: 0.3;
 		cursor: default;
+	}
+
+	.nav-btn.small {
+		font-size: 17px;
 	}
 
 	.nav-btn.active {
