@@ -82,6 +82,7 @@ let {
 	.nav-btn {
 		background: none;
 		border: none;
+		outline: none;
 		color: var(--text-muted);
 		font-size: 22px;
 		padding: 4px 6px;
