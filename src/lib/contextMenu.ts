@@ -39,6 +39,8 @@ export interface ContextMenuActions {
 	newFile: () => void;
 	toggleHidden: () => void;
 	launchApp: (filePath: string, desktopId: string) => void;
+	createSymlink: () => void;
+	openTerminal: () => void;
 }
 
 // --- State the builder reads ---
@@ -49,6 +51,7 @@ export interface ContextMenuState {
 	clipboard: { entries: FileEntry[]; mode: "copy" | "cut" } | null;
 	openWithApps: Array<{ name: string; desktop_id: string; icon: string }>;
 	multiSelectCount: number;
+	terminal: string | null;
 }
 
 // --- Builders ---
@@ -115,6 +118,7 @@ function buildEntryItems(
 
 	if (!multi) {
 		items.push({ label: "Rename", action: actions.rename });
+		items.push({ label: "Create Symlink", action: actions.createSymlink });
 	}
 
 	items.push({ separator: true });
@@ -170,6 +174,13 @@ function buildBgItems(
 	items.push(
 		{ label: "New Folder", action: actions.newFolder },
 		{ label: "New File", action: actions.newFile },
+	);
+
+	if (state.terminal) {
+		items.push({ label: "Open Terminal Here", action: actions.openTerminal });
+	}
+
+	items.push(
 		{ separator: true },
 		{
 			label: state.showHidden ? "Hide Hidden Files" : "Show Hidden Files",

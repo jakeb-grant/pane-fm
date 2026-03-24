@@ -213,7 +213,7 @@ Features that make hyprfiles a daily driver.
 - [ ] Async operations with progress bar (large copies/moves)
 - [ ] Undo/redo for file operations (operation history)
 - [ ] File permissions viewing and editing (chmod dialog)
-- [ ] Symlink creation
+- [x] Symlink creation
 
 ### Previews
 - [ ] Image thumbnails in grid view
@@ -223,7 +223,7 @@ Features that make hyprfiles a daily driver.
 - [ ] PDF first-page preview
 
 ### Integration
-- [ ] "Open terminal here" (configurable terminal emulator)
+- [x] "Open terminal here" (configurable terminal emulator)
 - [ ] Custom context menu actions (user-defined shell scripts)
 - [ ] Hyprland IPC — update window title with current path (raw unix socket)
 - [ ] Config hot-reload (watch config.toml, re-apply keybinds/theme/preferences)

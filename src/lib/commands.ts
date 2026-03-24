@@ -56,6 +56,10 @@ export function moveEntry(from: string, to: string): Promise<void> {
 	return invoke("move_entry", { from, to });
 }
 
+export function createSymlink(target: string, link: string): Promise<void> {
+	return invoke("create_symlink", { target, link });
+}
+
 export interface DriveEntry {
 	name: string;
 	path: string;
@@ -154,6 +158,7 @@ export interface GeneralConfig {
 	sort_by?: string;
 	sort_ascending?: boolean;
 	theme?: string;
+	terminal?: string;
 }
 
 export interface AppConfig {
@@ -173,6 +178,10 @@ export function loadThemeCss(path: string): Promise<string> {
 
 export function watchTheme(path: string): Promise<void> {
 	return invoke("watch_theme", { path });
+}
+
+export function openTerminal(path: string, terminal: string): Promise<void> {
+	return invoke("open_terminal", { path, terminal });
 }
 
 export function watchDirectory(path: string): Promise<void> {

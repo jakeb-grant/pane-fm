@@ -15,6 +15,7 @@ pub struct GeneralConfig {
     pub sort_by: Option<String>,
     pub sort_ascending: Option<bool>,
     pub theme: Option<String>,
+    pub terminal: Option<String>,
 }
 
 pub fn resolve_theme_path(theme: &str) -> Option<std::path::PathBuf> {

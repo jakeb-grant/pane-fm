@@ -79,6 +79,11 @@ pub fn move_entry(from: String, to: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+pub fn create_symlink(target: String, link: String) -> Result<(), AppError> {
+    fs_ops::create_symlink(&PathBuf::from(target), &PathBuf::from(link))
+}
+
+#[tauri::command]
 pub async fn get_children_counts(paths: Vec<String>) -> std::collections::HashMap<String, u64> {
     tokio::task::spawn_blocking(move || fs_ops::get_children_counts(&paths))
         .await

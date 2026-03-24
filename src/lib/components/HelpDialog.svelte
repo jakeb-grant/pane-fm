@@ -52,6 +52,7 @@ const categories: { label: string; keys: string[] }[] = [
 			"filterPrev",
 			"properties",
 			"openMenu",
+			"openTerminal",
 		],
 	},
 	{

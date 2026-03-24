@@ -47,6 +47,7 @@ import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
 import { createTabManager } from "$lib/stores/tabs.svelte";
 
 let themeUnlisten: UnlistenFn | null = null;
+let terminalApp: string | null = null;
 let dirWatchUnlisten: UnlistenFn | null = null;
 
 function applyThemeCss(css: string) {
@@ -341,6 +342,8 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.goBack();
 	} else if (matchesKeybind(e, keybinds.historyForward)) {
 		fm.goForward();
+	} else if (matchesKeybind(e, keybinds.openTerminal)) {
+		if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
 	} else if (e.key === "?") {
 		e.preventDefault();
 		dlg.openHelp();
@@ -388,6 +391,10 @@ const menuActions: ContextMenuActions = {
 	toggleHidden: () => fm.toggleHidden(),
 	launchApp: (filePath, desktopId) =>
 		ops.launchOpenWithApp(fm, filePath, desktopId),
+	createSymlink: () => ops.handleCreateSymlink(fm),
+	openTerminal: () => {
+		if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
+	},
 };
 
 function buildMenuItems() {
@@ -407,6 +414,7 @@ function buildMenuItems() {
 			showHidden: fm.showHidden,
 			clipboard: fm.clipboard,
 			openWithApps: fm.openWithApps,
+			terminal: terminalApp,
 			multiSelectCount:
 				fm.selectedPaths.size > 0
 					? fm.selectedPaths.size
@@ -527,6 +535,7 @@ onMount(async () => {
 			sortAscending: config.general.sort_ascending ?? undefined,
 		});
 		tabs.activeFm.applyConfigDefaults();
+		terminalApp = config.general.terminal ?? null;
 		configWarning = config.warning ?? undefined;
 		if (config.general.theme) {
 			try {

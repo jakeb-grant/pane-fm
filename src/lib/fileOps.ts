@@ -2,6 +2,7 @@ import {
 	copyEntry,
 	createDirectory,
 	createFile,
+	createSymlink,
 	deleteEntry,
 	emptyTrash,
 	type FileEntry,
@@ -9,6 +10,7 @@ import {
 	listAppsForMime,
 	moveEntry,
 	openDefault,
+	openTerminal,
 	openWithApp,
 	permanentDelete,
 	renameEntry,
@@ -331,4 +333,26 @@ export function launchOpenWithApp(
 ) {
 	openWithApp(filePath, desktopId);
 	fm.openWithApps = [];
+}
+
+export async function handleCreateSymlink(fm: FileManager) {
+	const entry = fm.cursorEntry;
+	if (!entry) return;
+	const linkName = `${entry.name} (link)`;
+	const linkPath =
+		fm.currentPath === "/" ? `/${linkName}` : `${fm.currentPath}/${linkName}`;
+	try {
+		await createSymlink(entry.path, linkPath);
+		await fm.refresh();
+	} catch (e) {
+		fm.setError(errorMessage(e) ?? "Failed to create symlink");
+	}
+}
+
+export async function handleOpenTerminal(fm: FileManager, terminal: string) {
+	try {
+		await openTerminal(fm.currentPath, terminal);
+	} catch (e) {
+		fm.setError(errorMessage(e) ?? "Failed to open terminal");
+	}
 }

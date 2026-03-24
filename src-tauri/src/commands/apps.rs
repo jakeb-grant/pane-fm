@@ -117,6 +117,19 @@ pub fn open_with_app(path: String, desktop_id: String) -> Result<(), AppError> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn open_terminal(path: String, terminal: String) -> Result<(), AppError> {
+    std::process::Command::new(&terminal)
+        .current_dir(&path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| AppError::Desktop {
+            message: format!("Failed to launch terminal '{terminal}': {e}"),
+        })?;
+    Ok(())
+}
+
 pub(crate) fn get_xdg_data_dirs() -> Vec<PathBuf> {
     let mut dirs_list = Vec::new();
 

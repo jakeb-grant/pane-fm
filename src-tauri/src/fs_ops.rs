@@ -287,6 +287,12 @@ pub fn move_entry(from: &Path, to: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn create_symlink(target: &Path, link: &Path) -> Result<(), AppError> {
+    let dest = unique_dest_path(link);
+    std::os::unix::fs::symlink(target, &dest)
+        .map_err(|e| AppError::io_with_path(e, dest.display().to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -523,5 +529,28 @@ mod tests {
         let path = Path::new("test.unknownext123");
         // Should fall back to octet-stream
         assert_eq!(guess_mime(path), "application/octet-stream");
+    }
+
+    #[test]
+    fn create_symlink_basic() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("original.txt");
+        fs::write(&target, "content").unwrap();
+        let link = tmp.path().join("original.txt (link)");
+        create_symlink(&target, &link).unwrap();
+        assert!(link.is_symlink());
+        assert_eq!(fs::read_to_string(&link).unwrap(), "content");
+    }
+
+    #[test]
+    fn create_symlink_collision() {
+        let tmp = TempDir::new().unwrap();
+        let target = tmp.path().join("notes");
+        fs::create_dir(&target).unwrap();
+        let link = tmp.path().join("notes (link)");
+        fs::write(&link, "occupied").unwrap();
+        create_symlink(&target, &link).unwrap();
+        let expected = tmp.path().join("notes (link) (2)");
+        assert!(expected.is_symlink());
     }
 }
