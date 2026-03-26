@@ -43,6 +43,9 @@ export function createDialogManager(getFm: () => FileManager) {
 	// Help dialog
 	let helpOpen = $state(false);
 
+	// Command palette
+	let paletteOpen = $state(false);
+
 	// Busy overlay
 	let busyMessage = $state<string | null>(null);
 	let busyProgress = $state<{ processed: number; total: number } | null>(null);
@@ -316,6 +319,9 @@ export function createDialogManager(getFm: () => FileManager) {
 		get helpOpen() {
 			return helpOpen;
 		},
+		get paletteOpen() {
+			return paletteOpen;
+		},
 
 		// Dialog open/close
 		openProperties,
@@ -333,6 +339,12 @@ export function createDialogManager(getFm: () => FileManager) {
 		},
 		closeHelp() {
 			helpOpen = false;
+		},
+		openPalette() {
+			paletteOpen = true;
+		},
+		closePalette() {
+			paletteOpen = false;
 		},
 
 		// Orchestration

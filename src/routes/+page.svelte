@@ -3,6 +3,7 @@ import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { onDestroy, onMount, tick } from "svelte";
+import { buildCommandList, type Command } from "$lib/commandRegistry";
 import type {
 	CustomAction,
 	FileEntry,
@@ -26,6 +27,8 @@ import {
 	watchTheme,
 } from "$lib/commands";
 import BusyOverlay from "$lib/components/BusyOverlay.svelte";
+// biome-ignore lint/style/useImportType: component used in template
+import CommandPalette from "$lib/components/CommandPalette.svelte";
 import CompressDialog from "$lib/components/CompressDialog.svelte";
 import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
 import ContextMenu from "$lib/components/ContextMenu.svelte";
@@ -291,11 +294,20 @@ function isDialogOpen() {
 		dlg.compressEntries.length > 0 ||
 		dlg.confirmDialog ||
 		dlg.busyMessage ||
-		dlg.helpOpen
+		dlg.helpOpen ||
+		dlg.paletteOpen
 	);
 }
 
 async function handleWindowKeydown(e: KeyboardEvent) {
+	// Command palette toggle — works in inputs but not over confirm/busy dialogs
+	if (matchesKeybind(e, keybinds.commandPalette)) {
+		e.preventDefault();
+		if (dlg.paletteOpen) dlg.closePalette();
+		else if (!dlg.busyMessage && !dlg.confirmDialog) dlg.openPalette();
+		return;
+	}
+
 	// Let dialogs handle their own keys
 	if (isDialogOpen()) return;
 
@@ -555,6 +567,103 @@ function handleSearchSelect(result: SearchResult) {
 	handleSearchClose();
 	const dir = parentPath(result.path);
 	fm.navigate(dir, true, result.path);
+}
+
+// --- Command palette wiring ---
+
+function buildCommands(): Command[] {
+	return buildCommandList({
+		// Navigation
+		moveDown: () => fm.selectRelative(1),
+		moveUp: () => fm.selectRelative(-1),
+		open: () => {
+			if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry);
+		},
+		enterDir: () => {
+			if (fm.cursorEntry?.is_dir) fm.navigate(fm.cursorEntry.path);
+		},
+		goParent: () => fm.goUp(),
+		goTop: () => fm.selectByIndex(0),
+		goBottom: () => fm.selectByIndex(fm.filteredEntries.length - 1),
+		halfPageUp: () => fm.selectRelative(-15),
+		halfPageDown: () => fm.selectRelative(15),
+		historyBack: () => fm.goBack(),
+		historyForward: () => fm.goForward(),
+		focusPath: () => toolbar?.focusPath(),
+		// Selection
+		toggleSelect: () => {
+			if (fm.cursorEntry) fm.toggleSelect(fm.cursorEntry);
+		},
+		selectAll: () => fm.selectAll(),
+		visualMode: () => {
+			if (fm.visualMode) fm.exitVisualMode();
+			else fm.enterVisualMode();
+		},
+		escape: () => fm.clearSelection(),
+		// File Operations
+		yank: () => ops.handleCopy(fm),
+		cut: () => ops.handleCut(fm),
+		paste: () => dlg.handlePaste(),
+		trash: () => dlg.handleDelete(),
+		permanentDelete: () => dlg.handlePermanentDelete(),
+		rename: () => ops.handleRename(fm),
+		newFile: () => ops.handleNewFile(fm),
+		newFolder: () => ops.handleNewFolder(fm),
+		cancelClipboard: () => {
+			fm.clipboard = null;
+		},
+		// View
+		toggleHidden: () => fm.toggleHidden(),
+		filter: () => {
+			filterBarVisible = true;
+			tick().then(() => filterBar?.focusInput());
+		},
+		filterNext: () => fm.selectRelativeWrap(1),
+		filterPrev: () => fm.selectRelativeWrap(-1),
+		properties: () => dlg.handleProperties(),
+		openMenu: () => {
+			if (fm.cursorEntry && contentEl) {
+				const row = contentEl.querySelector("tr.cursor");
+				if (row) {
+					const rect = row.getBoundingClientRect();
+					dlg.openContextMenu(
+						rect.left + rect.width / 2,
+						rect.top + rect.height,
+						fm.cursorEntry,
+					);
+				}
+			}
+		},
+		openTerminal: () => {
+			if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
+		},
+		togglePreview: () => fm.togglePreview(),
+		search: () => {
+			fm.openSearch();
+			tick().then(() => searchOverlay?.focusInput());
+		},
+		commandPalette: () => dlg.openPalette(),
+		// Tabs
+		newTab: () => tabs.newTab(),
+		closeTab: () => tabs.closeTab(tabs.activeIndex),
+		// Chords
+		goHome: () => fm.navigate(fm.homeDir),
+		goDownloads: () => fm.navigate(`${fm.homeDir}/Downloads`),
+		goTrash: () => fm.navigate("trash://"),
+		sortName: () => fm.handleSort("name"),
+		sortSize: () => fm.handleSort("size"),
+		sortModified: () => fm.handleSort("modified"),
+		copyPath: () => {
+			if (fm.cursorEntry) navigator.clipboard.writeText(fm.cursorEntry.path);
+		},
+		copyFilename: () => {
+			if (fm.cursorEntry) navigator.clipboard.writeText(fm.cursorEntry.name);
+		},
+		nextTab: () => tabs.nextTab(),
+		prevTab: () => tabs.prevTab(),
+		// Extra
+		help: () => dlg.openHelp(),
+	});
 }
 
 // --- Context menu wiring ---
@@ -998,6 +1107,14 @@ onDestroy(() => {
 
 {#if dlg.helpOpen}
 	<HelpDialog onclose={() => { dlg.closeHelp(); restoreFocus(); }} />
+{/if}
+
+{#if dlg.paletteOpen}
+	<CommandPalette
+		commands={buildCommands()}
+		onclose={() => { dlg.closePalette(); restoreFocus(); }}
+		onexecute={(cmd) => { dlg.closePalette(); restoreFocus(); cmd.execute(); }}
+	/>
 {/if}
 
 <style>

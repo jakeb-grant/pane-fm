@@ -1,5 +1,12 @@
 <script lang="ts">
-import { chords, keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
+import {
+	allBindLabels,
+	categories,
+	chordCategories,
+	chordLabel,
+	formatName,
+} from "$lib/commandRegistry";
+import { chords, keybinds, matchesKeybind } from "$lib/keybinds";
 
 let {
 	onclose,
@@ -7,94 +14,7 @@ let {
 	onclose: () => void;
 } = $props();
 
-const categories: { label: string; keys: string[] }[] = [
-	{
-		label: "Navigation",
-		keys: [
-			"moveDown",
-			"moveUp",
-			"open",
-			"enterDir",
-			"goParent",
-			"goTop",
-			"goBottom",
-			"halfPageUp",
-			"halfPageDown",
-			"historyBack",
-			"historyForward",
-			"focusPath",
-		],
-	},
-	{
-		label: "Selection",
-		keys: ["toggleSelect", "selectAll", "visualMode", "escape"],
-	},
-	{
-		label: "File Operations",
-		keys: [
-			"yank",
-			"cut",
-			"paste",
-			"trash",
-			"permanentDelete",
-			"rename",
-			"newFile",
-			"newFolder",
-			"cancelClipboard",
-		],
-	},
-	{
-		label: "View",
-		keys: [
-			"toggleHidden",
-			"filter",
-			"filterNext",
-			"filterPrev",
-			"properties",
-			"openMenu",
-			"openTerminal",
-		],
-	},
-	{
-		label: "Tabs",
-		keys: ["newTab", "closeTab"],
-	},
-];
-
-const chordCategories: { label: string; keys: string[] }[] = [
-	{
-		label: "Go To",
-		keys: ["goTop", "goHome", "goDownloads", "goTrash", "nextTab", "prevTab"],
-	},
-	{
-		label: "Sort",
-		keys: ["sortName", "sortSize", "sortModified"],
-	},
-	{
-		label: "Clipboard",
-		keys: ["copyPath", "copyFilename"],
-	},
-];
-
-function formatName(camel: string): string {
-	return camel
-		.replace(/([A-Z])/g, " $1")
-		.replace(/^./, (s) => s.toUpperCase())
-		.trim();
-}
-
-function allBindLabels(bind: string | object | (string | object)[]): string {
-	if (Array.isArray(bind)) {
-		return bind.map((b) => keybindLabel(b as string)).join("  /  ");
-	}
-	return keybindLabel(bind as string);
-}
-
 let dialogEl = $state<HTMLDivElement | null>(null);
-
-function chordLabel(keys: [string, string]): string {
-	return `${keys[0]} ${keys[1]}`;
-}
 </script>
 
 <svelte:window

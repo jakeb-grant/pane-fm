@@ -6,7 +6,7 @@ export interface Keybind {
 	meta?: boolean;
 }
 
-type KeybindDef = string | Keybind | (string | Keybind)[];
+export type KeybindDef = string | Keybind | (string | Keybind)[];
 
 export interface ChordDef {
 	keys: [string, string];
@@ -82,6 +82,7 @@ export const keybinds: Record<string, KeybindDef> = {
 	openTerminal: "`",
 	togglePreview: "P",
 	search: "s",
+	commandPalette: { key: "P", ctrl: true, shift: true },
 
 	// Dialog keybinds
 	openMenu: "o",
@@ -118,15 +119,25 @@ function matchesSingle(e: KeyboardEvent, bind: string | Keybind): boolean {
 	);
 }
 
+function displayKey(key: string): string {
+	if (key === " ") return "Space";
+	if (key === "Escape") return "Esc";
+	if (key === "ArrowUp") return "↑";
+	if (key === "ArrowDown") return "↓";
+	if (key === "ArrowLeft") return "←";
+	if (key === "ArrowRight") return "→";
+	return key;
+}
+
 export function keybindLabel(bind: KeybindDef): string {
 	const single = Array.isArray(bind) ? bind[0] : bind;
-	if (typeof single === "string") return single;
+	if (typeof single === "string") return displayKey(single);
 	const parts: string[] = [];
 	if (single.ctrl) parts.push("Ctrl");
 	if (single.alt) parts.push("Alt");
 	if (single.meta) parts.push("Meta");
 	if (single.shift) parts.push("Shift");
-	parts.push(single.key);
+	parts.push(displayKey(single.key));
 	return parts.join("+");
 }
 

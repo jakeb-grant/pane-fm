@@ -228,7 +228,7 @@ Features that make hyprfiles a daily driver.
 ## Phase 5: Polish & Distribution
 
 ### UX
-- [ ] Command palette (Ctrl+P style)
+- [x] Command palette (Ctrl+Shift+P)
 - [ ] Split pane view (dual-pane file manager mode)
 - [ ] Smooth animations and transitions
 - [x] Search across subdirectories (recursive find)
