@@ -1,11 +1,29 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CustomAction {
+    pub name: String,
+    pub command: String,
+    #[serde(default = "default_context")]
+    pub context: String,
+    #[serde(default)]
+    pub mime: Option<String>,
+    #[serde(default)]
+    pub refresh: bool,
+}
+
+fn default_context() -> String {
+    "any".to_string()
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct AppConfig {
     pub general: GeneralConfig,
     pub keybinds: HashMap<String, serde_json::Value>,
     pub chords: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub actions: Vec<CustomAction>,
     pub warning: Option<String>,
 }
 
@@ -56,6 +74,7 @@ pub fn load_config() -> AppConfig {
                 general: raw.general,
                 keybinds,
                 chords: raw.chords,
+                actions: raw.actions,
                 warning: None,
             }
         }
@@ -84,4 +103,6 @@ struct RawConfig {
     keybinds: HashMap<String, toml::Value>,
     #[serde(default)]
     chords: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    actions: Vec<CustomAction>,
 }

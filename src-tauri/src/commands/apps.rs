@@ -130,6 +130,40 @@ pub fn open_terminal(path: String, terminal: String) -> Result<(), AppError> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn run_custom_action(command: String, cwd: String, wait: bool) -> Result<(), AppError> {
+    let parts: Vec<&str> = command.split_whitespace().collect();
+    if parts.is_empty() {
+        return Err(AppError::Desktop {
+            message: "Empty command".to_string(),
+        });
+    }
+
+    let mut child = std::process::Command::new(parts[0])
+        .args(&parts[1..])
+        .current_dir(&cwd)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| AppError::Desktop {
+            message: format!("Failed to run '{}': {e}", parts[0]),
+        })?;
+
+    if wait {
+        tokio::task::spawn_blocking(move || {
+            child.wait().map_err(|e| AppError::Desktop {
+                message: format!("Command failed: {e}"),
+            })
+        })
+        .await
+        .map_err(|e| AppError::Desktop {
+            message: format!("Task join error: {e}"),
+        })??;
+    }
+
+    Ok(())
+}
+
 pub(crate) fn get_xdg_data_dirs() -> Vec<PathBuf> {
     let mut dirs_list = Vec::new();
 

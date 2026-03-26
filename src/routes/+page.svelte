@@ -3,13 +3,14 @@ import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { onDestroy, onMount, tick } from "svelte";
-import type { FileEntry, FilePreview } from "$lib/commands";
+import type { CustomAction, FileEntry, FilePreview } from "$lib/commands";
 import {
 	type AppConfig,
 	getConfig,
 	getDragIcon,
 	loadThemeCss,
 	readFilePreview,
+	runCustomAction,
 	unwatchDirectory,
 	watchConfig,
 	watchDirectory,
@@ -56,6 +57,7 @@ import { isGlobPattern } from "$lib/utils";
 
 let themeUnlisten: UnlistenFn | null = null;
 let terminalApp: string | null = null;
+let customActions: CustomAction[] = [];
 let dirWatchUnlisten: UnlistenFn | null = null;
 let configUnlisten: UnlistenFn | null = null;
 let currentThemeName: string | null = null;
@@ -88,6 +90,7 @@ async function applyConfig(config: AppConfig) {
 		tab.fm.applyConfigDefaults();
 	}
 	terminalApp = config.general.terminal ?? null;
+	customActions = config.actions ?? [];
 
 	const newTheme = config.general.theme ?? null;
 	if (newTheme !== currentThemeName) {
@@ -435,6 +438,16 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 				);
 			}
 		}
+	} else if (matchesKeybind(e, keybinds.openBgMenu)) {
+		e.preventDefault();
+		if (contentEl) {
+			const rect = contentEl.getBoundingClientRect();
+			dlg.openContextMenu(
+				rect.left + rect.width / 2,
+				rect.top + rect.height / 2,
+				null,
+			);
+		}
 	} else if (matchesKeybind(e, keybinds.properties)) {
 		dlg.handleProperties();
 	} else if (matchesKeybind(e, keybinds.cancelClipboard)) {
@@ -498,6 +511,25 @@ const menuActions: ContextMenuActions = {
 	openTerminal: () => {
 		if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
 	},
+	runCustomAction: async (action) => {
+		const entry = dlg.contextMenu?.entry;
+		let cmd = action.command;
+		if (entry) {
+			const dot = entry.name.lastIndexOf(".");
+			const nameNoExt = dot > 0 ? entry.name.slice(0, dot) : entry.name;
+			cmd = cmd.replaceAll("%f", entry.path);
+			cmd = cmd.replaceAll("%n", nameNoExt);
+			const selected = fm.effectiveSelection.map((e) => e.path);
+			cmd = cmd.replaceAll("%F", selected.join(" "));
+		}
+		cmd = cmd.replaceAll("%d", fm.currentPath);
+		try {
+			await runCustomAction(cmd, fm.currentPath, action.refresh);
+			if (action.refresh) await fm.refresh();
+		} catch (e) {
+			fm.setError(errorMessage(e) ?? "Custom action failed");
+		}
+	},
 };
 
 function buildMenuItems() {
@@ -518,6 +550,7 @@ function buildMenuItems() {
 			clipboard: fm.clipboard,
 			openWithApps: fm.openWithApps,
 			terminal: terminalApp,
+			customActions,
 			multiSelectCount:
 				fm.selectedPaths.size > 0
 					? fm.selectedPaths.size
@@ -635,6 +668,7 @@ onMount(async () => {
 		});
 		tabs.activeFm.applyConfigDefaults();
 		terminalApp = config.general.terminal ?? null;
+		customActions = config.actions ?? [];
 		configWarning = config.warning ?? undefined;
 		currentThemeName = config.general.theme ?? null;
 		if (config.general.theme) {

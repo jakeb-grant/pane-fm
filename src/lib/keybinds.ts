@@ -84,6 +84,7 @@ export const keybinds: Record<string, KeybindDef> = {
 
 	// Dialog keybinds
 	openMenu: "o",
+	openBgMenu: "O",
 	confirm: "y",
 	deny: "n",
 	menuDown: ["j", "ArrowDown"],

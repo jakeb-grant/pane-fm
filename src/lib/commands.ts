@@ -179,10 +179,19 @@ export interface GeneralConfig {
 	terminal?: string;
 }
 
+export interface CustomAction {
+	name: string;
+	command: string;
+	context: string;
+	mime?: string;
+	refresh: boolean;
+}
+
 export interface AppConfig {
 	general: GeneralConfig;
 	keybinds: Record<string, string | string[]>;
 	chords: Record<string, string[]>;
+	actions: CustomAction[];
 	warning?: string;
 }
 
@@ -200,6 +209,14 @@ export function watchTheme(path: string): Promise<void> {
 
 export function openTerminal(path: string, terminal: string): Promise<void> {
 	return invoke("open_terminal", { path, terminal });
+}
+
+export function runCustomAction(
+	command: string,
+	cwd: string,
+	wait: boolean,
+): Promise<void> {
+	return invoke("run_custom_action", { command, cwd, wait });
 }
 
 export function watchConfig(): Promise<void> {

@@ -44,6 +44,7 @@ pub fn run() {
             commands::apps::list_apps_for_mime,
             commands::apps::open_with_app,
             commands::apps::open_terminal,
+            commands::apps::run_custom_action,
             commands::archive::compress,
             commands::archive::cancel_operation,
             commands::archive::extract,

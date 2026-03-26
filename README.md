@@ -18,6 +18,7 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. hypr
 - Browse, create, rename, copy, move, and delete files/directories
 - Trash support (freedesktop trash spec)
 - Compress and extract archives (zip, tar.gz, tar.xz, tar.zst, tar.bz2) with progress and cancellation
+- Async file operations (copy, move, delete, empty trash) with progress bar and cancellation
 - Sortable list view with directory item counts
 - Sidebar with XDG bookmarks and mounted drives
 - Tabs with vim-style switching (`gt`/`gT`, `1`-`9`)
@@ -25,7 +26,8 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. hypr
 - Fuzzy filter within current directory
 - Yazi-inspired keyboard navigation (vim keys + arrows, chords, visual mode)
 - Configurable keybinds and settings via `~/.config/hyprfiles/config.toml`
-- Context menu with "Open With" (reads `.desktop` files)
+- Context menu with "Open With" (reads `.desktop` files) and custom user actions
+- Text and image preview panel (toggleable with `P`)
 - File properties dialog with async directory stats
 - Hidden files toggle
 - Multi-select (Space toggle, visual mode, Ctrl+A, Shift+click)
@@ -33,7 +35,13 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. hypr
 - CSS theme system with hot-reload (edit theme CSS, see changes instantly)
 - 3 bundled themes: Catppuccin Mocha, Nord, Dark Minimal
 
-See [ROADMAP.md](ROADMAP.md) for planned features (drag & drop, previews, config hot-reload).
+- Drag and drop (internal move/copy, drag-out to other apps, drop-in from other apps)
+- File permissions editing (chmod dialog)
+- Symlink creation
+- Config hot-reload (keybinds, theme, settings, custom actions update live)
+- Filesystem watching (live directory updates)
+
+See [ROADMAP.md](ROADMAP.md) for planned features.
 
 ## Architecture
 
@@ -65,6 +73,7 @@ src/                              # Frontend (Svelte 5)
 │       ├── Sidebar.svelte        # Places/drives sidebar
 │       ├── ContextMenu.svelte    # Right-click menu
 │       ├── FolderPicker.svelte   # Folder selection dialog
+│       ├── PreviewPanel.svelte   # Text/image file preview
 │       ├── CompressDialog.svelte # Archive format + name dialog
 │       ├── ConfirmDialog.svelte  # Yes/no confirmation
 │       └── PropertiesDialog.svelte
@@ -73,6 +82,7 @@ src-tauri/src/                    # Backend (Rust)
 ├── lib.rs                        # Tauri builder + command registration
 ├── config.rs                     # TOML config loading (~/.config/hyprfiles/config.toml)
 ├── error.rs                      # AppError enum (structured errors)
+├── progress.rs                   # Shared progress emission + cancellation
 ├── fs_ops.rs                     # FileEntry/DriveEntry models, read_directory, MIME, file ops
 └── commands/
     ├── config.rs                 # get_config command
@@ -194,4 +204,54 @@ Themes can override any of these:
 
 ### Hot-reload
 
-Theme CSS files are watched at runtime. Edit a theme file while the app is running and changes apply instantly. Changing the `theme` value in `config.toml` requires a restart (config hot-reload is planned).
+Theme CSS files are watched at runtime. Edit a theme file while the app is running and changes apply instantly. Config changes (including theme, keybinds, and custom actions) are also hot-reloaded.
+
+## Custom Actions
+
+Add your own shell commands to the right-click context menu via `[[actions]]` in `config.toml`.
+
+### Example
+
+```toml
+[[actions]]
+name = "Edit in Neovim"
+command = "ghostty -e nvim %f"
+context = "file"
+
+[[actions]]
+name = "Set as Wallpaper"
+command = "hyprctl hyprpaper wallpaper eDP-1,%f"
+context = "file"
+mime = "image/*"
+
+[[actions]]
+name = "Make Executable"
+command = "chmod +x %f"
+context = "file"
+refresh = true
+
+[[actions]]
+name = "Git Init"
+command = "git init"
+context = "background"
+refresh = true
+```
+
+### Fields
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `name` | yes | — | Label shown in the context menu |
+| `command` | yes | — | Shell command with placeholders |
+| `context` | no | `"any"` | When to show: `"file"`, `"directory"`, `"any"`, `"background"` |
+| `mime` | no | — | MIME filter (e.g. `"image/*"`, `"text/plain"`) |
+| `refresh` | no | `false` | Refresh directory listing after command completes |
+
+### Placeholders
+
+| Placeholder | Description |
+|-------------|-------------|
+| `%f` | Full path of the focused file/directory |
+| `%n` | Filename without extension |
+| `%F` | All selected file paths (space-separated) |
+| `%d` | Current directory path |

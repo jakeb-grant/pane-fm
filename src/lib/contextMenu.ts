@@ -1,4 +1,4 @@
-import type { FileEntry } from "$lib/commands";
+import type { CustomAction, FileEntry } from "$lib/commands";
 import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
 import { archiveExtensions } from "$lib/constants";
 
@@ -41,6 +41,7 @@ export interface ContextMenuActions {
 	launchApp: (filePath: string, desktopId: string) => void;
 	createSymlink: () => void;
 	openTerminal: () => void;
+	runCustomAction: (action: CustomAction) => void;
 }
 
 // --- State the builder reads ---
@@ -52,12 +53,43 @@ export interface ContextMenuState {
 	openWithApps: Array<{ name: string; desktop_id: string; icon: string }>;
 	multiSelectCount: number;
 	terminal: string | null;
+	customActions: CustomAction[];
 }
 
 // --- Builders ---
 
 function isArchive(entry: FileEntry): boolean {
 	return !entry.is_dir && archiveExtensions.test(entry.name);
+}
+
+function mimeMatches(pattern: string, mimeType: string): boolean {
+	if (pattern.endsWith("/*")) {
+		return mimeType.startsWith(pattern.slice(0, -1));
+	}
+	return pattern === mimeType;
+}
+
+function buildCustomActionItems(
+	actions: CustomAction[],
+	context: "file" | "directory" | "background",
+	mimeType: string | null,
+	onRun: (action: CustomAction) => void,
+): MenuEntry[] {
+	const matching = actions.filter((a) => {
+		if (context === "background") return a.context === "background";
+		if (a.context === "background") return false;
+		if (a.context !== "any" && a.context !== context) return false;
+		if (a.mime) {
+			if (!mimeType) return false;
+			return mimeMatches(a.mime, mimeType);
+		}
+		return true;
+	});
+	if (matching.length === 0) return [];
+	return [
+		{ separator: true },
+		...matching.map((a) => ({ label: a.name, action: () => onRun(a) })),
+	];
 }
 
 function buildOpenWithItems(
@@ -144,6 +176,15 @@ function buildEntryItems(
 		},
 	);
 
+	items.push(
+		...buildCustomActionItems(
+			state.customActions,
+			entry.is_dir ? "directory" : "file",
+			entry.mime_type,
+			actions.runCustomAction,
+		),
+	);
+
 	if (!multi) {
 		items.push(
 			{ separator: true },
@@ -179,6 +220,15 @@ function buildBgItems(
 	if (state.terminal) {
 		items.push({ label: "Open Terminal Here", action: actions.openTerminal });
 	}
+
+	items.push(
+		...buildCustomActionItems(
+			state.customActions,
+			"background",
+			null,
+			actions.runCustomAction,
+		),
+	);
 
 	items.push(
 		{ separator: true },
