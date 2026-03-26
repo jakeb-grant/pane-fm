@@ -8,15 +8,18 @@ import type {
 	FileEntry,
 	FilePreview,
 	PdfPreview,
+	SearchResult,
 } from "$lib/commands";
 import {
 	type AppConfig,
+	cancelSearch,
 	getConfig,
 	getDragIcon,
 	loadThemeCss,
 	readFilePreview,
 	readPdfPreview,
 	runCustomAction,
+	searchFiles,
 	unwatchDirectory,
 	watchConfig,
 	watchDirectory,
@@ -34,6 +37,8 @@ import FolderPicker from "$lib/components/FolderPicker.svelte";
 import HelpDialog from "$lib/components/HelpDialog.svelte";
 import PreviewPanel from "$lib/components/PreviewPanel.svelte";
 import PropertiesDialog from "$lib/components/PropertiesDialog.svelte";
+// biome-ignore lint/style/useImportType: component used in template
+import SearchOverlay from "$lib/components/SearchOverlay.svelte";
 import Sidebar from "$lib/components/Sidebar.svelte";
 import StatusBar from "$lib/components/StatusBar.svelte";
 import TabBar from "$lib/components/TabBar.svelte";
@@ -60,9 +65,11 @@ import {
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
 import { createTabManager } from "$lib/stores/tabs.svelte";
-import { isGlobPattern } from "$lib/utils";
+import { isGlobPattern, parentPath } from "$lib/utils";
 
 let themeUnlisten: UnlistenFn | null = null;
+let searchUnlisten: UnlistenFn | null = null;
+let searchDebounce: ReturnType<typeof setTimeout> | undefined;
 let terminalApp: string | null = null;
 let customActions: CustomAction[] = [];
 let dirWatchUnlisten: UnlistenFn | null = null;
@@ -128,6 +135,7 @@ let fm = $derived(tabs.activeFm);
 
 let filterBarVisible = $state(false);
 let filterBar = $state<ReturnType<typeof FilterBar> | null>(null);
+let searchOverlay = $state<ReturnType<typeof SearchOverlay> | null>(null);
 let toolbar = $state<ReturnType<typeof Toolbar> | null>(null);
 let fileList = $state<ReturnType<typeof FileList> | null>(null);
 
@@ -395,7 +403,9 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.selectRelativeWrap(-1);
 	} else if (matchesKeybind(e, keybinds.escape)) {
 		e.preventDefault();
-		if (fm.visualMode) {
+		if (fm.searchOpen) {
+			handleSearchClose();
+		} else if (fm.visualMode) {
 			fm.exitVisualMode();
 		} else if (filterBarVisible || fm.filterQuery) {
 			handleFilterClose();
@@ -491,6 +501,13 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.goForward();
 	} else if (matchesKeybind(e, keybinds.togglePreview)) {
 		fm.togglePreview();
+	} else if (matchesKeybind(e, keybinds.search)) {
+		e.preventDefault();
+		if (!fm.searchOpen) {
+			fm.openSearch();
+			await tick();
+			searchOverlay?.focusInput();
+		}
 	} else if (matchesKeybind(e, keybinds.openTerminal)) {
 		if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
 	} else if (e.key === "?") {
@@ -510,6 +527,34 @@ function restoreFocus() {
 function handleFilterClose() {
 	fm.clearFilter();
 	filterBarVisible = false;
+}
+
+// --- Search wiring ---
+
+function handleSearchInput(query: string) {
+	fm.setSearchQuery(query);
+	clearTimeout(searchDebounce);
+	if (!query) {
+		cancelSearch();
+		fm.resetSearchResults();
+		return;
+	}
+	searchDebounce = setTimeout(() => {
+		fm.resetSearchResults();
+		searchFiles(fm.currentPath, query, fm.showHidden, fm.searchGen);
+	}, 250);
+}
+
+async function handleSearchClose() {
+	clearTimeout(searchDebounce);
+	await cancelSearch();
+	fm.closeSearch();
+}
+
+function handleSearchSelect(result: SearchResult) {
+	handleSearchClose();
+	const dir = parentPath(result.path);
+	fm.navigate(dir, true, result.path);
 }
 
 // --- Context menu wiring ---
@@ -707,6 +752,16 @@ onMount(async () => {
 	await tabs.init();
 	await dlg.subscribeProgress();
 
+	searchUnlisten = await listen<{
+		results: SearchResult[];
+		done: boolean;
+		gen: number;
+	}>("search-results", (event) => {
+		const { results, done, gen } = event.payload;
+		if (results.length > 0) fm.appendSearchResults(gen, results);
+		if (done) fm.markSearchDone(gen);
+	});
+
 	getDragIcon()
 		.then((p) => {
 			dragIconPath = p;
@@ -732,6 +787,8 @@ onMount(async () => {
 
 onDestroy(() => {
 	dlg.unsubscribeProgress();
+	clearTimeout(searchDebounce);
+	searchUnlisten?.();
 	themeUnlisten?.();
 	configUnlisten?.();
 	dropUnlisten?.();
@@ -794,6 +851,19 @@ onDestroy(() => {
 		{:else}
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="content-wrapper">
+				{#if fm.searchOpen}
+					<SearchOverlay
+						bind:this={searchOverlay}
+						results={fm.searchResults}
+						cursor={fm.searchCursor}
+						query={fm.searchQuery}
+						searching={!fm.searchDone}
+						onchange={handleSearchInput}
+						onclose={handleSearchClose}
+						onselect={handleSearchSelect}
+						oncursorchange={(i) => { fm.searchCursor = i; }}
+					/>
+				{:else}
 				{#if fm.isTrash}
 					<div class="context-bar">
 						<span class="context-bar-text">
@@ -860,6 +930,7 @@ onDestroy(() => {
 					/>
 				{/if}
 				</div>
+				{/if}
 			</div>
 		{/if}
 

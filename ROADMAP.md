@@ -231,7 +231,7 @@ Features that make hyprfiles a daily driver.
 - [ ] Command palette (Ctrl+P style)
 - [ ] Split pane view (dual-pane file manager mode)
 - [ ] Smooth animations and transitions
-- [ ] Search across subdirectories (recursive find)
+- [x] Search across subdirectories (recursive find)
 - [ ] Remembering window size, position, last directory per tab
 - [ ] Bulk rename (pattern-based: find/replace, regex, sequential numbering)
 - [ ] Undo/redo for file operations (operation history)

@@ -81,6 +81,7 @@ export const keybinds: Record<string, KeybindDef> = {
 
 	openTerminal: "`",
 	togglePreview: "P",
+	search: "s",
 
 	// Dialog keybinds
 	openMenu: "o",

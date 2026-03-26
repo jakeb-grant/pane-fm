@@ -53,6 +53,8 @@ pub fn run() {
             commands::config::watch_config,
             commands::theme::load_theme_css,
             commands::theme::watch_theme,
+            commands::search::search_files,
+            commands::search::cancel_search,
             commands::watcher::watch_directory,
             commands::watcher::unwatch_directory,
         ])

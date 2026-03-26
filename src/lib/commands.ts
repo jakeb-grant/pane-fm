@@ -229,6 +229,27 @@ export function runCustomAction(
 	return invoke("run_custom_action", { command, cwd, wait });
 }
 
+export interface SearchResult {
+	name: string;
+	path: string;
+	relative_path: string;
+	is_dir: boolean;
+	is_symlink: boolean;
+}
+
+export function searchFiles(
+	root: string,
+	query: string,
+	showHidden: boolean,
+	gen: number,
+): Promise<void> {
+	return invoke("search_files", { root, query, showHidden, gen });
+}
+
+export function cancelSearch(): Promise<void> {
+	return invoke("cancel_search");
+}
+
 export function watchConfig(): Promise<void> {
 	return invoke("watch_config");
 }

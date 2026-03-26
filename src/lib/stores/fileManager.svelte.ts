@@ -5,6 +5,7 @@ import {
 	listDirectory,
 	listDrives,
 	listTrash,
+	type SearchResult,
 } from "$lib/commands";
 import { errorMessage } from "$lib/errors";
 import { fuzzyMatch, globMatch, isGlobPattern, parentPath } from "$lib/utils";
@@ -85,6 +86,14 @@ export function createFileManager() {
 
 	// Filter state
 	let filterQuery = $state("");
+
+	// Search state
+	let searchOpen = $state(false);
+	let searchQuery = $state("");
+	let searchResults = $state<SearchResult[]>([]);
+	let searchCursor = $state(0);
+	let searchDone = $state(true);
+	let searchGen = $state(0);
 
 	// Preview panel state
 	let previewEnabled = $state(loadPreference("previewEnabled", false));
@@ -476,6 +485,27 @@ export function createFileManager() {
 		get isDragging() {
 			return isDragging;
 		},
+		get searchOpen() {
+			return searchOpen;
+		},
+		get searchQuery() {
+			return searchQuery;
+		},
+		get searchResults() {
+			return searchResults;
+		},
+		get searchCursor() {
+			return searchCursor;
+		},
+		set searchCursor(v: number) {
+			searchCursor = v;
+		},
+		get searchDone() {
+			return searchDone;
+		},
+		get searchGen() {
+			return searchGen;
+		},
 		get history() {
 			return history;
 		},
@@ -507,6 +537,37 @@ export function createFileManager() {
 		},
 		clearFilter() {
 			filterQuery = "";
+		},
+		setSearchQuery(q: string) {
+			searchQuery = q;
+		},
+		openSearch() {
+			searchOpen = true;
+			searchQuery = "";
+			searchResults = [];
+			searchCursor = 0;
+			searchDone = true;
+		},
+		closeSearch() {
+			searchOpen = false;
+			searchQuery = "";
+			searchResults = [];
+			searchCursor = 0;
+			searchDone = true;
+		},
+		appendSearchResults(gen: number, batch: SearchResult[]) {
+			if (gen !== searchGen) return;
+			searchResults = [...searchResults, ...batch];
+		},
+		markSearchDone(gen: number) {
+			if (gen !== searchGen) return;
+			searchDone = true;
+		},
+		resetSearchResults() {
+			searchGen++;
+			searchResults = [];
+			searchCursor = 0;
+			searchDone = false;
 		},
 		navigate,
 		goBack,
