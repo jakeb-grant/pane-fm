@@ -211,7 +211,7 @@ onDestroy(() => {
 		</div>
 
 		<div class="footer">
-			<button class="close-btn" onclick={onclose}>Close <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
+			<button class="close-btn" onclick={onclose}>Close <kbd>q/Esc</kbd></button>
 		</div>
 	</div>
 </div>
@@ -399,7 +399,7 @@ onDestroy(() => {
 		display: block;
 		margin-top: 4px;
 		font-size: 11px;
-		color: var(--danger, #e55);
+		color: var(--danger);
 	}
 
 </style>

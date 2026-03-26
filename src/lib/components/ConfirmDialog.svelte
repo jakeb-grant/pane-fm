@@ -19,7 +19,7 @@ let {
 </script>
 
 <svelte:window onkeydown={(e) => {
-	if (matchesKeybind(e, keybinds.confirm)) onconfirm();
+	if (matchesKeybind(e, keybinds.confirm) || e.key === "Enter") onconfirm();
 	else if (matchesKeybind(e, keybinds.deny) || matchesKeybind(e, keybinds.escape)) onclose();
 }} />
 
@@ -33,7 +33,7 @@ let {
 		<p class="message">{message}</p>
 		<div class="footer">
 			<button class="btn cancel" onclick={onclose}>Cancel <kbd>{keybindLabel(keybinds.deny)}</kbd></button>
-			<button class="btn confirm" class:danger onclick={onconfirm}>{confirmLabel} <kbd>{keybindLabel(keybinds.confirm)}</kbd></button>
+			<button class="btn confirm" class:danger onclick={onconfirm}>{confirmLabel} <kbd>Enter/{keybindLabel(keybinds.confirm)}</kbd></button>
 		</div>
 	</div>
 </div>
@@ -109,6 +109,7 @@ let {
 	.btn.confirm.danger {
 		background: var(--danger);
 		border-color: var(--danger);
+		color: white;
 	}
 
 	.btn.confirm:hover {

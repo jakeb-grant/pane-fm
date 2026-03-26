@@ -168,7 +168,7 @@ function chordLabel(keys: [string, string]): string {
 		</div>
 
 		<div class="footer">
-			<button class="close-btn" onclick={onclose}>Close <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
+			<button class="close-btn" onclick={onclose}>Close <kbd>q/Esc</kbd></button>
 		</div>
 	</div>
 </div>
@@ -243,17 +243,6 @@ function chordLabel(keys: [string, string]): string {
 	.label {
 		font-size: 12px;
 		color: var(--text-primary);
-	}
-
-	kbd {
-		font-family: var(--font-mono);
-		font-size: 11px;
-		color: var(--text-secondary);
-		background: var(--bg-surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 1px 6px;
-		white-space: nowrap;
 	}
 
 	.divider {

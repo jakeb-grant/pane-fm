@@ -195,7 +195,6 @@ Themes can override any of these:
 | `--overlay-bg` | `rgba(0,0,0,0.5)` | Dialog overlay backdrop |
 | `--shadow-sm` | `0 4px 12px rgba(0,0,0,0.3)` | Small shadow (menus) |
 | `--shadow-lg` | `0 8px 32px rgba(0,0,0,0.4)` | Large shadow (dialogs) |
-| `--kbd-bg` | `rgba(255,255,255,0.1)` | Keyboard shortcut badge |
 | `--scrollbar-width` | `8px` | Scrollbar width |
 | `--transition-fast` | `0.1s` | Fast transitions |
 | `--transition-normal` | `0.15s` | Normal transitions |

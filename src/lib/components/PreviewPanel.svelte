@@ -194,7 +194,7 @@ function onpointerdown(e: PointerEvent) {
 
 	.preview-error {
 		font-size: 12px;
-		color: var(--error);
+		color: var(--danger);
 	}
 
 	.preview-image {

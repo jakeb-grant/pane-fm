@@ -573,7 +573,7 @@ $effect(() => {
 		margin-left: 6px;
 		padding: 1px 4px;
 		border: 1px solid var(--border);
-		border-radius: 3px;
+		border-radius: var(--radius);
 	}
 
 	.empty {
@@ -606,7 +606,7 @@ $effect(() => {
 		width: 100%;
 		background: var(--bg-primary);
 		border: 1px solid var(--accent);
-		border-radius: 3px;
+		border-radius: var(--radius);
 		color: var(--text-primary);
 		font-size: 13px;
 		font-family: var(--font-sans);

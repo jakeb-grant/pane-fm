@@ -23,7 +23,6 @@
 	--overlay-bg: rgba(0, 0, 0, 0.5);
 	--shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
 	--shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
-	--kbd-bg: rgba(255, 255, 255, 0.1);
 
 	/* Layout */
 	--scrollbar-width: 8px;
@@ -55,13 +54,16 @@ body {
 }
 
 kbd {
-	font-size: 10px;
-	font-family: var(--font-mono, monospace);
-	padding: 1px 4px;
-	border-radius: 3px;
-	background: var(--kbd-bg);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	color: inherit;
+	background: rgba(0, 0, 0, 0.2);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: var(--radius);
+	padding: 1px 6px;
 	margin-left: 4px;
-	opacity: 0.7;
+	white-space: nowrap;
+	opacity: 0.85;
 }
 
 ::-webkit-scrollbar {

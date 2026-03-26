@@ -94,14 +94,14 @@ let {
 	.busy-progress-track {
 		height: 4px;
 		background: var(--bg-surface);
-		border-radius: 2px;
+		border-radius: var(--radius);
 		overflow: hidden;
 	}
 
 	.busy-progress-bar {
 		height: 100%;
 		background: var(--accent);
-		border-radius: 2px;
+		border-radius: var(--radius);
 		transition: width var(--transition-normal) ease;
 	}
 

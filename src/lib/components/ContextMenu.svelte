@@ -153,7 +153,8 @@ let menuStyle = $derived(() => {
 
 	.menu-item.danger:hover,
 	.menu-item.danger.focused {
-		background: color-mix(in srgb, var(--danger) 15%, transparent);
+		background: var(--danger);
+		color: white;
 	}
 
 	.separator {

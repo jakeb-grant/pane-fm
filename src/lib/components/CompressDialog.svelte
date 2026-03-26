@@ -92,7 +92,7 @@ function handleSubmit() {
 
 		<div class="footer">
 			<button class="btn cancel" onclick={onclose}>Cancel <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
-			<button class="btn confirm" onclick={handleSubmit} disabled={!baseName.trim()}>Compress <kbd>{keybindLabel(keybinds.confirm)}</kbd></button>
+			<button class="btn confirm" onclick={handleSubmit} disabled={!baseName.trim()}>Compress <kbd>Enter/{keybindLabel(keybinds.confirm)}</kbd></button>
 		</div>
 	</div>
 </div>

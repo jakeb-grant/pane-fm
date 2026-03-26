@@ -110,7 +110,7 @@ let {
 		opacity: 0;
 		flex-shrink: 0;
 		padding: 0 2px;
-		border-radius: 3px;
+		border-radius: var(--radius);
 		transition: opacity var(--transition-fast);
 	}
 
