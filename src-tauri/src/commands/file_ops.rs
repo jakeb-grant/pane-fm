@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::fs_ops::{self, FileEntry, FilePreview};
+use crate::progress;
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
@@ -81,6 +82,47 @@ pub fn move_entry(from: String, to: String) -> Result<(), AppError> {
 #[tauri::command]
 pub fn create_symlink(target: String, link: String) -> Result<(), AppError> {
     fs_ops::create_symlink(&PathBuf::from(target), &PathBuf::from(link))
+}
+
+#[tauri::command]
+pub async fn paste_entries(
+    paths: Vec<String>,
+    dest: String,
+    mode: String,
+    app: AppHandle,
+) -> Result<(), AppError> {
+    progress::reset();
+    let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+    let dest_dir = PathBuf::from(&dest);
+    tokio::task::spawn_blocking(move || {
+        if mode == "cut" {
+            fs_ops::move_entries_with_progress(&sources, &dest_dir, &app)
+        } else {
+            fs_ops::copy_entries_with_progress(&sources, &dest_dir, &app)
+        }
+    })
+    .await
+    .map_err(|e| AppError::Io {
+        message: format!("Task failed: {e}"),
+        path: None,
+    })?
+}
+
+#[tauri::command]
+pub async fn delete_entries_permanently(
+    paths: Vec<String>,
+    app: AppHandle,
+) -> Result<(), AppError> {
+    progress::reset();
+    let sources: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
+    tokio::task::spawn_blocking(move || {
+        fs_ops::permanent_delete_with_progress(&sources, &app)
+    })
+    .await
+    .map_err(|e| AppError::Io {
+        message: format!("Task failed: {e}"),
+        path: None,
+    })?
 }
 
 #[tauri::command]

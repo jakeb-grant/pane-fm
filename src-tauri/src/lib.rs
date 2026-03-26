@@ -2,6 +2,7 @@ mod commands;
 mod config;
 mod error;
 mod fs_ops;
+pub mod progress;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -29,6 +30,8 @@ pub fn run() {
             commands::file_ops::create_symlink,
             commands::file_ops::chmod_entry,
             commands::file_ops::read_file_preview,
+            commands::file_ops::paste_entries,
+            commands::file_ops::delete_entries_permanently,
             commands::file_ops::path_exists,
             commands::file_ops::get_children_counts,
             commands::file_ops::get_properties,

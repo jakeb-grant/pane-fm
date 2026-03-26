@@ -46,13 +46,14 @@ export function createDialogManager(getFm: () => FileManager) {
 	// Busy overlay
 	let busyMessage = $state<string | null>(null);
 	let busyProgress = $state<{ processed: number; total: number } | null>(null);
+	let progressMode = $state<"bytes" | "count">("bytes");
 
 	// Progress event listener
 	let progressUnlisten: UnlistenFn | null = null;
 
 	async function subscribeProgress() {
 		progressUnlisten = await listen<{ processed: number; total: number }>(
-			"compress-progress",
+			"operation-progress",
 			(event) => {
 				busyProgress = event.payload;
 			},
@@ -107,10 +108,12 @@ export function createDialogManager(getFm: () => FileManager) {
 	async function runBusyOperation(
 		label: string,
 		operation: () => Promise<void>,
+		mode: "bytes" | "count" = "bytes",
 	) {
 		if (busyMessage) return;
 		busyMessage = label;
 		busyProgress = null;
+		progressMode = mode;
 		try {
 			await operation();
 		} catch (e) {
@@ -175,7 +178,32 @@ export function createDialogManager(getFm: () => FileManager) {
 			return;
 		}
 
-		await ops.handleFolderPickerSelect(getFm(), fp, destDir);
+		const label = fp.mode === "move" ? "Moving…" : "Copying…";
+		await runBusyOperation(
+			label,
+			() => ops.handleFolderPickerSelect(fp, destDir),
+			"bytes",
+		);
+	}
+
+	async function handlePaste() {
+		const fm = getFm();
+		if (!fm.clipboard) return;
+		const label = fm.clipboard.mode === "cut" ? "Moving…" : "Copying…";
+		await runBusyOperation(label, () => ops.handlePaste(fm), "bytes");
+	}
+
+	async function handleDrop(
+		sourcePaths: string[],
+		destDir: string,
+		mode: "move" | "copy",
+	) {
+		const label = mode === "move" ? "Moving…" : "Copying…";
+		await runBusyOperation(
+			label,
+			() => ops.handleDrop(sourcePaths, destDir, mode),
+			"bytes",
+		);
 	}
 
 	function confirm(opts: {
@@ -227,7 +255,11 @@ export function createDialogManager(getFm: () => FileManager) {
 			danger: true,
 			onconfirm: async () => {
 				closeConfirm();
-				await ops.handlePermanentDelete(getFm());
+				await runBusyOperation(
+					"Deleting…",
+					() => ops.handlePermanentDelete(getFm()),
+					"count",
+				);
 			},
 		});
 	}
@@ -240,7 +272,11 @@ export function createDialogManager(getFm: () => FileManager) {
 			danger: true,
 			onconfirm: async () => {
 				closeConfirm();
-				await ops.handleEmptyTrash(getFm());
+				await runBusyOperation(
+					"Emptying trash…",
+					() => ops.handleEmptyTrash(),
+					"count",
+				);
 			},
 		});
 	}
@@ -270,6 +306,9 @@ export function createDialogManager(getFm: () => FileManager) {
 		},
 		get busyProgress() {
 			return busyProgress;
+		},
+		get progressMode() {
+			return progressMode;
 		},
 		get confirmDialog() {
 			return confirmDialog;
@@ -306,6 +345,8 @@ export function createDialogManager(getFm: () => FileManager) {
 		handleCompressConfirm,
 		handleCancelOperation,
 		handleFolderPickerSelect,
+		handlePaste,
+		handleDrop,
 		handleProperties,
 
 		// Progress lifecycle

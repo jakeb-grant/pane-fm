@@ -1,7 +1,9 @@
 use crate::error::AppError;
 use crate::fs_ops::{self, FileEntry};
+use crate::progress;
 use chrono::{DateTime, Local};
 use std::path::PathBuf;
+use tauri::AppHandle;
 
 #[tauri::command]
 pub fn list_trash() -> Result<Vec<FileEntry>, AppError> {
@@ -128,35 +130,59 @@ pub fn restore_trash(name: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-pub fn empty_trash() -> Result<(), AppError> {
+pub async fn empty_trash(app: AppHandle) -> Result<(), AppError> {
+    progress::reset();
+    tokio::task::spawn_blocking(move || empty_trash_sync(&app))
+        .await
+        .map_err(|e| AppError::Trash {
+            message: format!("Task failed: {e}"),
+        })?
+}
+
+fn empty_trash_sync(app: &AppHandle) -> Result<(), AppError> {
     let data_dir = dirs::data_dir().ok_or(AppError::Trash {
         message: "Could not find data directory".to_string(),
     })?;
     let trash_files = data_dir.join("Trash/files");
     let trash_info = data_dir.join("Trash/info");
 
-    if trash_files.exists() {
-        for entry in std::fs::read_dir(&trash_files)
-            .map_err(|e| AppError::io_with_path(e, trash_files.display().to_string()))?
-        {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                std::fs::remove_dir_all(&path)
-                    .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
-            } else {
-                std::fs::remove_file(&path)
-                    .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
-            }
-        }
+    if !trash_files.exists() {
+        return Ok(());
     }
 
+    let items: Vec<_> = std::fs::read_dir(&trash_files)
+        .map_err(|e| AppError::io_with_path(e, trash_files.display().to_string()))?
+        .filter_map(|e| e.ok())
+        .collect();
+
+    let total = items.len() as u64;
+    let mut processed = 0u64;
+
+    for entry in items {
+        progress::check_cancelled_err()?;
+        let path = entry.path();
+        if path.is_dir() {
+            std::fs::remove_dir_all(&path)
+                .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+        } else {
+            std::fs::remove_file(&path)
+                .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+        }
+        // Remove corresponding .trashinfo file
+        let name = entry.file_name();
+        let info_path = trash_info.join(format!("{}.trashinfo", name.to_string_lossy()));
+        let _ = std::fs::remove_file(&info_path);
+
+        processed += 1;
+        progress::emit(app, processed, total);
+    }
+
+    // Clean up any remaining .trashinfo files without matching entries
     if trash_info.exists() {
-        for entry in std::fs::read_dir(&trash_info)
-            .map_err(|e| AppError::io_with_path(e, trash_info.display().to_string()))?
-        {
-            let entry = entry?;
-            let _ = std::fs::remove_file(entry.path());
+        if let Ok(entries) = std::fs::read_dir(&trash_info) {
+            for entry in entries.flatten() {
+                let _ = std::fs::remove_file(entry.path());
+            }
         }
     }
 

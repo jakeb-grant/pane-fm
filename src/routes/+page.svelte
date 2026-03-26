@@ -408,7 +408,7 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	} else if (matchesKeybind(e, keybinds.cut)) {
 		ops.handleCut(fm);
 	} else if (matchesKeybind(e, keybinds.paste)) {
-		ops.handlePaste(fm);
+		dlg.handlePaste();
 	} else if (matchesKeybind(e, keybinds.permanentDelete)) {
 		dlg.handlePermanentDelete();
 	} else if (matchesKeybind(e, keybinds.trash)) {
@@ -476,7 +476,7 @@ const menuActions: ContextMenuActions = {
 		),
 	cut: () => ops.handleCut(fm),
 	copy: () => ops.handleCopy(fm),
-	paste: () => ops.handlePaste(fm),
+	paste: () => dlg.handlePaste(),
 	rename: () => ops.handleRename(fm),
 	moveTo: () =>
 		ops.handleMoveTo(fm, (v) => dlg.openFolderPicker(v.mode, v.entries)),
@@ -572,7 +572,7 @@ function handleDropOnEntry(targetDir: FileEntry, ctrlKey: boolean) {
 	const mode = ctrlKey ? "copy" : "move";
 	const paths = fm.dragEntries.map((en) => en.path);
 	fm.endDrag();
-	ops.handleDrop(fm, paths, targetDir.path, mode);
+	dlg.handleDrop(paths, targetDir.path, mode);
 }
 
 function handleDropOnTarget(path: string, ctrlKey: boolean) {
@@ -598,11 +598,7 @@ function handleDropOnTarget(path: string, ctrlKey: boolean) {
 		return;
 	}
 	const mode = ctrlKey ? "copy" : "move";
-	const targetTab = tabs.tabs.find((t) => t.fm.currentPath === path);
-	const targetFm = targetTab ? targetTab.fm : fm;
-	ops.handleDrop(targetFm, draggedPaths, path, mode).then(() => {
-		if (targetFm !== fm) fm.refresh();
-	});
+	dlg.handleDrop(draggedPaths, path, mode);
 }
 
 function handleDragOverTarget(path: string) {
@@ -678,7 +674,7 @@ onMount(async () => {
 
 	dropUnlisten = await getCurrentWebview().onDragDropEvent((event) => {
 		if (event.payload.type === "drop" && event.payload.paths.length > 0) {
-			ops.handleDrop(fm, event.payload.paths, fm.currentPath, "copy");
+			dlg.handleDrop(event.payload.paths, fm.currentPath, "copy");
 		}
 	});
 
@@ -880,6 +876,7 @@ onDestroy(() => {
 	<BusyOverlay
 		message={dlg.busyMessage}
 		progress={dlg.busyProgress}
+		mode={dlg.progressMode}
 		oncancel={dlg.handleCancelOperation}
 	/>
 {/if}

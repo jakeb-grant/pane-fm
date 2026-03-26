@@ -209,8 +209,7 @@ Features that make hyprfiles a daily driver.
 
 ### File Operations
 - [x] Bulk select with patterns (glob matching in filter + S to select filtered)
-- [ ] Bulk rename (pattern-based)
-- [ ] Async operations with progress bar (large copies/moves)
+- [x] Async operations with progress bar (copy/move/delete/empty trash)
 - [ ] Undo/redo for file operations (operation history)
 - [x] File permissions viewing and editing (chmod dialog)
 - [x] Symlink creation
@@ -237,6 +236,7 @@ Features that make hyprfiles a daily driver.
 - [ ] Smooth animations and transitions
 - [ ] Search across subdirectories (recursive find)
 - [ ] Remembering window size, position, last directory per tab
+- [ ] Bulk rename (pattern-based: find/replace, regex, sequential numbering)
 
 ### Distribution
 - [ ] AUR package

@@ -44,24 +44,24 @@ export function deleteEntry(path: string): Promise<void> {
 	return invoke("delete_entry", { path });
 }
 
-export function permanentDelete(path: string): Promise<void> {
-	return invoke("permanent_delete", { path });
-}
-
-export function copyEntry(from: string, to: string): Promise<void> {
-	return invoke("copy_entry", { from, to });
-}
-
-export function moveEntry(from: string, to: string): Promise<void> {
-	return invoke("move_entry", { from, to });
-}
-
 export function createSymlink(target: string, link: string): Promise<void> {
 	return invoke("create_symlink", { target, link });
 }
 
 export function chmodEntry(path: string, mode: number): Promise<void> {
 	return invoke("chmod_entry", { path, mode });
+}
+
+export function pasteEntries(
+	paths: string[],
+	dest: string,
+	mode: "copy" | "cut",
+): Promise<void> {
+	return invoke("paste_entries", { paths, dest, mode });
+}
+
+export function deleteEntriesPermanently(paths: string[]): Promise<void> {
+	return invoke("delete_entries_permanently", { paths });
 }
 
 export interface FilePreview {

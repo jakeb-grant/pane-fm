@@ -1,9 +1,11 @@
 use crate::error::AppError;
+use crate::progress;
 use chrono::{DateTime, Local};
 use serde::Serialize;
 use std::fs;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use tauri::AppHandle;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct FileEntry {
@@ -292,6 +294,221 @@ pub fn create_symlink(target: &Path, link: &Path) -> Result<(), AppError> {
     let dest = unique_dest_path(link);
     std::os::unix::fs::symlink(target, &dest)
         .map_err(|e| AppError::io_with_path(e, dest.display().to_string()))
+}
+
+// --- Progress-aware batch operations ---
+
+fn copy_file_with_progress(
+    from: &Path,
+    to: &Path,
+    processed: &mut u64,
+    total: u64,
+    app: &AppHandle,
+) -> Result<(), AppError> {
+    let mut src = fs::File::open(from)
+        .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
+    let mut dst = fs::File::create(to)
+        .map_err(|e| AppError::io_with_path(e, to.display().to_string()))?;
+    let mut buf = [0u8; 65536];
+    loop {
+        progress::check_cancelled_err()?;
+        let n = src
+            .read(&mut buf)
+            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
+        if n == 0 {
+            break;
+        }
+        std::io::Write::write_all(&mut dst, &buf[..n])
+            .map_err(|e| AppError::io_with_path(e, to.display().to_string()))?;
+        *processed += n as u64;
+        progress::emit(app, *processed, total);
+    }
+    Ok(())
+}
+
+fn copy_dir_recursive_with_progress(
+    from: &Path,
+    to: &Path,
+    processed: &mut u64,
+    total: u64,
+    app: &AppHandle,
+) -> Result<(), AppError> {
+    fs::create_dir_all(to).map_err(|e| AppError::io_with_path(e, to.display().to_string()))?;
+    let entries =
+        fs::read_dir(from).map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
+    for entry in entries {
+        let entry = entry?;
+        let dest = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_dir_recursive_with_progress(&entry.path(), &dest, processed, total, app)?;
+        } else {
+            copy_file_with_progress(&entry.path(), &dest, processed, total, app)?;
+        }
+    }
+    Ok(())
+}
+
+fn dir_total_bytes(path: &Path) -> u64 {
+    let mut total = 0u64;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            if let Ok(meta) = entry.metadata() {
+                if meta.is_dir() {
+                    total += dir_total_bytes(&entry.path());
+                } else {
+                    total += meta.len();
+                }
+            }
+        }
+    }
+    total
+}
+
+fn prescan_bytes<P: AsRef<Path>>(sources: &[P]) -> u64 {
+    sources
+        .iter()
+        .map(|p| {
+            let p = p.as_ref();
+            if p.is_dir() {
+                dir_total_bytes(p)
+            } else {
+                fs::metadata(p).map(|m| m.len()).unwrap_or(0)
+            }
+        })
+        .sum()
+}
+
+pub fn copy_entries_with_progress(
+    sources: &[PathBuf],
+    dest_dir: &Path,
+    app: &AppHandle,
+) -> Result<(), AppError> {
+    let total = prescan_bytes(sources);
+    let mut processed = 0u64;
+    for src in sources {
+        let name = src.file_name().unwrap_or_default();
+        let dest = unique_dest_path(&dest_dir.join(name));
+        if src.is_dir() {
+            let result =
+                copy_dir_recursive_with_progress(src, &dest, &mut processed, total, app);
+            if result.is_err() && progress::is_cancelled() {
+                let _ = fs::remove_dir_all(&dest);
+                return Err(AppError::Cancelled);
+            }
+            result?;
+        } else {
+            let result = copy_file_with_progress(src, &dest, &mut processed, total, app);
+            if result.is_err() && progress::is_cancelled() {
+                let _ = fs::remove_file(&dest);
+                return Err(AppError::Cancelled);
+            }
+            result?;
+        }
+    }
+    Ok(())
+}
+
+pub fn move_entries_with_progress(
+    sources: &[PathBuf],
+    dest_dir: &Path,
+    app: &AppHandle,
+) -> Result<(), AppError> {
+    // Try rename first for each source (instant on same filesystem)
+    let mut needs_copy: Vec<&PathBuf> = Vec::new();
+    for src in sources {
+        let name = src.file_name().unwrap_or_default();
+        let dest = unique_dest_path(&dest_dir.join(name));
+        match fs::rename(src, &dest) {
+            Ok(()) => {}
+            Err(e) if e.raw_os_error() == Some(18) => {
+                // EXDEV: cross-device move, need copy+delete
+                needs_copy.push(src);
+            }
+            Err(e) => {
+                return Err(AppError::io_with_path(e, src.display().to_string()));
+            }
+        }
+    }
+
+    if needs_copy.is_empty() {
+        return Ok(());
+    }
+
+    // Fall back to copy + delete for cross-device entries
+    let total = prescan_bytes(&needs_copy);
+    let mut processed = 0u64;
+    for src in &needs_copy {
+        let name = src.file_name().unwrap_or_default();
+        let dest = unique_dest_path(&dest_dir.join(name));
+        let copy_result = if src.is_dir() {
+            copy_dir_recursive_with_progress(src, &dest, &mut processed, total, app)
+        } else {
+            copy_file_with_progress(src, &dest, &mut processed, total, app)
+        };
+        if copy_result.is_err() && progress::is_cancelled() {
+            // Clean up partial destination on cancellation
+            if dest.is_dir() {
+                let _ = fs::remove_dir_all(&dest);
+            } else {
+                let _ = fs::remove_file(&dest);
+            }
+            return Err(AppError::Cancelled);
+        }
+        copy_result?;
+        // Only delete source after successful copy
+        permanent_delete(src)?;
+    }
+    Ok(())
+}
+
+fn count_items(path: &Path) -> u64 {
+    if !path.is_dir() {
+        return 1;
+    }
+    let mut count = 0u64;
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            count += count_items(&entry.path());
+        }
+    }
+    count + 1 // +1 for the directory itself
+}
+
+fn delete_recursive_with_progress(
+    path: &Path,
+    processed: &mut u64,
+    total: u64,
+    app: &AppHandle,
+) -> Result<(), AppError> {
+    progress::check_cancelled_err()?;
+    if path.is_dir() {
+        let entries = fs::read_dir(path)
+            .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+        for entry in entries {
+            let entry = entry?;
+            delete_recursive_with_progress(&entry.path(), processed, total, app)?;
+        }
+        fs::remove_dir(path)
+            .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+    } else {
+        fs::remove_file(path)
+            .map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+    }
+    *processed += 1;
+    progress::emit(app, *processed, total);
+    Ok(())
+}
+
+pub fn permanent_delete_with_progress(
+    paths: &[PathBuf],
+    app: &AppHandle,
+) -> Result<(), AppError> {
+    let total: u64 = paths.iter().map(|p| count_items(p)).sum();
+    let mut processed = 0u64;
+    for path in paths {
+        delete_recursive_with_progress(path, &mut processed, total, app)?;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize, Clone)]

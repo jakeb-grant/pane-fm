@@ -5,10 +5,12 @@ import { formatSize } from "$lib/utils";
 let {
 	message,
 	progress,
+	mode = "bytes",
 	oncancel,
 }: {
 	message: string;
 	progress: { processed: number; total: number } | null;
+	mode?: "bytes" | "count";
 	oncancel: () => void;
 } = $props();
 </script>
@@ -29,7 +31,13 @@ let {
 			<div class="busy-progress-track">
 				<div class="busy-progress-bar" style="width: {Math.min(100, (progress.processed / progress.total) * 100)}%"></div>
 			</div>
-			<span class="busy-detail">{formatSize(progress.processed)} / {formatSize(progress.total)}</span>
+			<span class="busy-detail">
+			{#if mode === "count"}
+				{progress.processed} / {progress.total} items
+			{:else}
+				{formatSize(progress.processed)} / {formatSize(progress.total)}
+			{/if}
+		</span>
 		{/if}
 		<button class="busy-cancel" onclick={oncancel}>Cancel <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
 	</div>

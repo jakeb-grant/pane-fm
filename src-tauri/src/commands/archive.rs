@@ -1,18 +1,9 @@
 use crate::error::AppError;
-use serde::Serialize;
+use crate::progress;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 use super::file_ops::dir_size_and_count;
-
-static CANCEL_OPERATION: AtomicBool = AtomicBool::new(false);
-
-#[derive(Clone, Serialize)]
-struct ProgressPayload {
-    processed: u64,
-    total: u64,
-}
 
 /// A Write wrapper that tracks bytes written, emits progress events,
 /// and checks for cancellation on every write call.
@@ -25,15 +16,10 @@ struct ProgressWriter<W: std::io::Write> {
 
 impl<W: std::io::Write> std::io::Write for ProgressWriter<W> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if CANCEL_OPERATION.load(Ordering::Relaxed) {
-            return Err(std::io::Error::other("Cancelled"));
-        }
+        progress::check_cancelled()?;
         let n = self.inner.write(buf)?;
         self.processed += n as u64;
-        let _ = self.app.emit("compress-progress", ProgressPayload {
-            processed: self.processed,
-            total: self.total,
-        });
+        progress::emit(&self.app, self.processed, self.total);
         Ok(n)
     }
 
@@ -59,15 +45,10 @@ struct ProgressReader<R: std::io::Read> {
 
 impl<R: std::io::Read> std::io::Read for ProgressReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if CANCEL_OPERATION.load(Ordering::Relaxed) {
-            return Err(std::io::Error::other("Cancelled"));
-        }
+        progress::check_cancelled()?;
         let n = self.inner.read(buf)?;
         self.processed += n as u64;
-        let _ = self.app.emit("compress-progress", ProgressPayload {
-            processed: self.processed,
-            total: self.total,
-        });
+        progress::emit(&self.app, self.processed, self.total);
         Ok(n)
     }
 }
@@ -80,7 +61,7 @@ impl<R: std::io::Read + std::io::Seek> std::io::Seek for ProgressReader<R> {
 
 #[tauri::command]
 pub async fn compress(paths: Vec<String>, dest: String, app: AppHandle) -> Result<(), AppError> {
-    CANCEL_OPERATION.store(false, Ordering::Relaxed);
+    progress::reset();
     tokio::task::spawn_blocking(move || compress_sync(&paths, &dest, &app))
         .await
         .map_err(|e| AppError::Archive {
@@ -90,7 +71,7 @@ pub async fn compress(paths: Vec<String>, dest: String, app: AppHandle) -> Resul
 
 #[tauri::command]
 pub fn cancel_operation() {
-    CANCEL_OPERATION.store(true, Ordering::Relaxed);
+    progress::cancel();
 }
 
 fn compress_sync(paths: &[String], dest: &str, app: &AppHandle) -> Result<(), AppError> {
@@ -128,7 +109,7 @@ fn compress_sync(paths: &[String], dest: &str, app: &AppHandle) -> Result<(), Ap
     };
 
     // Clean up partial file on cancel
-    if result.is_err() && CANCEL_OPERATION.load(Ordering::Relaxed) {
+    if result.is_err() && progress::is_cancelled() {
         let _ = std::fs::remove_file(dest);
         return Err(AppError::Cancelled);
     }
@@ -279,7 +260,7 @@ fn add_dir_to_tar<W: std::io::Write>(
 
 #[tauri::command]
 pub async fn extract(archive: String, dest: String, app: AppHandle) -> Result<(), AppError> {
-    CANCEL_OPERATION.store(false, Ordering::Relaxed);
+    progress::reset();
     tokio::task::spawn_blocking(move || extract_sync(&archive, &dest, &app))
         .await
         .map_err(|e| AppError::Archive {
@@ -330,7 +311,7 @@ fn extract_sync(archive: &str, dest: &str, app: &AppHandle) -> Result<(), AppErr
         })
     };
 
-    if result.is_err() && CANCEL_OPERATION.load(Ordering::Relaxed) {
+    if result.is_err() && progress::is_cancelled() {
         return Err(AppError::Cancelled);
     }
 

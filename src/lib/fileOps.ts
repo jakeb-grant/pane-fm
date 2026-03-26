@@ -1,18 +1,17 @@
 import {
-	copyEntry,
 	createDirectory,
 	createFile,
 	createSymlink,
+	deleteEntriesPermanently,
 	deleteEntry,
 	emptyTrash,
 	type FileEntry,
 	getProperties,
 	listAppsForMime,
-	moveEntry,
 	openDefault,
 	openTerminal,
 	openWithApp,
-	permanentDelete,
+	pasteEntries,
 	renameEntry,
 	restoreTrash,
 } from "$lib/commands";
@@ -73,16 +72,7 @@ export async function handleDelete(fm: FileManager) {
 export async function handlePermanentDelete(fm: FileManager) {
 	const entries = fm.effectiveSelection;
 	if (entries.length === 0) return;
-	try {
-		for (const entry of entries) {
-			await permanentDelete(entry.path);
-		}
-		await fm.refresh();
-	} catch (e) {
-		const label =
-			entries.length === 1 ? entries[0].name : `${entries.length} items`;
-		fm.setError(errorMessage(e) ?? `Failed to delete ${label}`);
-	}
+	await deleteEntriesPermanently(entries.map((e) => e.path));
 }
 
 export function handleCopy(fm: FileManager) {
@@ -101,25 +91,10 @@ export function handleCut(fm: FileManager) {
 
 export async function handlePaste(fm: FileManager) {
 	if (!fm.clipboard) return;
-	const isCut = fm.clipboard.mode === "cut";
-
-	try {
-		for (const src of fm.clipboard.entries) {
-			const destPath =
-				fm.currentPath === "/"
-					? `/${src.name}`
-					: `${fm.currentPath}/${src.name}`;
-			if (isCut) {
-				await moveEntry(src.path, destPath);
-			} else {
-				await copyEntry(src.path, destPath);
-			}
-		}
-		fm.clipboard = null;
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(errorMessage(e) ?? `Failed to ${isCut ? "move" : "paste"}`);
-	}
+	const paths = fm.clipboard.entries.map((e) => e.path);
+	const mode = fm.clipboard.mode;
+	await pasteEntries(paths, fm.currentPath, mode);
+	fm.clipboard = null;
 }
 
 export function handleRename(fm: FileManager) {
@@ -201,49 +176,26 @@ export function handleCopyTo(
 }
 
 export async function handleFolderPickerSelect(
-	fm: FileManager,
 	folderPicker: { mode: "move" | "copy" | "extract"; entries: FileEntry[] },
 	destDir: string,
 ) {
-	const mode = folderPicker.mode;
-
-	// Extract mode is handled by dialogs.svelte.ts — this only handles move/copy
-	try {
-		for (const src of folderPicker.entries) {
-			const dest = destDir === "/" ? `/${src.name}` : `${destDir}/${src.name}`;
-			if (mode === "move") {
-				await moveEntry(src.path, dest);
-			} else {
-				await copyEntry(src.path, dest);
-			}
-		}
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(errorMessage(e) ?? `Failed to ${mode}`);
-	}
+	const paths = folderPicker.entries.map((e) => e.path);
+	const mode = folderPicker.mode === "move" ? "cut" : "copy";
+	await pasteEntries(paths, destDir, mode);
 }
 
 export async function handleDrop(
-	fm: FileManager,
 	sourcePaths: string[],
 	destDir: string,
 	mode: "move" | "copy",
 ) {
-	try {
-		for (const src of sourcePaths) {
-			const name = src.split("/").pop() ?? "";
-			const dest = destDir === "/" ? `/${name}` : `${destDir}/${name}`;
-			if (src === dest) continue;
-			if (mode === "move") {
-				await moveEntry(src, dest);
-			} else {
-				await copyEntry(src, dest);
-			}
-		}
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(errorMessage(e) ?? `Failed to ${mode}`);
-	}
+	const filtered = sourcePaths.filter((src) => {
+		const name = src.split("/").pop() ?? "";
+		const dest = destDir === "/" ? `/${name}` : `${destDir}/${name}`;
+		return src !== dest;
+	});
+	if (filtered.length === 0) return;
+	await pasteEntries(filtered, destDir, mode === "move" ? "cut" : "copy");
 }
 
 export async function handleDropToTrash(fm: FileManager, paths: string[]) {
@@ -270,13 +222,8 @@ export async function handleRestore(fm: FileManager) {
 	}
 }
 
-export async function handleEmptyTrash(fm: FileManager) {
-	try {
-		await emptyTrash();
-		await fm.refresh();
-	} catch (e) {
-		fm.setError(errorMessage(e) ?? "Failed to empty trash");
-	}
+export async function handleEmptyTrash() {
+	await emptyTrash();
 }
 
 export async function handleProperties(
