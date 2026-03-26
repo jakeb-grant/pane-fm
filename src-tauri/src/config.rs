@@ -56,6 +56,19 @@ pub fn resolve_theme_path(theme: &str) -> Option<std::path::PathBuf> {
     }
 }
 
+pub fn install_default_config() {
+    let Some(config_dir) = dirs::config_dir() else {
+        return;
+    };
+    let dir = config_dir.join("hyprfiles");
+    let path = dir.join("config.toml");
+    if path.exists() {
+        return;
+    }
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(path, include_str!("default-config.toml"));
+}
+
 pub fn load_config() -> AppConfig {
     let Some(config_dir) = dirs::config_dir() else {
         return AppConfig::default();

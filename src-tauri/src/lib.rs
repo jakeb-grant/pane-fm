@@ -13,6 +13,7 @@ pub fn run() {
         .manage(commands::watcher::DirWatcher(std::sync::Mutex::new(None)))
         .manage(commands::config::ConfigWatcher(std::sync::Mutex::new(None)))
         .setup(|_app| {
+            config::install_default_config();
             commands::theme::install_default_themes();
             Ok(())
         })

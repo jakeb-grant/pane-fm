@@ -1,0 +1,94 @@
+# hyprfiles configuration
+# ~/.config/hyprfiles/config.toml
+#
+# Changes are applied automatically (hot-reload).
+
+[general]
+# Theme name (looks in ~/.config/hyprfiles/themes/{name}.css)
+# or an absolute/~ path to a CSS file.
+# Bundled themes: "nord", "catppuccin-mocha", "dark-minimal"
+# theme = "nord"
+
+# Use light variant of Material Icon Theme icons
+# light_icons = false
+
+# Terminal emulator for "Open Terminal Here" (` keybind)
+# terminal = "ghostty"
+
+# Default sort and display
+# show_hidden = false
+# sort_by = "name"
+# sort_ascending = true
+
+[keybinds]
+# Override any keybind. Use snake_case names.
+# Single key:       move_down = "j"
+# With modifier:    select_all = "Ctrl+a"
+# Multiple keys:    move_down = ["j", "ArrowDown"]
+#
+# Available keybinds:
+#   move_down, move_up, open, enter_dir, go_parent
+#   go_top, go_bottom, half_page_up, half_page_down
+#   history_back, history_forward, focus_path
+#   toggle_select, select_all, visual_mode, escape
+#   yank, cut, paste, trash, permanent_delete
+#   rename, new_file, new_folder, cancel_clipboard
+#   toggle_hidden, filter, filter_next, filter_prev
+#   properties, open_menu, open_terminal, toggle_preview
+#   search, command_palette
+#   new_tab, close_tab, confirm, deny
+
+[chords]
+# Two-key sequences. Use snake_case names.
+# go_home = ["g", "h"]
+# sort_name = [",", "n"]
+#
+# Available chords:
+#   go_top, go_home, go_downloads, go_trash
+#   next_tab, prev_tab
+#   sort_name, sort_size, sort_modified
+#   copy_path, copy_filename
+
+# Custom context menu actions
+# Each [[actions]] block adds an entry to the right-click menu.
+#
+# Fields:
+#   name     = Display name in the menu
+#   command  = Shell command to run
+#   context  = "file", "directory", "any", or "background"
+#   mime     = Glob pattern to filter by MIME type (optional)
+#   refresh  = Refresh directory after command finishes (optional, default false)
+#
+# Placeholders in command:
+#   %f = Full file path
+#   %n = Filename without extension
+#   %F = All selected file paths (space-separated)
+#   %d = Current directory path
+#
+# [[actions]]
+# name = "Edit in Neovim"
+# command = "ghostty -e nvim %f"
+# context = "file"
+#
+# [[actions]]
+# name = "Set as Wallpaper"
+# command = "hyprctl hyprpaper wallpaper eDP-1,%f"
+# context = "file"
+# mime = "image/*"
+#
+# [[actions]]
+# name = "Make Executable"
+# command = "chmod +x %f"
+# context = "file"
+# refresh = true
+#
+# [[actions]]
+# name = "Open Terminal Here"
+# command = "ghostty"
+# context = "directory"
+#
+# [[actions]]
+# name = "Git Init"
+# command = "git init"
+# context = "background"
+# refresh = true

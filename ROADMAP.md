@@ -229,15 +229,17 @@ Features that make hyprfiles a daily driver.
 
 ### UX
 - [x] Command palette (Ctrl+Shift+P)
-- [ ] Split pane view (dual-pane file manager mode)
-- [ ] Smooth animations and transitions
 - [x] Search across subdirectories (recursive find)
 - [x] Remembering last directory per tab (session restore)
-- [ ] Bulk rename (pattern-based: find/replace, regex, sequential numbering)
-- [ ] Undo/redo for file operations (operation history)
+- [ ] Smooth animations and transitions
 
 ### Distribution
 - [ ] AUR package
 - [ ] Man page
-- [ ] Default config generation on first run
+- [x] Default config generation on first run
 - [ ] CLI flags (open specific directory, etc.)
+
+### Future Enhancements
+- [ ] Bulk rename (pattern-based: find/replace, regex, sequential numbering)
+- [ ] Split pane view (dual-pane file manager mode)
+- [ ] Undo/redo for file operations (operation history)
