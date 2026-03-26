@@ -210,16 +210,13 @@ Features that make hyprfiles a daily driver.
 ### File Operations
 - [x] Bulk select with patterns (glob matching in filter + S to select filtered)
 - [x] Async operations with progress bar (copy/move/delete/empty trash)
-- [ ] Undo/redo for file operations (operation history)
 - [x] File permissions viewing and editing (chmod dialog)
 - [x] Symlink creation
 
 ### Previews
-- [ ] Image thumbnails in grid view
 - [x] Text file preview panel (toggleable, line numbers, truncation)
 - [x] Image preview panel (asset protocol, scaled to fit)
-- [ ] Video/audio thumbnail generation (optional, via ffmpeg)
-- [ ] PDF first-page preview
+- [x] PDF first-page preview (via pdftoppm, cached to temp dir)
 
 ### Integration
 - [x] "Open terminal here" (configurable terminal emulator)
@@ -237,6 +234,7 @@ Features that make hyprfiles a daily driver.
 - [ ] Search across subdirectories (recursive find)
 - [ ] Remembering window size, position, last directory per tab
 - [ ] Bulk rename (pattern-based: find/replace, regex, sequential numbering)
+- [ ] Undo/redo for file operations (operation history)
 
 ### Distribution
 - [ ] AUR package

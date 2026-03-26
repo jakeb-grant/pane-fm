@@ -547,6 +547,109 @@ pub fn read_file_preview(path: &Path, max_bytes: usize) -> Result<FilePreview, A
     })
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct PdfPreview {
+    pub image_path: String,
+    pub page_count: u32,
+}
+
+pub fn render_pdf_preview(path: &Path) -> Result<PdfPreview, AppError> {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let path_str = path.display().to_string();
+
+    // Deterministic temp path based on source file path
+    let mut hasher = DefaultHasher::new();
+    path_str.hash(&mut hasher);
+    let hash = hasher.finish();
+    let temp_dir = std::env::temp_dir().join("hyprfiles-pdf");
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| AppError::io_with_path(e, temp_dir.display().to_string()))?;
+    let output_prefix = temp_dir.join(format!("{hash:x}"));
+    let output_png = temp_dir.join(format!("{hash:x}.png"));
+
+    // Check cache: if PNG exists and is newer than the PDF, skip rendering
+    if output_png.exists() {
+        if let (Ok(pdf_meta), Ok(png_meta)) = (fs::metadata(path), fs::metadata(&output_png)) {
+            if let (Ok(pdf_mod), Ok(png_mod)) = (pdf_meta.modified(), png_meta.modified()) {
+                if png_mod >= pdf_mod {
+                    let page_count = get_pdf_page_count(path);
+                    return Ok(PdfPreview {
+                        image_path: output_png.display().to_string(),
+                        page_count,
+                    });
+                }
+            }
+        }
+    }
+
+    // Render first page to PNG
+    let result = std::process::Command::new("pdftoppm")
+        .args([
+            "-png",
+            "-f",
+            "1",
+            "-l",
+            "1",
+            "-singlefile",
+            "-r",
+            "200",
+            &path_str,
+            &output_prefix.display().to_string(),
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output();
+
+    match result {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(AppError::Desktop {
+                message: "PDF preview requires poppler-utils (pacman -S poppler)".to_string(),
+            });
+        }
+        Err(e) => {
+            return Err(AppError::io_with_path(e, path_str));
+        }
+        Ok(output) if !output.status.success() => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(AppError::Desktop {
+                message: format!("Failed to render PDF: {stderr}"),
+            });
+        }
+        Ok(_) => {}
+    }
+
+    if !output_png.exists() {
+        return Err(AppError::Desktop {
+            message: "PDF rendering produced no output".to_string(),
+        });
+    }
+
+    let page_count = get_pdf_page_count(path);
+
+    Ok(PdfPreview {
+        image_path: output_png.display().to_string(),
+        page_count,
+    })
+}
+
+fn get_pdf_page_count(path: &Path) -> u32 {
+    let output = std::process::Command::new("pdfinfo")
+        .arg(path.display().to_string())
+        .output()
+        .ok();
+    output
+        .and_then(|o| {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            stdout
+                .lines()
+                .find(|l| l.starts_with("Pages:"))
+                .and_then(|l| l.split_whitespace().last()?.parse().ok())
+        })
+        .unwrap_or(0)
+}
+
 pub fn chmod_entry(path: &Path, mode: u32) -> Result<(), AppError> {
     use std::os::unix::fs::PermissionsExt;
     let perms = std::fs::Permissions::from_mode(mode);

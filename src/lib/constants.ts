@@ -29,3 +29,7 @@ const imagePreviewMimes = new Set([
 export function isImagePreviewable(mime: string): boolean {
 	return imagePreviewMimes.has(mime);
 }
+
+export function isPdfPreviewable(mime: string): boolean {
+	return mime === "application/pdf";
+}

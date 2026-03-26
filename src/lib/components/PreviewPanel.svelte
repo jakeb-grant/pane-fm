@@ -1,13 +1,18 @@
 <script lang="ts">
 import { convertFileSrc } from "@tauri-apps/api/core";
-import type { FileEntry, FilePreview } from "$lib/commands";
-import { isImagePreviewable, isTextPreviewable } from "$lib/constants";
+import type { FileEntry, FilePreview, PdfPreview } from "$lib/commands";
+import {
+	isImagePreviewable,
+	isPdfPreviewable,
+	isTextPreviewable,
+} from "$lib/constants";
 import { getIconForEntry } from "$lib/icons";
 import { formatSize } from "$lib/utils";
 
 let {
 	entry,
 	previewData,
+	pdfPreview,
 	previewLoading,
 	previewError,
 	width = 300,
@@ -15,6 +20,7 @@ let {
 }: {
 	entry: FileEntry | null;
 	previewData: FilePreview | null;
+	pdfPreview: PdfPreview | null;
 	previewLoading: boolean;
 	previewError: string | null;
 	width?: number;
@@ -28,7 +34,13 @@ const isText = $derived(
 const isImage = $derived(
 	entry && !entry.is_dir ? isImagePreviewable(entry.mime_type) : false,
 );
+const isPdf = $derived(
+	entry && !entry.is_dir ? isPdfPreviewable(entry.mime_type) : false,
+);
 const imageUrl = $derived(isImage && entry ? convertFileSrc(entry.path) : null);
+const pdfImageUrl = $derived(
+	isPdf && pdfPreview ? convertFileSrc(pdfPreview.image_path) : null,
+);
 const lines = $derived(previewData?.content.split("\n") ?? []);
 
 let dragging = $state(false);
@@ -80,6 +92,22 @@ function onpointerdown(e: PointerEvent) {
 				<span class="preview-image-name">{entry.name}</span>
 				<span class="preview-meta">{formatSize(entry.size)}</span>
 			</div>
+		{:else if isPdf}
+			{#if previewLoading}
+				<div class="preview-loading">Loading...</div>
+			{:else if previewError}
+				<div class="preview-fallback">
+					<span class="preview-icon">{icon}</span>
+					<span class="preview-name">{entry.name}</span>
+					<span class="preview-error">{previewError}</span>
+				</div>
+			{:else if pdfImageUrl}
+				<div class="preview-image">
+					<img src={pdfImageUrl} alt={entry.name} />
+					<span class="preview-image-name">{entry.name}</span>
+					<span class="preview-meta">{pdfPreview?.page_count} page{pdfPreview?.page_count !== 1 ? 's' : ''}</span>
+				</div>
+			{/if}
 		{:else if isText}
 			{#if previewLoading}
 				<div class="preview-loading">Loading...</div>

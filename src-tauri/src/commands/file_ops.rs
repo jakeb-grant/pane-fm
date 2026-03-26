@@ -131,6 +131,16 @@ pub fn read_file_preview(path: String, max_bytes: usize) -> Result<FilePreview, 
 }
 
 #[tauri::command]
+pub async fn read_pdf_preview(path: String) -> Result<fs_ops::PdfPreview, AppError> {
+    let path = PathBuf::from(path);
+    tokio::task::spawn_blocking(move || fs_ops::render_pdf_preview(&path))
+        .await
+        .map_err(|e| AppError::Desktop {
+            message: format!("Task join error: {e}"),
+        })?
+}
+
+#[tauri::command]
 pub fn chmod_entry(path: String, mode: u32) -> Result<(), AppError> {
     fs_ops::chmod_entry(&PathBuf::from(path), mode)
 }

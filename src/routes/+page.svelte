@@ -3,13 +3,19 @@ import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { onDestroy, onMount, tick } from "svelte";
-import type { CustomAction, FileEntry, FilePreview } from "$lib/commands";
+import type {
+	CustomAction,
+	FileEntry,
+	FilePreview,
+	PdfPreview,
+} from "$lib/commands";
 import {
 	type AppConfig,
 	getConfig,
 	getDragIcon,
 	loadThemeCss,
 	readFilePreview,
+	readPdfPreview,
 	runCustomAction,
 	unwatchDirectory,
 	watchConfig,
@@ -33,7 +39,7 @@ import StatusBar from "$lib/components/StatusBar.svelte";
 import TabBar from "$lib/components/TabBar.svelte";
 // biome-ignore lint/style/useImportType: component used in template
 import Toolbar from "$lib/components/Toolbar.svelte";
-import { isTextPreviewable } from "$lib/constants";
+import { isPdfPreviewable, isTextPreviewable } from "$lib/constants";
 import {
 	type ContextMenuActions,
 	type ContextMenuContext,
@@ -134,6 +140,7 @@ $effect(() => {
 });
 // Preview panel state
 let previewData = $state<FilePreview | null>(null);
+let pdfPreview = $state<PdfPreview | null>(null);
 let previewLoading = $state(false);
 let previewError = $state<string | null>(null);
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
@@ -145,6 +152,7 @@ $effect(() => {
 
 	if (!enabled || !entry) {
 		previewData = null;
+		pdfPreview = null;
 		previewLoading = false;
 		previewError = null;
 		return;
@@ -157,6 +165,7 @@ $effect(() => {
 		previewLoading = true;
 		previewError = null;
 		previewData = null;
+		pdfPreview = null;
 
 		previewTimer = setTimeout(() => {
 			readFilePreview(path)
@@ -173,8 +182,30 @@ $effect(() => {
 					}
 				});
 		}, 50);
+	} else if (!entry.is_dir && isPdfPreviewable(mime)) {
+		previewLoading = true;
+		previewError = null;
+		previewData = null;
+		pdfPreview = null;
+
+		previewTimer = setTimeout(() => {
+			readPdfPreview(path)
+				.then((data) => {
+					if (fm.cursorEntry?.path === path) {
+						pdfPreview = data;
+						previewLoading = false;
+					}
+				})
+				.catch((e) => {
+					if (fm.cursorEntry?.path === path) {
+						previewError = errorMessage(e) ?? "Failed to load PDF preview";
+						previewLoading = false;
+					}
+				});
+		}, 50);
 	} else {
 		previewData = null;
+		pdfPreview = null;
 		previewLoading = false;
 		previewError = null;
 	}
@@ -843,6 +874,7 @@ onDestroy(() => {
 					<PreviewPanel
 						entry={fm.cursorEntry}
 						{previewData}
+						{pdfPreview}
 						{previewLoading}
 						{previewError}
 						width={fm.previewWidth}

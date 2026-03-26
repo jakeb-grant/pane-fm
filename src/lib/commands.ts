@@ -78,6 +78,15 @@ export function readFilePreview(
 	return invoke("read_file_preview", { path, maxBytes });
 }
 
+export interface PdfPreview {
+	image_path: string;
+	page_count: number;
+}
+
+export function readPdfPreview(path: string): Promise<PdfPreview> {
+	return invoke("read_pdf_preview", { path });
+}
+
 export interface DriveEntry {
 	name: string;
 	path: string;
