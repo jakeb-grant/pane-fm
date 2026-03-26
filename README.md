@@ -21,20 +21,23 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. hypr
 - Async file operations (copy, move, delete, empty trash) with progress bar and cancellation
 - Sortable list view with directory item counts
 - Sidebar with XDG bookmarks and mounted drives
-- Tabs with vim-style switching (`gt`/`gT`, `1`-`9`)
+- Tabs with vim-style switching (`gt`/`gT`, `1`-`9`) and session restore
 - Back/forward/up navigation with history
 - Fuzzy filter within current directory
+- Recursive file search across subdirectories (`s`)
+- Command palette with fuzzy search (`Ctrl+Shift+P`)
 - Yazi-inspired keyboard navigation (vim keys + arrows, chords, visual mode)
 - Configurable keybinds and settings via `~/.config/hyprfiles/config.toml`
+- Default config with commented examples generated on first run
 - Context menu with "Open With" (reads `.desktop` files) and custom user actions
-- Text and image preview panel (toggleable with `P`)
+- Text, image, and PDF preview panel (toggleable with `P`)
+- Material Icon Theme SVGs (~1,100 colorful file/folder icons with light/dark mode)
 - File properties dialog with async directory stats
 - Hidden files toggle
 - Multi-select (Space toggle, visual mode, Ctrl+A, Shift+click)
 - MIME type detection (extension + magic bytes)
 - CSS theme system with hot-reload (edit theme CSS, see changes instantly)
 - 3 bundled themes: Catppuccin Mocha, Nord, Dark Minimal
-
 - Drag and drop (internal move/copy, drag-out to other apps, drop-in from other apps)
 - File permissions editing (chmod dialog)
 - Symlink creation
@@ -54,43 +57,52 @@ src/                              # Frontend (Svelte 5)
 │   │   ├── tabs.svelte.ts        # Tab management
 │   │   └── dialogs.svelte.ts     # Dialog/busy/progress state + orchestration
 │   ├── keybinds.ts               # Keybind/chord definitions + config overrides
+│   ├── commandRegistry.ts        # Command list for palette + help dialog
 │   ├── fileOps.ts                # File operation handlers
 │   ├── contextMenu.ts            # Context menu item builders
 │   ├── commands.ts               # Tauri IPC wrappers
 │   ├── errors.ts                 # Structured error types + helpers
 │   ├── constants.ts              # Shared constants
-│   ├── icons.ts                  # Nerd font icon lookup
+│   ├── icons.ts                  # Material Icon Theme SVG lookup
+│   ├── icons.gen.ts              # Generated icon maps (from sync-icons script)
 │   ├── utils.ts                  # Path/format helpers
 │   └── components/               # Presentational components
-│       ├── FileList.svelte       # List view
+│       ├── FileList.svelte       # List view with virtual scrolling
+│       ├── FileIcon.svelte       # SVG icon component
 │       ├── fileEditLogic.svelte.ts # Shared rename/create logic
 │       ├── Breadcrumb.svelte     # Clickable path breadcrumb
 │       ├── Toolbar.svelte        # Nav controls + breadcrumb host
 │       ├── TabBar.svelte         # Tab strip
 │       ├── StatusBar.svelte      # Selection/clipboard info
 │       ├── FilterBar.svelte      # Fuzzy filter input
+│       ├── SearchOverlay.svelte  # Recursive file search
+│       ├── CommandPalette.svelte # Ctrl+Shift+P command palette
 │       ├── BusyOverlay.svelte    # Progress overlay
 │       ├── Sidebar.svelte        # Places/drives sidebar
 │       ├── ContextMenu.svelte    # Right-click menu
 │       ├── FolderPicker.svelte   # Folder selection dialog
-│       ├── PreviewPanel.svelte   # Text/image file preview
+│       ├── PreviewPanel.svelte   # Text/image/PDF file preview
 │       ├── CompressDialog.svelte # Archive format + name dialog
 │       ├── ConfirmDialog.svelte  # Yes/no confirmation
+│       ├── HelpDialog.svelte     # Keybind reference (?)
 │       └── PropertiesDialog.svelte
 
 src-tauri/src/                    # Backend (Rust)
 ├── lib.rs                        # Tauri builder + command registration
-├── config.rs                     # TOML config loading (~/.config/hyprfiles/config.toml)
+├── config.rs                     # TOML config loading + default config generation
+├── default-config.toml           # Default config template (embedded at compile time)
 ├── error.rs                      # AppError enum (structured errors)
 ├── progress.rs                   # Shared progress emission + cancellation
 ├── fs_ops.rs                     # FileEntry/DriveEntry models, read_directory, MIME, file ops
 └── commands/
-    ├── config.rs                 # get_config command
+    ├── config.rs                 # get_config + watch_config commands
     ├── file_ops.rs               # Directory listing, create/rename/copy/move/delete, properties
     ├── archive.rs                # Compress/extract with progress + cancellation
     ├── apps.rs                   # Open files, .desktop file parsing, Open With
+    ├── search.rs                 # Recursive file search with streaming results
     ├── trash.rs                  # Freedesktop trash list/restore/empty
     ├── drives.rs                 # Mounted drive detection
+    ├── watcher.rs                # Filesystem watching for live directory updates
     └── theme.rs                  # Theme loading, file watching, default theme installation
 ```
 
@@ -103,6 +115,7 @@ Requires:
 
 ```bash
 bun install
+bun run sync-icons   # generate Material Icon Theme SVGs (first time only)
 bun run tauri dev
 ```
 
