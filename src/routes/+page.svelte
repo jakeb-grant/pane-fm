@@ -151,6 +151,12 @@ $effect(() => {
 		filterBarVisible = !!fm.filterQuery;
 	}
 });
+
+// Persist tab paths when the active tab navigates
+$effect(() => {
+	if (fm.currentPath) tabs.persistTabs();
+});
+
 // Preview panel state
 let previewData = $state<FilePreview | null>(null);
 let pdfPreview = $state<PdfPreview | null>(null);

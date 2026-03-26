@@ -1,6 +1,8 @@
 import {
 	createFileManager,
 	type FileManager,
+	loadPreference,
+	savePreference,
 } from "$lib/stores/fileManager.svelte";
 
 interface Tab {
@@ -15,6 +17,7 @@ export function createTabManager() {
 	const initialFm = createFileManager();
 	let tabs = $state<Tab[]>([{ id: nextId++, fm: initialFm }]);
 	let activeIndex = $state(0);
+	let initialized = $state(false);
 
 	const activeFm = $derived(tabs[activeIndex].fm);
 
@@ -28,6 +31,13 @@ export function createTabManager() {
 	);
 
 	type Clipboard = FileManager["clipboard"];
+
+	function persistTabs() {
+		if (!initialized) return;
+		const paths = tabs.map((t) => t.fm.currentPath);
+		savePreference("tabs", paths);
+		savePreference("activeTab", activeIndex);
+	}
 
 	function leaveTab(): Clipboard {
 		const old = tabs[activeIndex].fm;
@@ -79,6 +89,7 @@ export function createTabManager() {
 		if (clipboard) {
 			tabs[activeIndex].fm.clipboard = clipboard;
 		}
+		persistTabs();
 	}
 
 	function switchTab(index: number) {
@@ -98,7 +109,24 @@ export function createTabManager() {
 	}
 
 	async function init() {
-		await tabs[0].fm.init();
+		const savedPaths = loadPreference<string[]>("tabs", []);
+		const savedActive = loadPreference<number>("activeTab", 0);
+
+		if (savedPaths.length > 0) {
+			await tabs[0].fm.init(savedPaths[0]);
+
+			for (let i = 1; i < savedPaths.length; i++) {
+				const fm = createFileManager();
+				tabs = [...tabs, { id: nextId++, fm }];
+				await fm.init(savedPaths[i]);
+			}
+
+			activeIndex = Math.min(savedActive, tabs.length - 1);
+		} else {
+			await tabs[0].fm.init();
+		}
+
+		initialized = true;
 	}
 
 	return {
@@ -121,6 +149,7 @@ export function createTabManager() {
 		nextTab,
 		prevTab,
 		init,
+		persistTabs,
 	};
 }
 

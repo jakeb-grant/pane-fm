@@ -232,7 +232,7 @@ Features that make hyprfiles a daily driver.
 - [ ] Split pane view (dual-pane file manager mode)
 - [ ] Smooth animations and transitions
 - [x] Search across subdirectories (recursive find)
-- [ ] Remembering window size, position, last directory per tab
+- [x] Remembering last directory per tab (session restore)
 - [ ] Bulk rename (pattern-based: find/replace, regex, sequential numbering)
 - [ ] Undo/redo for file operations (operation history)
 

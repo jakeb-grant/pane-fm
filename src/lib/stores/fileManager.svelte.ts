@@ -20,7 +20,7 @@ export function setConfigDefaults(opts: typeof configDefaults): void {
 	configDefaults = opts;
 }
 
-function loadPreference<T>(key: string, fallback: T): T {
+export function loadPreference<T>(key: string, fallback: T): T {
 	if (typeof window === "undefined") return fallback;
 	const stored = localStorage.getItem(`hyprfiles.${key}`);
 	if (stored === null) return fallback;
@@ -31,7 +31,7 @@ function loadPreference<T>(key: string, fallback: T): T {
 	}
 }
 
-function savePreference(key: string, value: unknown): void {
+export function savePreference(key: string, value: unknown): void {
 	if (typeof window === "undefined") return;
 	localStorage.setItem(`hyprfiles.${key}`, JSON.stringify(value));
 }
@@ -375,10 +375,10 @@ export function createFileManager() {
 		error = msg;
 	}
 
-	async function init() {
+	async function init(path?: string) {
 		try {
 			homeDir = await getHomeDir();
-			await navigate(homeDir);
+			await navigate(path ?? homeDir);
 		} catch {
 			await navigate("/");
 		}
