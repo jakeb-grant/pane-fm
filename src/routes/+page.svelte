@@ -47,6 +47,7 @@ import {
 } from "$lib/contextMenu";
 import { errorMessage } from "$lib/errors";
 import * as ops from "$lib/fileOps";
+import { setIconMode } from "$lib/icons";
 import {
 	applyKeybindOverrides,
 	type ChordName,
@@ -97,6 +98,7 @@ async function applyConfig(config: AppConfig) {
 	}
 	terminalApp = config.general.terminal ?? null;
 	customActions = config.actions ?? [];
+	setIconMode(config.general.light_icons ? "light" : "dark");
 
 	const newTheme = config.general.theme ?? null;
 	if (newTheme !== currentThemeName) {
@@ -688,34 +690,11 @@ let dragIconPath = "";
 let dropUnlisten: (() => void) | null = null;
 
 onMount(async () => {
-	let configWarning: string | undefined;
 	try {
 		const config = await getConfig();
-		applyKeybindOverrides(config.keybinds, config.chords);
-		setConfigDefaults({
-			showHidden: config.general.show_hidden ?? undefined,
-			sortBy: config.general.sort_by ?? undefined,
-			sortAscending: config.general.sort_ascending ?? undefined,
-		});
-		tabs.activeFm.applyConfigDefaults();
-		terminalApp = config.general.terminal ?? null;
-		customActions = config.actions ?? [];
-		configWarning = config.warning ?? undefined;
-		currentThemeName = config.general.theme ?? null;
-		if (config.general.theme) {
-			try {
-				const css = await loadThemeCss(config.general.theme);
-				applyThemeCss(css);
-				await watchTheme(config.general.theme);
-				themeUnlisten = await listen<string>("theme-changed", (e) => {
-					applyThemeCss(e.payload);
-				});
-			} catch {
-				// Theme load failed — continue with defaults
-			}
-		}
+		await applyConfig(config);
 	} catch {
-		// Config load failed (e.g. command not available) — continue with defaults
+		// Config load failed — continue with defaults
 	}
 
 	let configDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -726,7 +705,6 @@ onMount(async () => {
 	});
 
 	await tabs.init();
-	if (configWarning) tabs.activeFm.setError(configWarning);
 	await dlg.subscribeProgress();
 
 	getDragIcon()

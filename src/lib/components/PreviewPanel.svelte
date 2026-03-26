@@ -8,6 +8,7 @@ import {
 } from "$lib/constants";
 import { getIconForEntry } from "$lib/icons";
 import { formatSize } from "$lib/utils";
+import FileIcon from "./FileIcon.svelte";
 
 let {
 	entry,
@@ -80,7 +81,7 @@ function onpointerdown(e: PointerEvent) {
 			</div>
 		{:else if entry.is_dir}
 			<div class="preview-fallback">
-				<span class="preview-icon">{icon}</span>
+				<FileIcon src={icon} size={48} />
 				<span class="preview-name">{entry.name}</span>
 				{#if entry.children_count !== null}
 					<span class="preview-meta">{entry.children_count} items</span>
@@ -97,7 +98,7 @@ function onpointerdown(e: PointerEvent) {
 				<div class="preview-loading">Loading...</div>
 			{:else if previewError}
 				<div class="preview-fallback">
-					<span class="preview-icon">{icon}</span>
+					<FileIcon src={icon} size={48} />
 					<span class="preview-name">{entry.name}</span>
 					<span class="preview-error">{previewError}</span>
 				</div>
@@ -113,13 +114,13 @@ function onpointerdown(e: PointerEvent) {
 				<div class="preview-loading">Loading...</div>
 			{:else if previewError}
 				<div class="preview-fallback">
-					<span class="preview-icon">{icon}</span>
+					<FileIcon src={icon} size={48} />
 					<span class="preview-name">{entry.name}</span>
 					<span class="preview-error">{previewError}</span>
 				</div>
 			{:else if previewData?.is_binary}
 				<div class="preview-fallback">
-					<span class="preview-icon">{icon}</span>
+					<FileIcon src={icon} size={48} />
 					<span class="preview-name">{entry.name}</span>
 					<span class="preview-meta">Binary file</span>
 					<span class="preview-meta">{formatSize(entry.size)}</span>
@@ -135,7 +136,7 @@ function onpointerdown(e: PointerEvent) {
 			{/if}
 		{:else}
 			<div class="preview-fallback">
-				<span class="preview-icon">{icon}</span>
+				<FileIcon src={icon} size={48} />
 				<span class="preview-name">{entry.name}</span>
 				<span class="preview-meta">{entry.mime_type}</span>
 				<span class="preview-meta">{formatSize(entry.size)}</span>
@@ -200,11 +201,6 @@ function onpointerdown(e: PointerEvent) {
 
 	.preview-empty-text {
 		font-size: 13px;
-	}
-
-	.preview-icon {
-		font-family: var(--font-icon);
-		font-size: 48px;
 	}
 
 	.preview-name {

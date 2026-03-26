@@ -1,6 +1,8 @@
 <script lang="ts">
 import { listDirectory } from "$lib/commands";
+import { DEFAULT_FOLDER } from "$lib/icons";
 import { pathSegments } from "$lib/utils";
+import FileIcon from "./FileIcon.svelte";
 
 let {
 	path,
@@ -147,7 +149,7 @@ $effect(() => {
 						class:selected={i === selectedIndex}
 						onmousedown={(e) => { e.preventDefault(); acceptSuggestion(suggestion); }}
 					>
-						<span class="suggestion-icon">{"\uF07B"}</span>
+						<span class="suggestion-icon"><FileIcon src={DEFAULT_FOLDER} size={14} /></span>
 						{suggestion.split("/").pop()}
 					</button>
 				{/each}
@@ -273,8 +275,8 @@ $effect(() => {
 	}
 
 	.suggestion-icon {
-		font-family: var(--font-icon);
-		font-size: 14px;
-		color: var(--accent);
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
 	}
 </style>

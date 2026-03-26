@@ -185,6 +185,7 @@ export interface GeneralConfig {
 	sort_by?: string;
 	sort_ascending?: boolean;
 	theme?: string;
+	light_icons?: boolean;
 	terminal?: string;
 }
 

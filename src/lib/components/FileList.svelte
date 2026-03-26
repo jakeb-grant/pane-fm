@@ -2,6 +2,7 @@
 import type { FileEntry } from "$lib/commands";
 import { getIconForEntry } from "$lib/icons";
 import { formatSize } from "$lib/utils";
+import FileIcon from "./FileIcon.svelte";
 import { createEditLogic } from "./fileEditLogic.svelte";
 
 let {
@@ -304,7 +305,7 @@ $effect(() => {
 		<tbody>
 			{#if creatingEntry}
 				<tr class="creating" class:directory={creatingEntry === "directory"}>
-					<td class="td-icon">{creatingEntry === "directory" ? "\uF07B" : "\uF15B"}</td>
+					<td class="td-icon"><FileIcon src={getIconForEntry({ is_dir: creatingEntry === "directory", name: "" })} /></td>
 					<td class="td-name">
 						<!-- svelte-ignore a11y_autofocus -->
 						<input
@@ -349,7 +350,7 @@ $effect(() => {
 					oncontextmenu={(e) => { e.preventDefault(); oncontextmenu(e, entry); }}
 					onmousedown={(e) => handleMouseDown(entry, e)}
 				>
-					<td class="td-icon">{getIconForEntry(entry)}</td>
+					<td class="td-icon"><FileIcon src={getIconForEntry(entry)} /></td>
 					<td class="td-name">
 						{#if renamingPath === entry.path}
 							<!-- svelte-ignore a11y_autofocus -->
@@ -542,8 +543,6 @@ $effect(() => {
 
 	.td-icon {
 		text-align: center;
-		font-family: var(--font-icon);
-		font-size: 16px;
 		line-height: 1;
 	}
 
@@ -563,9 +562,6 @@ $effect(() => {
 		color: var(--accent);
 	}
 
-	.directory .td-icon {
-		color: var(--accent);
-	}
 
 	.symlink-badge {
 		font-size: 10px;

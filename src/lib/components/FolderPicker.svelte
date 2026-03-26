@@ -3,8 +3,10 @@ import { onMount } from "svelte";
 import type { FileEntry } from "$lib/commands";
 import { getHomeDir, listDirectory, pathExists } from "$lib/commands";
 import { errorMessage } from "$lib/errors";
+import { getIconForEntry } from "$lib/icons";
 import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
 import { parentPath, pathSegments } from "$lib/utils";
+import FileIcon from "./FileIcon.svelte";
 
 let {
 	title,
@@ -146,7 +148,7 @@ onMount(async () => {
 				{:else}
 					{#each folders as folder, i (folder.path)}
 						<button class="folder-item" class:focused={i === focusedIndex} ondblclick={() => loadDir(folder.path)} onclick={() => { focusedIndex = i; loadDir(folder.path); }}>
-							<span class="folder-icon">{"\uF07B"}</span>
+							<span class="folder-icon"><FileIcon src={getIconForEntry({ is_dir: true, name: folder.name })} size={16} /></span>
 							<span class="folder-name">{folder.name}</span>
 						</button>
 					{/each}
@@ -362,10 +364,10 @@ onMount(async () => {
 	}
 
 	.folder-icon {
-		font-family: var(--font-icon);
-		font-size: 16px;
+		display: flex;
+		align-items: center;
 		width: 20px;
-		text-align: center;
+		justify-content: center;
 		flex-shrink: 0;
 	}
 

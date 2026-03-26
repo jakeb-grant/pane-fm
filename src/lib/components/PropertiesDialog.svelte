@@ -11,6 +11,7 @@ import { errorMessage } from "$lib/errors";
 import { getIconForEntry } from "$lib/icons";
 import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
 import { formatSize } from "$lib/utils";
+import FileIcon from "./FileIcon.svelte";
 
 let {
 	properties,
@@ -103,7 +104,7 @@ onDestroy(() => {
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="dialog" onclick={(e) => e.stopPropagation()}>
 		<div class="header">
-			<span class="file-icon">{getIconForEntry(iconEntry)}</span>
+			<FileIcon src={getIconForEntry(iconEntry)} size={28} />
 			<h2 class="file-name">{properties.name}</h2>
 		</div>
 
@@ -244,11 +245,6 @@ onDestroy(() => {
 		padding: 20px 20px 12px;
 	}
 
-	.file-icon {
-		font-family: var(--font-icon);
-		font-size: 28px;
-		color: var(--accent);
-	}
 
 	.file-name {
 		margin: 0;
