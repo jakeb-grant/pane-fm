@@ -1,8 +1,51 @@
+use tauri::Manager;
+
 mod commands;
 mod config;
 mod error;
 mod fs_ops;
 pub mod progress;
+
+/// Read the user's theme CSS and extract --bg-primary color.
+/// Falls back to Catppuccin Mocha dark (#1e1e2e) if anything fails.
+fn theme_bg_color() -> tauri::window::Color {
+    let default = tauri::window::Color(30, 30, 46, 255);
+
+    let cfg = config::load_config();
+    let theme_name = match cfg.general.theme.as_deref() {
+        Some(name) if !name.is_empty() => name,
+        _ => return default,
+    };
+
+    let Some(path) = config::resolve_theme_path(theme_name) else {
+        return default;
+    };
+    let Ok(css) = std::fs::read_to_string(path) else {
+        return default;
+    };
+
+    parse_bg_primary(&css).unwrap_or(default)
+}
+
+fn parse_bg_primary(css: &str) -> Option<tauri::window::Color> {
+    // Match --bg-primary: #rrggbb
+    let idx = css.find("--bg-primary")?;
+    let rest = &css[idx..];
+    let hash = rest.find('#')?;
+    let hex = &rest[hash + 1..];
+    if hex.len() < 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some(tauri::window::Color(r, g, b, 255))
+}
+
+#[tauri::command]
+fn show_window(window: tauri::WebviewWindow) {
+    let _ = window.show();
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -12,9 +55,16 @@ pub fn run() {
         .manage(commands::theme::ThemeWatcher(std::sync::Mutex::new(None)))
         .manage(commands::watcher::DirWatcher(std::sync::Mutex::new(None)))
         .manage(commands::config::ConfigWatcher(std::sync::Mutex::new(None)))
-        .setup(|_app| {
+        .setup(|app| {
             config::install_default_config();
             commands::theme::install_default_themes();
+
+            if let Some(window) = app.get_webview_window("main") {
+                // Set window background to theme's --bg-primary to prevent white flash
+                let bg = theme_bg_color();
+                let _ = window.set_background_color(Some(bg));
+                let _ = window.hide();
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -61,6 +111,7 @@ pub fn run() {
             commands::search::cancel_search,
             commands::watcher::watch_directory,
             commands::watcher::unwatch_directory,
+            show_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

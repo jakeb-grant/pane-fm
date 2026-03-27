@@ -24,6 +24,7 @@ import {
 	readPdfPreview,
 	runCustomAction,
 	searchFiles,
+	showWindow,
 	unwatchDirectory,
 	watchConfig,
 	watchDirectory,
@@ -1064,6 +1065,7 @@ onMount(async () => {
 	});
 
 	await tabs.init();
+	showWindow();
 	await dlg.subscribeProgress();
 
 	searchUnlisten = await listen<{
@@ -1097,6 +1099,7 @@ onMount(async () => {
 			dirRefreshTimer = setTimeout(() => fm.refresh(), 300);
 		}
 	});
+
 });
 
 onDestroy(() => {

@@ -285,3 +285,7 @@ export function watchDirectory(path: string): Promise<void> {
 export function unwatchDirectory(): Promise<void> {
 	return invoke("unwatch_directory");
 }
+
+export function showWindow(): Promise<void> {
+	return invoke("show_window");
+}
