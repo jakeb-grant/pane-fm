@@ -3,6 +3,12 @@ name: Publish to AUR
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'PKGBUILD'
   workflow_dispatch:
 
 jobs:

@@ -19,6 +19,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev librsvg2-dev
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
 
@@ -29,16 +37,19 @@ jobs:
         run: bun run sync-icons
 
       - name: Build release binary
-        run: |
-          bun run sync-icons
-          bun run tauri build
+        run: bun run tauri build
 
       - name: Create tarball
         run: |
           tar -czvf pane-fm-${{ github.ref_name }}-x86_64-linux.tar.gz \
             -C src-tauri/target/release pane-fm
 
+      - name: Collect artifacts
+        run: |
+          cp src-tauri/target/release/bundle/deb/*.deb . 2>/dev/null || true
+          cp src-tauri/target/release/bundle/appimage/*.AppImage . 2>/dev/null || true
+
       - name: Create GitHub Release
-        run: gh release create ${{ github.ref_name }} *.tar.gz --generate-notes
+        run: gh release create ${{ github.ref_name }} *.tar.gz *.deb *.AppImage --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
