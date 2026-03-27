@@ -33,7 +33,7 @@ prepare() {
     cd pane-fm
     export RUSTUP_TOOLCHAIN=stable
     bun install --frozen-lockfile
-    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')" --manifest-path src-tauri/Cargo.toml
 }
 
 build() {
