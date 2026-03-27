@@ -35,7 +35,7 @@ build() {
     export RUSTUP_TOOLCHAIN=stable
     bun install --frozen-lockfile
     bun run sync-icons
-    bun run tauri build
+    bun run tauri build -- --bundles none
 }
 
 package() {
