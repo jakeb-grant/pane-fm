@@ -29,16 +29,10 @@ pkgver() {
         || printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
-prepare() {
-    cd pane-fm
-    export RUSTUP_TOOLCHAIN=stable
-    bun install --frozen-lockfile
-    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')" --manifest-path src-tauri/Cargo.toml
-}
-
 build() {
     cd pane-fm
     export RUSTUP_TOOLCHAIN=stable
+    bun install --frozen-lockfile
     bun run sync-icons
     cargo build --release --manifest-path src-tauri/Cargo.toml
 }
