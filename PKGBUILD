@@ -39,7 +39,6 @@ prepare() {
 build() {
     cd pane-fm
     export RUSTUP_TOOLCHAIN=stable
-    export CARGO_TARGET_DIR=target
     bun run sync-icons
     cargo build --release --manifest-path src-tauri/Cargo.toml
 }
