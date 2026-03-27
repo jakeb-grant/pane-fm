@@ -556,7 +556,7 @@ pub struct PdfPreview {
     pub page_count: u32,
 }
 
-/// Returns a cache path under `temp_dir/hyprfiles-{subdir}/{hash}.{ext}` and whether it is fresh.
+/// Returns a cache path under `temp_dir/pane-fm-{subdir}/{hash}.{ext}` and whether it is fresh.
 /// Fresh means the cached file exists and is newer than `source`.
 fn cached_path(
     source: &Path,
@@ -572,7 +572,7 @@ fn cached_path(
     extra_key.hash(&mut hasher);
     let hash = hasher.finish();
 
-    let dir = std::env::temp_dir().join(format!("hyprfiles-{subdir}"));
+    let dir = std::env::temp_dir().join(format!("pane-fm-{subdir}"));
     fs::create_dir_all(&dir)
         .map_err(|e| AppError::io_with_path(e, dir.display().to_string()))?;
     let out = dir.join(format!("{hash:x}.{ext}"));

@@ -1,4 +1,4 @@
-# hyprfiles — Development Roadmap
+# pane-fm — Development Roadmap
 
 ## Dependencies
 
@@ -189,7 +189,7 @@ The two features that justify this project's existence.
 
 ### Theming
 - [x] CSS-based theme system — app loads user CSS at runtime
-- [x] TOML config file for non-visual settings (~/.config/hyprfiles/config.toml)
+- [x] TOML config file for non-visual settings (~/.config/pane-fm/config.toml)
 - [x] CSS custom properties for all colors, spacing, fonts, radii, etc.
 - [x] Hot-reload themes (watch config/theme files, apply without restart)
 - [x] Ship 3 starter themes: dark minimal, catppuccin, nord
@@ -198,14 +198,14 @@ The two features that justify this project's existence.
 ### Drag and Drop
 - [x] Internal DnD — drag files to move/copy within the app
 - [x] Visual drag feedback (ghost element, drop indicators)
-- [x] External DnD out — drag files from hyprfiles to browsers/other apps (tauri-plugin-drag, edge detection)
-- [x] External DnD in — drop files from browsers/other apps into hyprfiles (Tauri onDragDropEvent)
+- [x] External DnD out — drag files from pane-fm to browsers/other apps (tauri-plugin-drag, edge detection)
+- [x] External DnD in — drop files from browsers/other apps into pane-fm (Tauri onDragDropEvent)
 - [x] Modifier keys (hold Ctrl to copy instead of move)
 - [x] Drag to trash with confirmation dialog
 
 ## Phase 4: Power Features
 
-Features that make hyprfiles a daily driver.
+Features that make pane-fm a daily driver.
 
 ### File Operations
 - [x] Bulk select with patterns (glob matching in filter + S to select filtered)

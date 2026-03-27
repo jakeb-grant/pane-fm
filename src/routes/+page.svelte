@@ -89,10 +89,10 @@ let configUnlisten: UnlistenFn | null = null;
 let currentThemeName: string | null = null;
 
 function applyThemeCss(css: string) {
-	let el = document.getElementById("hyprfiles-theme");
+	let el = document.getElementById("pane-fm-theme");
 	if (!el) {
 		el = document.createElement("style");
-		el.id = "hyprfiles-theme";
+		el.id = "pane-fm-theme";
 		document.head.appendChild(el);
 	}
 	el.textContent = css;

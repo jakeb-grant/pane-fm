@@ -22,7 +22,7 @@ export function setConfigDefaults(opts: typeof configDefaults): void {
 
 export function loadPreference<T>(key: string, fallback: T): T {
 	if (typeof window === "undefined") return fallback;
-	const stored = localStorage.getItem(`hyprfiles.${key}`);
+	const stored = localStorage.getItem(`pane-fm.${key}`);
 	if (stored === null) return fallback;
 	try {
 		return JSON.parse(stored) as T;
@@ -33,7 +33,7 @@ export function loadPreference<T>(key: string, fallback: T): T {
 
 export function savePreference(key: string, value: unknown): void {
 	if (typeof window === "undefined") return;
-	localStorage.setItem(`hyprfiles.${key}`, JSON.stringify(value));
+	localStorage.setItem(`pane-fm.${key}`, JSON.stringify(value));
 }
 
 export function createFileManager() {

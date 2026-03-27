@@ -43,9 +43,9 @@ pub fn resolve_theme_path(theme: &str) -> Option<std::path::PathBuf> {
     } else if let Some(rest) = theme.strip_prefix("~/") {
         dirs::home_dir()?.join(rest)
     } else {
-        // Bundled theme name — look in ~/.config/hyprfiles/themes/{theme}.css
+        // Bundled theme name — look in ~/.config/pane-fm/themes/{theme}.css
         dirs::config_dir()?
-            .join("hyprfiles")
+            .join("pane-fm")
             .join("themes")
             .join(format!("{theme}.css"))
     };
@@ -60,7 +60,7 @@ pub fn install_default_config() {
     let Some(config_dir) = dirs::config_dir() else {
         return;
     };
-    let dir = config_dir.join("hyprfiles");
+    let dir = config_dir.join("pane-fm");
     let path = dir.join("config.toml");
     if path.exists() {
         return;
@@ -73,7 +73,7 @@ pub fn load_config() -> AppConfig {
     let Some(config_dir) = dirs::config_dir() else {
         return AppConfig::default();
     };
-    let path = config_dir.join("hyprfiles").join("config.toml");
+    let path = config_dir.join("pane-fm").join("config.toml");
     let Ok(contents) = std::fs::read_to_string(&path) else {
         return AppConfig::default();
     };

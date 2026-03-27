@@ -61,7 +61,7 @@ pub fn install_default_themes() {
     let Some(config_dir) = dirs::config_dir() else {
         return;
     };
-    let themes_dir = config_dir.join("hyprfiles").join("themes");
+    let themes_dir = config_dir.join("pane-fm").join("themes");
     if themes_dir.exists() {
         return;
     }

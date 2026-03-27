@@ -1,10 +1,10 @@
-# hyprfiles
+# pane-fm
 
 A themeable file manager for Hyprland, built with Tauri, Svelte, and Rust.
 
 ## Why
 
-GTK file managers are held hostage by libadwaita's anti-theming philosophy. hyprfiles is a from-scratch file manager that you actually control the look of — just CSS.
+GTK file managers are held hostage by libadwaita's anti-theming philosophy. pane-fm is a from-scratch file manager that you actually control the look of — just CSS.
 
 ## Stack
 
@@ -27,7 +27,7 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. hypr
 - Recursive file search across subdirectories (`s`)
 - Command palette with fuzzy search (`Ctrl+Shift+P`)
 - Yazi-inspired keyboard navigation (vim keys + arrows, chords, visual mode)
-- Configurable keybinds and settings via `~/.config/hyprfiles/config.toml`
+- Configurable keybinds and settings via `~/.config/pane-fm/config.toml`
 - Default config with commented examples generated on first run
 - Context menu with "Open With" (reads `.desktop` files) and custom user actions
 - Preview panel with syntax highlighting (Web Worker), image thumbnailing, directory listing, and PDF preview
@@ -145,11 +145,11 @@ bunx biome check --write
 
 ## Theming
 
-hyprfiles uses CSS custom properties for all colors. Themes are plain CSS files that override `:root` variables — no special format, no build step.
+pane-fm uses CSS custom properties for all colors. Themes are plain CSS files that override `:root` variables — no special format, no build step.
 
 ### Setup
 
-Add `theme` to `~/.config/hyprfiles/config.toml`:
+Add `theme` to `~/.config/pane-fm/config.toml`:
 
 ```toml
 [general]
@@ -158,7 +158,7 @@ theme = "nord"
 
 ### Bundled themes
 
-Three starter themes are installed to `~/.config/hyprfiles/themes/` on first launch:
+Three starter themes are installed to `~/.config/pane-fm/themes/` on first launch:
 
 | Name | Description |
 |------|-------------|
@@ -178,7 +178,7 @@ theme = "~/my-themes/custom.css"
 A theme file is just `:root {}` overrides. Copy a starter theme and edit:
 
 ```css
-/* ~/.config/hyprfiles/themes/my-theme.css */
+/* ~/.config/pane-fm/themes/my-theme.css */
 :root {
     --bg-primary: #1a1a2e;
     --bg-secondary: #16213e;

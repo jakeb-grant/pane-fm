@@ -18,7 +18,7 @@ pub fn watch_config(app: AppHandle) -> Result<(), AppError> {
     let Some(config_dir) = dirs::config_dir() else {
         return Ok(());
     };
-    let watch_dir = config_dir.join("hyprfiles");
+    let watch_dir = config_dir.join("pane-fm");
     if !watch_dir.is_dir() {
         return Ok(());
     }

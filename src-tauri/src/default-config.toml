@@ -1,10 +1,10 @@
-# hyprfiles configuration
-# ~/.config/hyprfiles/config.toml
+# pane-fm configuration
+# ~/.config/pane-fm/config.toml
 #
 # Changes are applied automatically (hot-reload).
 
 [general]
-# Theme name (looks in ~/.config/hyprfiles/themes/{name}.css)
+# Theme name (looks in ~/.config/pane-fm/themes/{name}.css)
 # or an absolute/~ path to a CSS file.
 # Bundled themes: "nord", "catppuccin-mocha", "dark-minimal"
 # theme = "nord"

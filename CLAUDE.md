@@ -1,4 +1,4 @@
-# hyprfiles
+# pane-fm
 
 Themeable file manager for Hyprland. Tauri v2 (Rust) + SvelteKit / Svelte 5 + bun.
 

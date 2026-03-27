@@ -1,8 +1,8 @@
-# Hyprfiles Refactoring TODO
+# pane-fm Refactoring TODO
 
 ## Project Context
 
-**Hyprfiles** is a themeable file manager for Hyprland built with **Tauri v2** (Rust backend) + **SvelteKit / Svelte 5** (frontend) + **bun** (runtime/package manager). See `CLAUDE.md` for toolchain and conventions, `ROADMAP.md` for the full feature roadmap.
+**pane-fm** is a themeable file manager for Hyprland built with **Tauri v2** (Rust backend) + **SvelteKit / Svelte 5** (frontend) + **bun** (runtime/package manager). See `CLAUDE.md` for toolchain and conventions, `ROADMAP.md` for the full feature roadmap.
 
 ### Architecture Overview
 

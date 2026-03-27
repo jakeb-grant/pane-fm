@@ -1,12 +1,12 @@
 [package]
-name = "hyprfiles"
+name = "pane-fm"
 version = "0.1.0"
-description = "A themeable file manager for Hyprland"
+description = "A themeable file manager built with Tauri and Svelte"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "hyprfiles_lib"
+name = "pane_fm_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

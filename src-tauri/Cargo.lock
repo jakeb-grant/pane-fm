@@ -1816,34 +1816,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyprfiles"
-version = "0.1.0"
-dependencies = [
- "bzip2",
- "chrono",
- "dirs",
- "flate2",
- "image",
- "infer",
- "mime_guess",
- "notify",
- "serde",
- "serde_json",
- "tar",
- "tauri",
- "tauri-build",
- "tauri-plugin-drag",
- "tauri-plugin-opener",
- "tempfile",
- "tokio",
- "toml 0.8.2",
- "trash",
- "xz2",
- "zip",
- "zstd",
-]
-
-[[package]]
 name = "iana-time-zone"
 version = "0.1.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2860,6 +2832,34 @@ checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
 dependencies = [
  "futures-core",
  "pin-project-lite",
+]
+
+[[package]]
+name = "pane-fm"
+version = "0.1.0"
+dependencies = [
+ "bzip2",
+ "chrono",
+ "dirs",
+ "flate2",
+ "image",
+ "infer",
+ "mime_guess",
+ "notify",
+ "serde",
+ "serde_json",
+ "tar",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-drag",
+ "tauri-plugin-opener",
+ "tempfile",
+ "tokio",
+ "toml 0.8.2",
+ "trash",
+ "xz2",
+ "zip",
+ "zstd",
 ]
 
 [[package]]
