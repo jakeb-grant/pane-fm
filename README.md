@@ -9,6 +9,8 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. pane
 
 Heavily inspired by [yazi](https://github.com/sxyazi/yazi), which is incredible — if you want a terminal file manager, use yazi. pane-fm exists for people who want something between a traditional GUI file manager and a terminal-based one: vim keybinds and keyboard-first navigation, but with a visual preview panel, drag and drop, and a right-click menu.
 
+Is building a file manager on a webview a good idea? Probably not. But here we are, and it's actually pretty fast.
+
 ![pane-fm screenshot](assets/screenshot.png)
 
 ## Install
