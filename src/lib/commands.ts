@@ -87,6 +87,19 @@ export function readPdfPreview(path: string): Promise<PdfPreview> {
 	return invoke("read_pdf_preview", { path });
 }
 
+export interface ImageThumbnail {
+	image_path: string;
+	width: number;
+	height: number;
+}
+
+export function generateThumbnail(
+	path: string,
+	maxDim = 800,
+): Promise<ImageThumbnail> {
+	return invoke("generate_thumbnail", { path, maxDim });
+}
+
 export interface DriveEntry {
 	name: string;
 	path: string;

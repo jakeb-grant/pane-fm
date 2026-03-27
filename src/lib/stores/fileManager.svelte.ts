@@ -47,6 +47,102 @@ export function createFileManager() {
 	// Remembers last cursor position per directory
 	const cursorMemory = new Map<string, string>();
 
+	// Directory listing cache for instant navigation
+	const MAX_PREFETCH_CHILDREN = 10000;
+	const PREFETCH_CONCURRENCY = 4;
+	const SIBLING_CACHE_TTL = 30000;
+	const dirCache = new Map<
+		string,
+		{ entries: FileEntry[]; showHid: boolean; time: number; ancestor: boolean }
+	>();
+
+	function getCachedListing(path: string): FileEntry[] | null {
+		const cached = dirCache.get(path);
+		if (!cached) return null;
+		if (cached.showHid !== showHidden) return null;
+		// Ancestors never expire; siblings expire after TTL
+		if (!cached.ancestor && Date.now() - cached.time > SIBLING_CACHE_TTL) {
+			dirCache.delete(path);
+			return null;
+		}
+		return cached.entries;
+	}
+
+	function cacheListing(path: string, list: FileEntry[], ancestor = false) {
+		const existing = dirCache.get(path);
+		dirCache.set(path, {
+			entries: list,
+			showHid: showHidden,
+			time: Date.now(),
+			ancestor: ancestor || (existing?.ancestor ?? false),
+		});
+	}
+
+	// biome-ignore lint/suspicious/noEmptyBlockStatements: prefetch failures are intentionally ignored
+	const noopCatch = () => {};
+
+	// Dedup in-flight prefetch requests so navigate() can join an existing fetch
+	const inFlight = new Map<string, Promise<FileEntry[]>>();
+
+	function prefetchDirectory(path: string, ancestor = false): Promise<void> {
+		if (path === "trash://" || getCachedListing(path)) return Promise.resolve();
+		const existing = inFlight.get(path);
+		if (existing) return existing.then(noopCatch);
+		const p = listDirectory(path, showHidden);
+		inFlight.set(path, p);
+		return p
+			.then((list) => cacheListing(path, list, ancestor))
+			.catch(noopCatch)
+			.finally(() => inFlight.delete(path));
+	}
+
+	// Staggered prefetch for all subdirectories in current listing
+	let prefetchAbort: (() => void) | null = null;
+
+	function prefetchSubdirectories(list: FileEntry[], parentDir: string) {
+		if (prefetchAbort) {
+			prefetchAbort();
+			prefetchAbort = null;
+		}
+
+		const dirs = list.filter(
+			(e) =>
+				e.is_dir &&
+				!getCachedListing(e.path) &&
+				(e.children_count === null ||
+					e.children_count <= MAX_PREFETCH_CHILDREN),
+		);
+
+		let ancestor = parentDir;
+		while (true) {
+			const up = parentPath(ancestor);
+			if (up === ancestor) break;
+			prefetchDirectory(up, true);
+			ancestor = up;
+		}
+
+		if (dirs.length === 0) return;
+
+		let cancelled = false;
+		let idx = 0;
+		prefetchAbort = () => {
+			cancelled = true;
+		};
+
+		function nextBatch() {
+			if (cancelled || idx >= dirs.length) return;
+			const batch = dirs.slice(idx, idx + PREFETCH_CONCURRENCY);
+			idx += PREFETCH_CONCURRENCY;
+			Promise.allSettled(batch.map((e) => prefetchDirectory(e.path))).then(
+				() => {
+					if (!cancelled) nextBatch();
+				},
+			);
+		}
+
+		nextBatch();
+	}
+
 	// File state
 	let entries = $state<FileEntry[]>([]);
 	let drives = $state<{ name: string; path: string; icon: string }[]>([]);
@@ -157,6 +253,62 @@ export function createFileManager() {
 	const visualMode = $derived(visualAnchor !== null);
 
 	// Actions
+	function applyEntries(
+		path: string,
+		list: FileEntry[],
+		addToHistory: boolean,
+		selectAfter: string | null,
+	) {
+		entries = list;
+		currentPath = path;
+
+		if (addToHistory) {
+			history = [...history.slice(0, historyIndex + 1), path];
+			historyIndex = history.length - 1;
+		}
+
+		const remembered = cursorMemory.get(path);
+		const target = selectAfter
+			? list.find((e) => e.path === selectAfter || e.name === selectAfter)
+			: remembered
+				? list.find((e) => e.path === remembered)
+				: list[0];
+		if (target) select(target);
+		else if (list[0]) select(list[0]);
+
+		const dirPaths = list.filter((e) => e.is_dir).map((e) => e.path);
+		if (dirPaths.length > 0) {
+			fetchChildrenCounts(path, dirPaths);
+		}
+	}
+
+	async function backgroundRefresh(path: string) {
+		try {
+			const fresh =
+				path === "trash://"
+					? await listTrash()
+					: await (inFlight.get(path) ?? listDirectory(path, showHidden));
+			if (currentPath !== path) return;
+			cacheListing(path, fresh);
+			entries = fresh;
+			if (cursorPath) {
+				const entry = fresh.find((e) => e.path === cursorPath);
+				if (entry) {
+					cursorEntry = entry;
+				} else if (fresh.length > 0) {
+					select(fresh[0]);
+				} else {
+					cursorPath = null;
+					cursorEntry = null;
+				}
+			}
+			const dirPaths = fresh.filter((e) => e.is_dir).map((e) => e.path);
+			if (dirPaths.length > 0) fetchChildrenCounts(path, dirPaths);
+		} catch {
+			// Silent — cached data remains displayed
+		}
+	}
+
 	async function navigate(
 		path: string,
 		addToHistory = true,
@@ -167,42 +319,35 @@ export function createFileManager() {
 			cursorMemory.set(currentPath, cursorPath);
 		}
 
-		loading = true;
-		error = null;
 		cursorPath = null;
 		cursorEntry = null;
 		selectedPaths = new Set();
 		visualAnchor = null;
 		filterQuery = "";
+		error = null;
+
+		// Cache hit — render instantly, background refresh for freshness
+		const cached = getCachedListing(path);
+		if (cached) {
+			loading = false;
+			applyEntries(path, cached, addToHistory, selectAfter);
+			backgroundRefresh(path);
+			prefetchSubdirectories(cached, path);
+			return;
+		}
+
+		// Cache miss — full load with loading state
+		loading = true;
 
 		try {
-			if (path === "trash://") {
-				entries = await listTrash();
-			} else {
-				entries = await listDirectory(path, showHidden);
-			}
-			currentPath = path;
-
-			if (addToHistory) {
-				history = [...history.slice(0, historyIndex + 1), path];
-				historyIndex = history.length - 1;
-			}
-
-			// Auto-select: explicit target > remembered cursor > first entry
-			const remembered = cursorMemory.get(path);
-			const target = selectAfter
-				? entries.find((e) => e.path === selectAfter || e.name === selectAfter)
-				: remembered
-					? entries.find((e) => e.path === remembered)
-					: entries[0];
-			if (target) select(target);
-			else if (entries[0]) select(entries[0]);
-
-			// Fetch children counts async so the list appears instantly
-			const dirPaths = entries.filter((e) => e.is_dir).map((e) => e.path);
-			if (dirPaths.length > 0) {
-				fetchChildrenCounts(path, dirPaths);
-			}
+			// Join an in-flight prefetch if one exists, otherwise start a new fetch
+			const list =
+				path === "trash://"
+					? await listTrash()
+					: await (inFlight.get(path) ?? listDirectory(path, showHidden));
+			cacheListing(path, list, true);
+			applyEntries(path, list, addToHistory, selectAfter);
+			prefetchSubdirectories(list, path);
 		} catch (e) {
 			error = errorMessage(e) ?? String(e);
 		} finally {
@@ -246,6 +391,7 @@ export function createFileManager() {
 	}
 
 	function refresh() {
+		dirCache.delete(currentPath);
 		return navigate(currentPath, false);
 	}
 
@@ -263,6 +409,7 @@ export function createFileManager() {
 	function toggleHidden() {
 		showHidden = !showHidden;
 		savePreference("showHidden", showHidden);
+		dirCache.clear();
 		navigate(currentPath, false);
 	}
 
@@ -617,6 +764,7 @@ export function createFileManager() {
 				300,
 			);
 		},
+		prefetchDirectory,
 		setError,
 		init,
 		applyConfigDefaults() {

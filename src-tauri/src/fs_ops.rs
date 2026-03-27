@@ -553,35 +553,47 @@ pub struct PdfPreview {
     pub page_count: u32,
 }
 
-pub fn render_pdf_preview(path: &Path) -> Result<PdfPreview, AppError> {
+/// Returns a cache path under `temp_dir/hyprfiles-{subdir}/{hash}.{ext}` and whether it is fresh.
+/// Fresh means the cached file exists and is newer than `source`.
+fn cached_path(
+    source: &Path,
+    subdir: &str,
+    ext: &str,
+    extra_key: &str,
+) -> Result<(PathBuf, bool), AppError> {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
-    let path_str = path.display().to_string();
-
-    // Deterministic temp path based on source file path
     let mut hasher = DefaultHasher::new();
-    path_str.hash(&mut hasher);
+    source.display().to_string().hash(&mut hasher);
+    extra_key.hash(&mut hasher);
     let hash = hasher.finish();
-    let temp_dir = std::env::temp_dir().join("hyprfiles-pdf");
-    fs::create_dir_all(&temp_dir)
-        .map_err(|e| AppError::io_with_path(e, temp_dir.display().to_string()))?;
-    let output_prefix = temp_dir.join(format!("{hash:x}"));
-    let output_png = temp_dir.join(format!("{hash:x}.png"));
 
-    // Check cache: if PNG exists and is newer than the PDF, skip rendering
-    if output_png.exists() {
-        if let (Ok(pdf_meta), Ok(png_meta)) = (fs::metadata(path), fs::metadata(&output_png)) {
-            if let (Ok(pdf_mod), Ok(png_mod)) = (pdf_meta.modified(), png_meta.modified()) {
-                if png_mod >= pdf_mod {
-                    let page_count = get_pdf_page_count(path);
-                    return Ok(PdfPreview {
-                        image_path: output_png.display().to_string(),
-                        page_count,
-                    });
-                }
-            }
-        }
+    let dir = std::env::temp_dir().join(format!("hyprfiles-{subdir}"));
+    fs::create_dir_all(&dir)
+        .map_err(|e| AppError::io_with_path(e, dir.display().to_string()))?;
+    let out = dir.join(format!("{hash:x}.{ext}"));
+
+    let fresh = out.exists()
+        && fs::metadata(source)
+            .and_then(|src| fs::metadata(&out).map(|dst| (src, dst)))
+            .and_then(|(src, dst)| Ok(dst.modified()? >= src.modified()?))
+            .unwrap_or(false);
+
+    Ok((out, fresh))
+}
+
+pub fn render_pdf_preview(path: &Path) -> Result<PdfPreview, AppError> {
+    let path_str = path.display().to_string();
+    let (output_png, fresh) = cached_path(path, "pdf", "png", "")?;
+    let output_prefix = output_png.with_extension("");
+
+    if fresh {
+        let page_count = get_pdf_page_count(path);
+        return Ok(PdfPreview {
+            image_path: output_png.display().to_string(),
+            page_count,
+        });
     }
 
     // Render first page to PNG
@@ -648,6 +660,58 @@ fn get_pdf_page_count(path: &Path) -> u32 {
                 .and_then(|l| l.split_whitespace().last()?.parse().ok())
         })
         .unwrap_or(0)
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct ImageThumbnail {
+    pub image_path: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+pub fn generate_thumbnail(path: &Path, max_dim: u32) -> Result<ImageThumbnail, AppError> {
+    let path_str = path.display().to_string();
+    let (output_png, fresh) = cached_path(path, "thumbs", "png", &max_dim.to_string())?;
+
+    if fresh {
+        // Dimensions encoded in cached filename would be ideal, but parsing the
+        // PNG header via image_dimensions is a single small read — acceptable.
+        let (width, height) =
+            image::image_dimensions(&output_png).map_err(|e| AppError::Desktop {
+                message: format!("Failed to read cached thumbnail: {e}"),
+            })?;
+        return Ok(ImageThumbnail {
+            image_path: output_png.display().to_string(),
+            width,
+            height,
+        });
+    }
+
+    let img = image::open(path)
+        .map_err(|e| AppError::io_with_path(std::io::Error::other(e), path_str))?;
+
+    let (orig_w, orig_h) = (img.width(), img.height());
+    let scale = f64::from(max_dim) / f64::from(orig_w.max(orig_h));
+    let (new_w, new_h) = if scale >= 1.0 {
+        (orig_w, orig_h)
+    } else {
+        (
+            (f64::from(orig_w) * scale).round() as u32,
+            (f64::from(orig_h) * scale).round() as u32,
+        )
+    };
+
+    let thumb = img.resize_exact(new_w, new_h, image::imageops::FilterType::Triangle);
+
+    thumb.save(&output_png).map_err(|e| AppError::Desktop {
+        message: format!("Failed to save thumbnail: {e}"),
+    })?;
+
+    Ok(ImageThumbnail {
+        image_path: output_png.display().to_string(),
+        width: thumb.width(),
+        height: thumb.height(),
+    })
 }
 
 pub fn chmod_entry(path: &Path, mode: u32) -> Result<(), AppError> {

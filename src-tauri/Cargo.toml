@@ -32,6 +32,7 @@ bzip2 = "0.5"
 toml = "0.8"
 notify = "7"
 tauri-plugin-drag = "2.1.0"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "avif", "bmp"] }
 
 [dev-dependencies]
 tempfile = "3"

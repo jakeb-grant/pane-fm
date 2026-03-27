@@ -38,7 +38,17 @@ const isPdf = $derived(
 const pdfImageUrl = $derived(
 	isPdf && pdfPreview ? convertFileSrc(pdfPreview.image_path) : null,
 );
-const hlines = $derived(highlightedHtml ? highlightedHtml.split("\n") : []);
+const MAX_PREVIEW_LINES = 200;
+const hlines = $derived.by(() => {
+	if (!highlightedHtml)
+		return { html: "", gutter: "", count: 0, capped: false };
+	const lines = highlightedHtml.split("\n");
+	const capped = lines.length > MAX_PREVIEW_LINES;
+	const visible = capped ? lines.slice(0, MAX_PREVIEW_LINES) : lines;
+	const count = visible.length;
+	const gutter = Array.from({ length: count }, (_, i) => i + 1).join("\n");
+	return { html: visible.join("\n"), gutter, count, capped };
+});
 
 let dragging = $state(false);
 
@@ -107,23 +117,23 @@ function onpointerdown(e: PointerEvent) {
 				<span class="preview-filename">{entry.name}</span>
 				<span class="preview-detail">{pdfPreview?.page_count} page{pdfPreview?.page_count !== 1 ? 's' : ''}</span>
 			</div>
-		{:else if previewData && !previewData.is_binary && hlines.length > 0}
+		{:else if previewData && !previewData.is_binary && hlines.count > 0}
 			<div class="preview-text">
 				<div class="code-wrap">
-					<pre class="gutter">{#each hlines as _, i}{i + 1}
-{/each}</pre>
-					<pre class="code-content"><code>{#each hlines as line, i}{@html line}
-{/each}</code></pre>
+					<pre class="gutter">{hlines.gutter}</pre>
+					<pre class="code-content"><code>{@html hlines.html}</code></pre>
 				</div>
 			</div>
 			<div class="preview-footer">
 				<FileIcon src={icon} size={16} />
 				<span class="preview-filename">{entry.name}</span>
-				<span class="preview-detail">{formatSize(entry.size)}{#if previewData.truncated} (truncated){/if}</span>
+				<span class="preview-detail">{formatSize(entry.size)}{#if previewData.truncated || hlines.capped} (truncated){/if}</span>
 			</div>
 		{:else if dirPreviewEntries}
+			{@const maxDirEntries = 100}
+			{@const visibleDirEntries = dirPreviewEntries.length > maxDirEntries ? dirPreviewEntries.slice(0, maxDirEntries) : dirPreviewEntries}
 			<div class="preview-dir">
-				{#each dirPreviewEntries as child (child.path)}
+				{#each visibleDirEntries as child (child.path)}
 					<div class="dir-entry">
 						<FileIcon src={getIconForEntry(child)} size={16} />
 						<span class="dir-entry-name" class:dir={child.is_dir}>{child.name}</span>
@@ -324,6 +334,7 @@ function onpointerdown(e: PointerEvent) {
 	.code-content code {
 		display: block;
 		margin-left: 4px;
+		content-visibility: auto;
 	}
 
 </style>

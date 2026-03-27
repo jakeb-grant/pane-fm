@@ -15,6 +15,7 @@ import type {
 import {
 	type AppConfig,
 	cancelSearch,
+	generateThumbnail,
 	getConfig,
 	getDragIcon,
 	listDirectory,
@@ -72,6 +73,7 @@ import {
 	matchesKeybind,
 	resetKeybinds,
 } from "$lib/keybinds";
+import { type CachedPreview, previewCache } from "$lib/previewCache";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
 import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
 import { createTabManager } from "$lib/stores/tabs.svelte";
@@ -164,6 +166,12 @@ $effect(() => {
 	if (fm.currentPath) tabs.persistTabs();
 });
 
+// Prefetch directory under cursor for instant Enter/l navigation
+$effect(() => {
+	const entry = fm.cursorEntry;
+	if (entry?.is_dir) fm.prefetchDirectory(entry.path);
+});
+
 // Preview panel state
 let previewData = $state<FilePreview | null>(null);
 let pdfPreview = $state<PdfPreview | null>(null);
@@ -175,16 +183,205 @@ let dirPreviewEntries = $state<FileEntry[] | null>(null);
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
 let previewGen = 0;
 
+let prefetchGen = 0;
+const pendingPrefetch = new Map<
+	number,
+	{ path: string; mtime: string; data: FilePreview }
+>();
+
 const hlWorker = new Worker(
 	new URL("$lib/highlightWorker.ts", import.meta.url),
 	{ type: "module" },
 );
 hlWorker.onmessage = (e: MessageEvent<HighlightResponse>) => {
-	if (e.data.gen === previewGen) {
-		highlightedHtml = e.data.html;
+	const { html, gen } = e.data;
+
+	if (gen === previewGen) {
+		highlightedHtml = html;
 		previewLoading = false;
+		if (activePreviewEntry && previewData) {
+			previewCache.set(activePreviewEntry.path, activePreviewEntry.modified, {
+				type: "text",
+				data: previewData,
+				html,
+			});
+		}
+	} else {
+		const pending = pendingPrefetch.get(gen);
+		if (pending) {
+			previewCache.set(pending.path, pending.mtime, {
+				type: "text",
+				data: pending.data,
+				html,
+			});
+			pendingPrefetch.delete(gen);
+		}
 	}
 };
+
+let activePreviewEntry: FileEntry | null = null;
+
+function clearPreviewState() {
+	previewData = null;
+	pdfPreview = null;
+	highlightedHtml = null;
+	imagePreviewUrl = null;
+	dirPreviewEntries = null;
+	previewError = null;
+}
+
+function applyCachedPreview(cached: CachedPreview) {
+	clearPreviewState();
+	previewLoading = false;
+	switch (cached.type) {
+		case "text":
+			previewData = cached.data;
+			highlightedHtml = cached.html;
+			break;
+		case "dir":
+			dirPreviewEntries = cached.entries;
+			break;
+		case "image":
+			imagePreviewUrl = cached.url;
+			break;
+		case "pdf":
+			pdfPreview = cached.data;
+			break;
+		case "none":
+			break;
+	}
+}
+
+// biome-ignore lint/suspicious/noEmptyBlockStatements: prefetch failures are intentionally ignored
+const noop = () => {};
+
+function prefetchAdjacent(current: FileEntry) {
+	const list = fm.filteredEntries;
+	const idx = list.findIndex((e) => e.path === current.path);
+	if (idx < 0) return;
+
+	for (const adj of [list[idx - 1], list[idx + 1]]) {
+		if (!adj) continue;
+		if (previewCache.get(adj.path, adj.modified)) continue;
+
+		if (adj.is_dir) {
+			listDirectory(adj.path, fm.showHidden)
+				.then((entries) =>
+					previewCache.set(adj.path, adj.modified, {
+						type: "dir",
+						entries,
+					}),
+				)
+				.catch(noop);
+		} else if (isTextPreviewable(adj.mime_type, adj.name)) {
+			readFilePreview(adj.path)
+				.then((data) => {
+					if (data.is_binary || !data.content) {
+						previewCache.set(adj.path, adj.modified, { type: "none" });
+						return;
+					}
+					const pgen = --prefetchGen;
+					// Cap pending map to prevent leaks from dropped worker messages
+					if (pendingPrefetch.size > 20) pendingPrefetch.clear();
+					pendingPrefetch.set(pgen, {
+						path: adj.path,
+						mtime: adj.modified,
+						data,
+					});
+					hlWorker.postMessage({
+						code: data.content,
+						filename: adj.name,
+						gen: pgen,
+					});
+				})
+				.catch(noop);
+		} else if (isImagePreviewable(adj.mime_type)) {
+			if (adj.mime_type === "image/svg+xml") {
+				const url = convertFileSrc(adj.path);
+				previewCache.set(adj.path, adj.modified, { type: "image", url });
+			} else {
+				generateThumbnail(adj.path)
+					.then((thumb) => {
+						const url = convertFileSrc(thumb.image_path);
+						previewCache.set(adj.path, adj.modified, {
+							type: "image",
+							url,
+						});
+						const img = new Image();
+						img.src = url;
+					})
+					.catch(noop);
+			}
+		} else if (isPdfPreviewable(adj.mime_type)) {
+			readPdfPreview(adj.path)
+				.then((data) =>
+					previewCache.set(adj.path, adj.modified, { type: "pdf", data }),
+				)
+				.catch(noop);
+		}
+	}
+}
+
+async function loadPreview(entry: FileEntry, gen: number) {
+	if (gen !== previewGen) return;
+	const { mime_type: mime, path, name } = entry;
+
+	if (entry.is_dir) {
+		try {
+			const entries = await listDirectory(path, fm.showHidden);
+			if (gen !== previewGen) return;
+			dirPreviewEntries = entries;
+			previewCache.set(path, entry.modified, { type: "dir", entries });
+		} catch {
+			if (gen !== previewGen) return;
+		}
+	} else if (isTextPreviewable(mime, name)) {
+		try {
+			const data = await readFilePreview(path);
+			if (gen !== previewGen) return;
+			previewData = data;
+			if (data.is_binary || !data.content) {
+				previewCache.set(path, entry.modified, { type: "none" });
+			} else {
+				activePreviewEntry = entry;
+				hlWorker.postMessage({ code: data.content, filename: name, gen });
+				return; // Worker callback handles previewLoading + caching
+			}
+		} catch (e) {
+			if (gen !== previewGen) return;
+			previewError = errorMessage(e) ?? "Failed to load preview";
+		}
+	} else if (isImagePreviewable(mime)) {
+		let url: string;
+		if (mime === "image/svg+xml") {
+			if (gen !== previewGen) return;
+			url = convertFileSrc(path);
+		} else {
+			try {
+				const thumb = await generateThumbnail(path);
+				if (gen !== previewGen) return;
+				url = convertFileSrc(thumb.image_path);
+			} catch {
+				if (gen !== previewGen) return;
+				url = convertFileSrc(path);
+			}
+		}
+		imagePreviewUrl = url;
+		previewCache.set(path, entry.modified, { type: "image", url });
+	} else if (isPdfPreviewable(mime)) {
+		try {
+			const data = await readPdfPreview(path);
+			if (gen !== previewGen) return;
+			pdfPreview = data;
+			previewCache.set(path, entry.modified, { type: "pdf", data });
+		} catch (e) {
+			if (gen !== previewGen) return;
+			previewError = errorMessage(e) ?? "Failed to load PDF preview";
+		}
+	}
+
+	previewLoading = false;
+}
 
 $effect(() => {
 	const entry = fm.cursorEntry;
@@ -193,82 +390,29 @@ $effect(() => {
 	const gen = ++previewGen;
 
 	if (!enabled || !entry) {
-		previewData = null;
-		pdfPreview = null;
-		highlightedHtml = null;
-		imagePreviewUrl = null;
-		dirPreviewEntries = null;
+		clearPreviewState();
 		previewLoading = false;
-		previewError = null;
+		activePreviewEntry = null;
 		return;
 	}
 
-	const mime = entry.mime_type;
-	const path = entry.path;
-	const name = entry.name;
-
-	previewData = null;
-	pdfPreview = null;
-	highlightedHtml = null;
-	imagePreviewUrl = null;
-	dirPreviewEntries = null;
-	previewError = null;
-	previewLoading = true;
-
-	if (entry.is_dir) {
-		previewTimer = setTimeout(() => {
-			listDirectory(path, fm.showHidden)
-				.then((entries) => {
-					if (gen !== previewGen) return;
-					dirPreviewEntries = entries;
-					previewLoading = false;
-				})
-				.catch(() => {
-					if (gen !== previewGen) return;
-					previewLoading = false;
-				});
-		}, 250);
-	} else if (isTextPreviewable(mime, name)) {
-		previewTimer = setTimeout(() => {
-			readFilePreview(path)
-				.then((data) => {
-					if (gen !== previewGen) return;
-					previewData = data;
-					if (data.is_binary || !data.content) {
-						previewLoading = false;
-						return;
-					}
-					hlWorker.postMessage({ code: data.content, filename: name, gen });
-				})
-				.catch((e) => {
-					if (gen !== previewGen) return;
-					previewError = errorMessage(e) ?? "Failed to load preview";
-					previewLoading = false;
-				});
-		}, 250);
-	} else if (!entry.is_dir && isImagePreviewable(mime)) {
-		previewTimer = setTimeout(() => {
-			if (gen !== previewGen) return;
-			imagePreviewUrl = convertFileSrc(path);
-			previewLoading = false;
-		}, 250);
-	} else if (!entry.is_dir && isPdfPreviewable(mime)) {
-		previewTimer = setTimeout(() => {
-			readPdfPreview(path)
-				.then((data) => {
-					if (gen !== previewGen) return;
-					pdfPreview = data;
-					previewLoading = false;
-				})
-				.catch((e) => {
-					if (gen !== previewGen) return;
-					previewError = errorMessage(e) ?? "Failed to load PDF preview";
-					previewLoading = false;
-				});
-		}, 250);
-	} else {
-		previewLoading = false;
+	const cached = previewCache.get(entry.path, entry.modified);
+	if (cached) {
+		applyCachedPreview(cached);
+		activePreviewEntry = entry;
+		prefetchAdjacent(entry);
+		return;
 	}
+
+	clearPreviewState();
+	previewLoading = true;
+	activePreviewEntry = entry;
+
+	previewTimer = setTimeout(() => {
+		loadPreview(entry, gen).then(() => {
+			if (gen === previewGen) prefetchAdjacent(entry);
+		});
+	}, 250);
 
 	return () => clearTimeout(previewTimer);
 });
