@@ -17,7 +17,7 @@ optdepends=(
     'nerd-fonts: file/folder icons'
     'inter-font: UI font'
 )
-makedepends=('cargo' 'bun' 'git' 'pkgconf')
+makedepends=('cargo' 'bun' 'git' 'pkgconf' 'zstd' 'xz' 'bzip2')
 provides=('pane-fm')
 conflicts=('pane-fm')
 source=("git+https://github.com/jakeb-grant/pane-fm.git")
