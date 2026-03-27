@@ -29,7 +29,9 @@ jobs:
         run: bun run sync-icons
 
       - name: Build release binary
-        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+        run: |
+          bun run sync-icons
+          bun run tauri build
 
       - name: Create tarball
         run: |

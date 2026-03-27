@@ -34,7 +34,7 @@ build() {
     export RUSTUP_TOOLCHAIN=stable
     bun install --frozen-lockfile
     bun run sync-icons
-    cargo build --release --manifest-path src-tauri/Cargo.toml
+    bun run tauri build
 }
 
 package() {
