@@ -20,7 +20,7 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. hypr
 - Compress and extract archives (zip, tar.gz, tar.xz, tar.zst, tar.bz2) with progress and cancellation
 - Async file operations (copy, move, delete, empty trash) with progress bar and cancellation
 - Sortable list view with directory item counts
-- Sidebar with XDG bookmarks and mounted drives
+- Sidebar with XDG bookmarks, mounted/unmounted drives (click-to-mount via udisks2)
 - Tabs with vim-style switching (`gt`/`gT`, `1`-`9`) and session restore
 - Back/forward/up navigation with history
 - Fuzzy filter within current directory
@@ -30,7 +30,9 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. hypr
 - Configurable keybinds and settings via `~/.config/hyprfiles/config.toml`
 - Default config with commented examples generated on first run
 - Context menu with "Open With" (reads `.desktop` files) and custom user actions
-- Text, image, and PDF preview panel (toggleable with `P`)
+- Preview panel with syntax highlighting (Web Worker), image thumbnailing, directory listing, and PDF preview
+- Preview cache (LRU, 5MB) with adjacent entry prefetch for instant navigation
+- Directory listing cache with aggressive prefetch (all subdirs + ancestor chain)
 - Material Icon Theme SVGs (~1,100 colorful file/folder icons with light/dark mode)
 - File properties dialog with async directory stats
 - Hidden files toggle
@@ -43,6 +45,9 @@ GTK file managers are held hostage by libadwaita's anti-theming philosophy. hypr
 - Symlink creation
 - Config hot-reload (keybinds, theme, settings, custom actions update live)
 - Filesystem watching (live directory updates)
+- `$EDITOR` integration (text files open with your editor, fallback to xdg-open)
+- Responsive layout (columns, preview panel, and sidebar adapt to window width)
+- Smooth transitions on all dialogs, overlays, and panels
 
 See [ROADMAP.md](ROADMAP.md) for planned features.
 
@@ -62,7 +67,11 @@ src/                              # Frontend (Svelte 5)
 │   ├── contextMenu.ts            # Context menu item builders
 │   ├── commands.ts               # Tauri IPC wrappers
 │   ├── errors.ts                 # Structured error types + helpers
-│   ├── constants.ts              # Shared constants
+│   ├── constants.ts              # Shared constants + text/image/PDF detection
+│   ├── highlight.ts              # Syntax highlighting (highlight.js language maps)
+│   ├── highlightWorker.ts        # Web Worker for non-blocking syntax highlighting
+│   ├── previewCache.ts           # LRU preview cache (5MB, mtime-validated)
+│   ├── transitions.ts            # Shared transition functions (fade, pop, fly)
 │   ├── icons.ts                  # Material Icon Theme SVG lookup
 │   ├── icons.gen.ts              # Generated icon maps (from sync-icons script)
 │   ├── utils.ts                  # Path/format helpers
@@ -71,9 +80,9 @@ src/                              # Frontend (Svelte 5)
 │       ├── FileIcon.svelte       # SVG icon component
 │       ├── fileEditLogic.svelte.ts # Shared rename/create logic
 │       ├── Breadcrumb.svelte     # Clickable path breadcrumb
-│       ├── Toolbar.svelte        # Nav controls + breadcrumb host
+│       ├── Toolbar.svelte        # Navigation controls + breadcrumb
 │       ├── TabBar.svelte         # Tab strip
-│       ├── StatusBar.svelte      # Selection/clipboard info
+│       ├── StatusBar.svelte      # Item count, view toggles, selection/clipboard overlay
 │       ├── FilterBar.svelte      # Fuzzy filter input
 │       ├── SearchOverlay.svelte  # Recursive file search
 │       ├── CommandPalette.svelte # Ctrl+Shift+P command palette
@@ -81,7 +90,7 @@ src/                              # Frontend (Svelte 5)
 │       ├── Sidebar.svelte        # Places/drives sidebar
 │       ├── ContextMenu.svelte    # Right-click menu
 │       ├── FolderPicker.svelte   # Folder selection dialog
-│       ├── PreviewPanel.svelte   # Text/image/PDF file preview
+│       ├── PreviewPanel.svelte   # Text/image/PDF/directory preview with caching
 │       ├── CompressDialog.svelte # Archive format + name dialog
 │       ├── ConfirmDialog.svelte  # Yes/no confirmation
 │       ├── HelpDialog.svelte     # Keybind reference (?)
@@ -101,7 +110,7 @@ src-tauri/src/                    # Backend (Rust)
     ├── apps.rs                   # Open files, .desktop file parsing, Open With
     ├── search.rs                 # Recursive file search with streaming results
     ├── trash.rs                  # Freedesktop trash list/restore/empty
-    ├── drives.rs                 # Mounted drive detection
+    ├── drives.rs                 # Drive detection (lsblk) + mount (udisksctl)
     ├── watcher.rs                # Filesystem watching for live directory updates
     └── theme.rs                  # Theme loading, file watching, default theme installation
 ```
@@ -112,6 +121,8 @@ Requires:
 - [Rust](https://rustup.rs/)
 - [Bun](https://bun.sh/)
 - `webkit2gtk-4.1` (Arch: `sudo pacman -S webkit2gtk-4.1`)
+- `udisks2` for drive mounting (Arch: `sudo pacman -S udisks2`)
+- `poppler` for PDF preview (Arch: `sudo pacman -S poppler`)
 
 ```bash
 bun install
