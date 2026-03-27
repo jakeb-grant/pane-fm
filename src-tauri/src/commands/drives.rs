@@ -1,98 +1,194 @@
+use crate::error::AppError;
 use crate::fs_ops::DriveEntry;
-use std::io::BufRead;
+use serde::Deserialize;
 use std::path::Path;
+
+#[derive(Deserialize)]
+struct LsblkOutput {
+    blockdevices: Vec<LsblkDevice>,
+}
+
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct LsblkDevice {
+    name: String,
+    label: Option<String>,
+    fstype: Option<String>,
+    mountpoint: Option<String>,
+    size: Option<String>,
+    rm: Option<bool>,
+    #[serde(rename = "type")]
+    devtype: Option<String>,
+    children: Option<Vec<LsblkDevice>>,
+}
+
+const SKIP_FS: &[&str] = &["swap", "crypto_LUKS"];
+
+const REAL_FS: &[&str] = &[
+    "ext2", "ext3", "ext4", "btrfs", "xfs", "zfs", "f2fs", "bcachefs", "ntfs", "ntfs3", "vfat",
+    "exfat", "fuseblk", "nfs", "nfs4", "cifs", "smb3", "fuse.sshfs", "fuse.rclone",
+    "fuse.mergerfs",
+];
 
 #[tauri::command]
 pub fn list_drives() -> Vec<DriveEntry> {
-    let mut drives = Vec::new();
-
-    let Ok(file) = std::fs::File::open("/proc/mounts") else {
-        return drives;
+    let Ok(output) = std::process::Command::new("lsblk")
+        .args(["-Jpo", "NAME,LABEL,FSTYPE,MOUNTPOINT,SIZE,RM,TYPE"])
+        .output()
+    else {
+        return Vec::new();
     };
 
-    // Only show mounts under user-facing paths
-    let user_mount_prefixes = ["/media/", "/mnt/", "/run/media/"];
+    let Ok(parsed) = serde_json::from_slice::<LsblkOutput>(&output.stdout) else {
+        return Vec::new();
+    };
 
-    // Real on-disk/network filesystem types worth showing
-    let real_fs = [
-        "ext2", "ext3", "ext4", "btrfs", "xfs", "zfs", "f2fs", "bcachefs",
-        "ntfs", "ntfs3", "vfat", "exfat", "fuseblk",
-        "nfs", "nfs4", "cifs", "smb3",
-        "fuse.sshfs", "fuse.rclone", "fuse.mergerfs",
-    ];
+    // Find root device to skip its other partitions
+    let root_device = find_root_device(&parsed.blockdevices);
 
-    // First pass: find the root device so we can skip its subvolumes
-    let mut root_device = String::new();
-    let lines: Vec<String> = std::io::BufReader::new(file)
-        .lines()
-        .map_while(Result::ok)
-        .collect();
-
-    for line in &lines {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 2 && parts[1] == "/" {
-            root_device = parts[0].to_string();
-            break;
-        }
-    }
-
-    for line in &lines {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 3 {
-            continue;
-        }
-
-        let device = parts[0];
-        let mount = parts[1];
-        let fstype = parts[2];
-
-        // Skip root and boot partitions
-        if mount == "/" || mount.starts_with("/boot") || mount.starts_with("/efi") {
-            continue;
-        }
-
-        // Skip subvolumes/partitions on the same device as root
-        if !root_device.is_empty() && device == root_device {
-            continue;
-        }
-
-        // Include if it's under a user mount path, or if it's a real FS on a block device
-        let is_user_mount = user_mount_prefixes.iter().any(|p| mount.starts_with(p));
-        let is_real_fs = real_fs.contains(&fstype) && device.starts_with("/dev/");
-
-        if !is_user_mount && !is_real_fs {
-            continue;
-        }
-
-        let name = Path::new(mount)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| mount.to_string());
-
-        let removable = is_removable(device);
-
-        drives.push(DriveEntry {
-            name,
-            path: mount.to_string(),
-            fstype: fstype.to_string(),
-            removable,
-        });
-    }
-
+    let mut drives = Vec::new();
+    collect_drives(&parsed.blockdevices, &root_device, &mut drives);
     drives
 }
 
-fn is_removable(device: &str) -> bool {
-    let dev_name = Path::new(device)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
+fn find_root_device(devices: &[LsblkDevice]) -> String {
+    for dev in devices {
+        if let Some(children) = &dev.children {
+            for child in children {
+                if child.mountpoint.as_deref() == Some("/") {
+                    return dev.name.clone();
+                }
+                // Check nested (e.g. LUKS -> btrfs mounted at /)
+                if let Some(grandchildren) = &child.children {
+                    for gc in grandchildren {
+                        if gc.mountpoint.as_deref() == Some("/") {
+                            return dev.name.clone();
+                        }
+                    }
+                }
+            }
+        }
+    }
+    String::new()
+}
+
+fn collect_drives(devices: &[LsblkDevice], root_device: &str, out: &mut Vec<DriveEntry>) {
+    for dev in devices {
+        // Skip the root disk entirely
+        if !root_device.is_empty() && dev.name == root_device {
+            continue;
+        }
+
+        if let Some(children) = &dev.children {
+            for child in children {
+                if let Some(entry) = partition_to_drive(child, dev) {
+                    out.push(entry);
+                }
+                // Handle nested devices (LVM, LUKS containers on external drives)
+                if let Some(grandchildren) = &child.children {
+                    for gc in grandchildren {
+                        if let Some(entry) = partition_to_drive(gc, dev) {
+                            out.push(entry);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+const SYSTEM_MOUNTS: &[&str] = &[
+    "/", "/boot", "/efi", "/home", "/tmp", "/var", "/usr", "/opt", "/srv", "/root",
+];
+
+fn is_system_mount(mountpoint: &str) -> bool {
+    SYSTEM_MOUNTS.iter().any(|&prefix| {
+        mountpoint == prefix || (prefix != "/" && mountpoint.starts_with(&format!("{prefix}/")))
+    })
+}
+
+fn partition_to_drive(part: &LsblkDevice, parent: &LsblkDevice) -> Option<DriveEntry> {
+    let fstype = part.fstype.as_deref()?;
+
+    if SKIP_FS.contains(&fstype) {
+        return None;
+    }
+
+    // Skip system mounts (root, home, var, boot, etc.)
+    if let Some(mp) = &part.mountpoint {
+        if is_system_mount(mp) {
+            return None;
+        }
+    }
+
+    if !REAL_FS.contains(&fstype) {
+        return None;
+    }
+
+    let mounted = part.mountpoint.is_some();
+    let path = part.mountpoint.clone().unwrap_or_default();
+
+    let name = part
+        .label
+        .clone()
+        .filter(|l| !l.is_empty())
+        .unwrap_or_else(|| {
+            Path::new(&part.name)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| part.name.clone())
+        });
+
+    let removable = parent.rm.unwrap_or(false);
+
+    Some(DriveEntry {
+        name,
+        path,
+        device: part.name.clone(),
+        fstype: fstype.to_string(),
+        removable,
+        mounted,
+        size: part.size.clone().unwrap_or_default(),
+    })
+}
+
+#[tauri::command]
+pub async fn mount_drive(device: String) -> Result<String, AppError> {
+    let output = tokio::task::spawn_blocking(move || {
+        std::process::Command::new("udisksctl")
+            .args(["mount", "-b", &device, "--no-interaction"])
+            .output()
+    })
+    .await
+    .map_err(|e| AppError::Desktop {
+        message: format!("Task join error: {e}"),
+    })?
+    .map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            AppError::Desktop {
+                message: "Mounting requires udisks2 (pacman -S udisks2)".to_string(),
+            }
+        } else {
+            AppError::Desktop {
+                message: format!("Failed to run udisksctl: {e}"),
+            }
+        }
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Desktop {
+            message: format!("Mount failed: {stderr}"),
+        });
+    }
+
+    // Parse mount point from output: "Mounted /dev/sda1 at /run/media/jacob/Elements."
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mount_point = stdout
+        .split(" at ")
+        .nth(1)
+        .map(|s| s.trim().trim_end_matches('.').to_string())
         .unwrap_or_default();
 
-    // Strip partition number to get the base device (sda1 -> sda)
-    let base = dev_name.trim_end_matches(|c: char| c.is_ascii_digit());
-
-    let removable_path = format!("/sys/block/{base}/removable");
-    std::fs::read_to_string(&removable_path)
-        .map(|s| s.trim() == "1")
-        .unwrap_or(false)
+    Ok(mount_point)
 }

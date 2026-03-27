@@ -25,8 +25,11 @@ pub struct FileEntry {
 pub struct DriveEntry {
     pub name: String,
     pub path: String,
+    pub device: String,
     pub fstype: String,
     pub removable: bool,
+    pub mounted: bool,
+    pub size: String,
 }
 
 pub fn read_directory(path: &Path) -> Result<Vec<FileEntry>, AppError> {

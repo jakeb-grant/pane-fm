@@ -145,7 +145,16 @@ export function createFileManager() {
 
 	// File state
 	let entries = $state<FileEntry[]>([]);
-	let drives = $state<{ name: string; path: string; icon: string }[]>([]);
+	let drives = $state<
+		{
+			name: string;
+			path: string;
+			device: string;
+			icon: string;
+			mounted: boolean;
+			size: string;
+		}[]
+	>([]);
 	let sortBy = $state(
 		loadPreference("sortBy", configDefaults.sortBy ?? "name"),
 	);
@@ -530,15 +539,27 @@ export function createFileManager() {
 			await navigate("/");
 		}
 
+		await refreshDrives();
+		setInterval(refreshDrives, 8000);
+	}
+
+	async function refreshDrives() {
 		try {
 			const d = await listDrives();
-			drives = d.map((drive) => ({
+			const mapped = d.map((drive) => ({
 				name: drive.name,
 				path: drive.path,
+				device: drive.device,
 				icon: drive.removable ? "\uF0A0" : "\uF0A0",
+				mounted: drive.mounted,
+				size: drive.size,
 			}));
+			// Skip reactive update if nothing changed
+			const key = (list: typeof mapped) =>
+				list.map((d) => `${d.device}:${d.mounted}:${d.path}`).join("|");
+			if (key(mapped) !== key(drives)) drives = mapped;
 		} catch {
-			drives = [];
+			if (drives.length > 0) drives = [];
 		}
 	}
 
@@ -765,6 +786,7 @@ export function createFileManager() {
 			);
 		},
 		prefetchDirectory,
+		refreshDrives,
 		setError,
 		init,
 		applyConfigDefaults() {

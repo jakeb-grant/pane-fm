@@ -1102,7 +1102,7 @@ onDestroy(() => {
 <svelte:window onkeydown={handleWindowKeydown} onmousemove={(e) => { if (e.screenX !== lastMousePos.x || e.screenY !== lastMousePos.y) { lastMousePos = { x: e.screenX, y: e.screenY }; mouseCursorHidden = false; }}} />
 
 <div class="app" class:hide-cursor={mouseCursorHidden}>
-	<Sidebar currentPath={fm.currentPath} onnavigate={(path) => fm.navigate(path)} drives={fm.drives} homeDir={fm.homeDir} isDragging={fm.isDragging} dropTarget={fm.dropTarget} ondragover={handleDragOverTarget} ondrop={handleDropOnTarget} ondragleave={handleDragLeaveTarget} />
+	<Sidebar currentPath={fm.currentPath} onnavigate={(path) => fm.navigate(path)} drives={fm.drives} homeDir={fm.homeDir} onrefreshdrives={() => fm.refreshDrives()} onerror={(msg) => fm.setError(msg)} isDragging={fm.isDragging} dropTarget={fm.dropTarget} ondragover={handleDragOverTarget} ondrop={handleDropOnTarget} ondragleave={handleDragLeaveTarget} />
 
 	<div class="main-column">
 		{#if tabs.tabs.length > 1}
@@ -1128,11 +1128,6 @@ onDestroy(() => {
 			ongoup={fm.goUp}
 			currentPath={fm.currentPath}
 			onnavigate={fm.navigate}
-			showHidden={fm.showHidden}
-			ontogglehidden={fm.toggleHidden}
-			onopenhelp={dlg.openHelp}
-			previewEnabled={fm.previewEnabled}
-			ontogglepreview={() => fm.togglePreview()}
 			isDragging={fm.isDragging}
 			dropTarget={fm.dropTarget}
 			ondragoverpath={handleDragOverTarget}
@@ -1238,13 +1233,26 @@ onDestroy(() => {
 			</div>
 		{/if}
 
-		{#if fm.visualMode}
-			<StatusBar text="VISUAL — {fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'}" onclear={() => fm.exitVisualMode()} />
-		{:else if fm.selectedPaths.size > 0}
-			<StatusBar text="{fm.selectedPaths.size} {fm.selectedPaths.size === 1 ? 'item' : 'items'} selected" onclear={() => fm.clearMultiSelection()} />
-		{:else if fm.clipboard}
-			<StatusBar text={clipboardText()} onclear={() => fm.clipboard = null} />
-		{/if}
+		<StatusBar
+			itemCount={fm.filteredEntries.length}
+			showHidden={fm.showHidden}
+			previewEnabled={fm.previewEnabled}
+			ontogglehidden={fm.toggleHidden}
+			ontogglepreview={() => fm.togglePreview()}
+			onopenhelp={dlg.openHelp}
+			overlayText={fm.visualMode
+				? `VISUAL — ${fm.selectedPaths.size} ${fm.selectedPaths.size === 1 ? 'item' : 'items'}`
+				: fm.selectedPaths.size > 0
+					? `${fm.selectedPaths.size} ${fm.selectedPaths.size === 1 ? 'item' : 'items'} selected`
+					: fm.clipboard
+						? clipboardText()
+						: null}
+			onclearoverlay={() => {
+				if (fm.visualMode) fm.exitVisualMode();
+				else if (fm.selectedPaths.size > 0) fm.clearMultiSelection();
+				else if (fm.clipboard) fm.clipboard = null;
+			}}
+		/>
 	</div>
 </div>
 

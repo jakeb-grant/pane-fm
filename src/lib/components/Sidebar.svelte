@@ -1,11 +1,14 @@
 <script lang="ts">
-import { pathExists } from "$lib/commands";
+import { mountDrive, pathExists } from "$lib/commands";
+import { errorMessage } from "$lib/errors";
 
 let {
 	currentPath,
 	onnavigate,
 	drives,
 	homeDir,
+	onrefreshdrives,
+	onerror,
 	isDragging = false,
 	dropTarget = null,
 	ondragover,
@@ -14,8 +17,17 @@ let {
 }: {
 	currentPath: string;
 	onnavigate: (path: string) => void;
-	drives: { name: string; path: string; icon: string }[];
+	drives: {
+		name: string;
+		path: string;
+		device: string;
+		icon: string;
+		mounted: boolean;
+		size: string;
+	}[];
 	homeDir: string;
+	onrefreshdrives: () => void;
+	onerror: (msg: string) => void;
 	isDragging?: boolean;
 	dropTarget?: string | null;
 	ondragover?: (path: string) => void;
@@ -24,6 +36,7 @@ let {
 } = $props();
 
 let places = $state<{ label: string; icon: string; path: string }[]>([]);
+let mounting = $state<string | null>(null);
 
 $effect(() => {
 	const dir = homeDir;
@@ -45,6 +58,20 @@ $effect(() => {
 });
 
 const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
+
+async function handleMount(drive: { device: string }) {
+	if (mounting) return;
+	mounting = drive.device;
+	try {
+		const mountPoint = await mountDrive(drive.device);
+		onrefreshdrives();
+		if (mountPoint) onnavigate(mountPoint);
+	} catch (e) {
+		onerror(errorMessage(e) ?? "Mount failed");
+	} finally {
+		mounting = null;
+	}
+}
 </script>
 
 <aside class="sidebar">
@@ -69,18 +96,23 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 	{#if drives.length > 0}
 		<section>
 			<h3 class="section-label">Drives</h3>
-			{#each drives as drive (drive.path)}
+			{#each drives as drive (drive.device)}
 				<button
 					class="sidebar-item"
-					class:active={currentPath === drive.path}
+					class:active={drive.mounted && currentPath === drive.path}
+					class:unmounted={!drive.mounted}
 					class:drop-target={dropTarget === drive.path}
-					onclick={() => onnavigate(drive.path)}
-					onmouseenter={() => { if (isDragging) ondragover?.(drive.path); }}
+					disabled={mounting === drive.device}
+					onclick={() => drive.mounted ? onnavigate(drive.path) : handleMount(drive)}
+					onmouseenter={() => { if (isDragging && drive.mounted) ondragover?.(drive.path); }}
 					onmouseleave={() => { if (isDragging) ondragleave?.(); }}
-					onmouseup={(e) => { if (isDragging) ondrop?.(drive.path, e.ctrlKey); }}
+					onmouseup={(e) => { if (isDragging && drive.mounted) ondrop?.(drive.path, e.ctrlKey); }}
 				>
 					<span class="item-icon">{drive.icon}</span>
 					<span class="item-label">{drive.name}</span>
+					{#if !drive.mounted}
+						<span class="item-hint">{drive.size}</span>
+					{/if}
 				</button>
 			{/each}
 		</section>
@@ -107,7 +139,8 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 
 <style>
 	.sidebar {
-		width: 200px;
+		width: fit-content;
+		max-width: 200px;
 		flex-shrink: 0;
 		background: var(--bg-secondary);
 		border-right: 1px solid var(--border);
@@ -167,6 +200,14 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 		color: var(--accent);
 	}
 
+	.sidebar-item.unmounted {
+		opacity: 0.5;
+	}
+
+	.sidebar-item.unmounted:hover:not(:disabled) {
+		opacity: 0.8;
+	}
+
 	.sidebar-item.drop-target {
 		background: color-mix(in srgb, var(--accent) 20%, transparent);
 	}
@@ -188,5 +229,13 @@ const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.item-hint {
+		font-size: 11px;
+		color: var(--text-muted);
+		flex-shrink: 0;
 	}
 </style>

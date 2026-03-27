@@ -103,12 +103,19 @@ export function generateThumbnail(
 export interface DriveEntry {
 	name: string;
 	path: string;
+	device: string;
 	fstype: string;
 	removable: boolean;
+	mounted: boolean;
+	size: string;
 }
 
 export function listDrives(): Promise<DriveEntry[]> {
 	return invoke("list_drives");
+}
+
+export function mountDrive(device: string): Promise<string> {
+	return invoke("mount_drive", { device });
 }
 
 export function pathExists(path: string): Promise<boolean> {

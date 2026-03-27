@@ -40,6 +40,7 @@ pub fn run() {
             commands::file_ops::get_properties,
             commands::file_ops::get_dir_stats,
             commands::drives::list_drives,
+            commands::drives::mount_drive,
             commands::trash::list_trash,
             commands::trash::restore_trash,
             commands::trash::empty_trash,
