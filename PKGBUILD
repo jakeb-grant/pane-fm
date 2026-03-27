@@ -41,7 +41,7 @@ build() {
     export RUSTUP_TOOLCHAIN=stable
     export CARGO_TARGET_DIR=target
     bun run sync-icons
-    cargo build --frozen --release --manifest-path src-tauri/Cargo.toml
+    cargo build --release --manifest-path src-tauri/Cargo.toml
 }
 
 package() {
