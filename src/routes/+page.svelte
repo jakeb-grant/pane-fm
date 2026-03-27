@@ -1,5 +1,6 @@
 <script lang="ts">
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { onDestroy, onMount, tick } from "svelte";
@@ -16,6 +17,7 @@ import {
 	cancelSearch,
 	getConfig,
 	getDragIcon,
+	listDirectory,
 	loadThemeCss,
 	readFilePreview,
 	readPdfPreview,
@@ -47,7 +49,11 @@ import StatusBar from "$lib/components/StatusBar.svelte";
 import TabBar from "$lib/components/TabBar.svelte";
 // biome-ignore lint/style/useImportType: component used in template
 import Toolbar from "$lib/components/Toolbar.svelte";
-import { isPdfPreviewable, isTextPreviewable } from "$lib/constants";
+import {
+	isImagePreviewable,
+	isPdfPreviewable,
+	isTextPreviewable,
+} from "$lib/constants";
 import {
 	type ContextMenuActions,
 	type ContextMenuContext,
@@ -55,6 +61,7 @@ import {
 } from "$lib/contextMenu";
 import { errorMessage } from "$lib/errors";
 import * as ops from "$lib/fileOps";
+import type { HighlightResponse } from "$lib/highlight";
 import { setIconMode } from "$lib/icons";
 import {
 	applyKeybindOverrides,
@@ -162,16 +169,35 @@ let previewData = $state<FilePreview | null>(null);
 let pdfPreview = $state<PdfPreview | null>(null);
 let previewLoading = $state(false);
 let previewError = $state<string | null>(null);
+let highlightedHtml = $state<string | null>(null);
+let imagePreviewUrl = $state<string | null>(null);
+let dirPreviewEntries = $state<FileEntry[] | null>(null);
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
+let previewGen = 0;
+
+const hlWorker = new Worker(
+	new URL("$lib/highlightWorker.ts", import.meta.url),
+	{ type: "module" },
+);
+hlWorker.onmessage = (e: MessageEvent<HighlightResponse>) => {
+	if (e.data.gen === previewGen) {
+		highlightedHtml = e.data.html;
+		previewLoading = false;
+	}
+};
 
 $effect(() => {
 	const entry = fm.cursorEntry;
 	const enabled = fm.previewEnabled;
 	clearTimeout(previewTimer);
+	const gen = ++previewGen;
 
 	if (!enabled || !entry) {
 		previewData = null;
 		pdfPreview = null;
+		highlightedHtml = null;
+		imagePreviewUrl = null;
+		dirPreviewEntries = null;
 		previewLoading = false;
 		previewError = null;
 		return;
@@ -179,54 +205,69 @@ $effect(() => {
 
 	const mime = entry.mime_type;
 	const path = entry.path;
+	const name = entry.name;
 
-	if (!entry.is_dir && isTextPreviewable(mime)) {
-		previewLoading = true;
-		previewError = null;
-		previewData = null;
-		pdfPreview = null;
+	previewData = null;
+	pdfPreview = null;
+	highlightedHtml = null;
+	imagePreviewUrl = null;
+	dirPreviewEntries = null;
+	previewError = null;
+	previewLoading = true;
 
+	if (entry.is_dir) {
+		previewTimer = setTimeout(() => {
+			listDirectory(path, fm.showHidden)
+				.then((entries) => {
+					if (gen !== previewGen) return;
+					dirPreviewEntries = entries;
+					previewLoading = false;
+				})
+				.catch(() => {
+					if (gen !== previewGen) return;
+					previewLoading = false;
+				});
+		}, 250);
+	} else if (isTextPreviewable(mime, name)) {
 		previewTimer = setTimeout(() => {
 			readFilePreview(path)
 				.then((data) => {
-					if (fm.cursorEntry?.path === path) {
-						previewData = data;
+					if (gen !== previewGen) return;
+					previewData = data;
+					if (data.is_binary || !data.content) {
 						previewLoading = false;
+						return;
 					}
+					hlWorker.postMessage({ code: data.content, filename: name, gen });
 				})
 				.catch((e) => {
-					if (fm.cursorEntry?.path === path) {
-						previewError = errorMessage(e) ?? "Failed to load preview";
-						previewLoading = false;
-					}
+					if (gen !== previewGen) return;
+					previewError = errorMessage(e) ?? "Failed to load preview";
+					previewLoading = false;
 				});
-		}, 50);
+		}, 250);
+	} else if (!entry.is_dir && isImagePreviewable(mime)) {
+		previewTimer = setTimeout(() => {
+			if (gen !== previewGen) return;
+			imagePreviewUrl = convertFileSrc(path);
+			previewLoading = false;
+		}, 250);
 	} else if (!entry.is_dir && isPdfPreviewable(mime)) {
-		previewLoading = true;
-		previewError = null;
-		previewData = null;
-		pdfPreview = null;
-
 		previewTimer = setTimeout(() => {
 			readPdfPreview(path)
 				.then((data) => {
-					if (fm.cursorEntry?.path === path) {
-						pdfPreview = data;
-						previewLoading = false;
-					}
+					if (gen !== previewGen) return;
+					pdfPreview = data;
+					previewLoading = false;
 				})
 				.catch((e) => {
-					if (fm.cursorEntry?.path === path) {
-						previewError = errorMessage(e) ?? "Failed to load PDF preview";
-						previewLoading = false;
-					}
+					if (gen !== previewGen) return;
+					previewError = errorMessage(e) ?? "Failed to load PDF preview";
+					previewLoading = false;
 				});
-		}, 50);
+		}, 250);
 	} else {
-		previewData = null;
-		pdfPreview = null;
 		previewLoading = false;
-		previewError = null;
 	}
 
 	return () => clearTimeout(previewTimer);
@@ -903,6 +944,7 @@ onMount(async () => {
 onDestroy(() => {
 	dlg.unsubscribeProgress();
 	clearTimeout(searchDebounce);
+	hlWorker.terminate();
 	searchUnlisten?.();
 	themeUnlisten?.();
 	configUnlisten?.();
@@ -1040,6 +1082,9 @@ onDestroy(() => {
 						{pdfPreview}
 						{previewLoading}
 						{previewError}
+						{highlightedHtml}
+						{imagePreviewUrl}
+						{dirPreviewEntries}
 						width={fm.previewWidth}
 						onresize={(w) => fm.setPreviewWidth(w)}
 					/>

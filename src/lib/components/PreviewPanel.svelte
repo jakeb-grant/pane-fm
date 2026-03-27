@@ -1,11 +1,7 @@
 <script lang="ts">
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { FileEntry, FilePreview, PdfPreview } from "$lib/commands";
-import {
-	isImagePreviewable,
-	isPdfPreviewable,
-	isTextPreviewable,
-} from "$lib/constants";
+import { isPdfPreviewable } from "$lib/constants";
 import { getIconForEntry } from "$lib/icons";
 import { overlayFade } from "$lib/transitions";
 import { formatSize } from "$lib/utils";
@@ -17,6 +13,9 @@ let {
 	pdfPreview,
 	previewLoading,
 	previewError,
+	highlightedHtml = null,
+	imagePreviewUrl = null,
+	dirPreviewEntries = null,
 	width = 300,
 	onresize,
 }: {
@@ -25,25 +24,21 @@ let {
 	pdfPreview: PdfPreview | null;
 	previewLoading: boolean;
 	previewError: string | null;
+	highlightedHtml?: string | null;
+	imagePreviewUrl?: string | null;
+	dirPreviewEntries?: FileEntry[] | null;
 	width?: number;
 	onresize?: (width: number) => void;
 } = $props();
 
 const icon = $derived(entry ? getIconForEntry(entry) : "");
-const isText = $derived(
-	entry && !entry.is_dir ? isTextPreviewable(entry.mime_type) : false,
-);
-const isImage = $derived(
-	entry && !entry.is_dir ? isImagePreviewable(entry.mime_type) : false,
-);
 const isPdf = $derived(
 	entry && !entry.is_dir ? isPdfPreviewable(entry.mime_type) : false,
 );
-const imageUrl = $derived(isImage && entry ? convertFileSrc(entry.path) : null);
 const pdfImageUrl = $derived(
 	isPdf && pdfPreview ? convertFileSrc(pdfPreview.image_path) : null,
 );
-const lines = $derived(previewData?.content.split("\n") ?? []);
+const hlines = $derived(highlightedHtml ? highlightedHtml.split("\n") : []);
 
 let dragging = $state(false);
 
@@ -76,71 +71,83 @@ function onpointerdown(e: PointerEvent) {
 	<div class="resize-handle" class:active={dragging} {onpointerdown}></div>
 	<div class="preview-content">
 		{#if !entry}
-			<div class="preview-empty">
+			<div class="preview-center">
 				<span class="preview-empty-icon">{"\uf15b"}</span>
-				<span class="preview-empty-text">No file selected</span>
+				<span class="preview-detail">No file selected</span>
 			</div>
-		{:else if entry.is_dir}
-			<div class="preview-fallback">
+		{:else if previewLoading}
+			<div class="preview-center">
 				<FileIcon src={icon} size={48} />
-				<span class="preview-name">{entry.name}</span>
-				{#if entry.children_count !== null}
-					<span class="preview-meta">{entry.children_count} items</span>
+				<span class="preview-detail">Loading...</span>
+			</div>
+		{:else if previewError}
+			<div class="preview-center">
+				<FileIcon src={icon} size={48} />
+				<span class="preview-detail preview-error">{previewError}</span>
+			</div>
+			<div class="preview-footer">
+				<FileIcon src={icon} size={16} />
+				<span class="preview-filename">{entry.name}</span>
+			</div>
+		{:else if imagePreviewUrl}
+			<div class="preview-visual">
+				<img src={imagePreviewUrl} alt={entry.name} decoding="async" />
+			</div>
+			<div class="preview-footer">
+				<FileIcon src={icon} size={16} />
+				<span class="preview-filename">{entry.name}</span>
+				<span class="preview-detail">{formatSize(entry.size)}</span>
+			</div>
+		{:else if pdfImageUrl}
+			<div class="preview-visual">
+				<img src={pdfImageUrl} alt={entry.name} decoding="async" />
+			</div>
+			<div class="preview-footer">
+				<FileIcon src={icon} size={16} />
+				<span class="preview-filename">{entry.name}</span>
+				<span class="preview-detail">{pdfPreview?.page_count} page{pdfPreview?.page_count !== 1 ? 's' : ''}</span>
+			</div>
+		{:else if previewData && !previewData.is_binary && hlines.length > 0}
+			<div class="preview-text">
+				<div class="code-wrap">
+					<pre class="gutter">{#each hlines as _, i}{i + 1}
+{/each}</pre>
+					<pre class="code-content"><code>{#each hlines as line, i}{@html line}
+{/each}</code></pre>
+				</div>
+			</div>
+			<div class="preview-footer">
+				<FileIcon src={icon} size={16} />
+				<span class="preview-filename">{entry.name}</span>
+				<span class="preview-detail">{formatSize(entry.size)}{#if previewData.truncated} (truncated){/if}</span>
+			</div>
+		{:else if dirPreviewEntries}
+			<div class="preview-dir">
+				{#each dirPreviewEntries as child (child.path)}
+					<div class="dir-entry">
+						<FileIcon src={getIconForEntry(child)} size={16} />
+						<span class="dir-entry-name" class:dir={child.is_dir}>{child.name}</span>
+					</div>
+				{/each}
+				{#if dirPreviewEntries.length === 0}
+					<div class="preview-center">
+						<span class="preview-detail">Empty directory</span>
+					</div>
 				{/if}
 			</div>
-		{:else if isImage && imageUrl}
-			<div class="preview-image">
-				<img src={imageUrl} alt={entry.name} />
-				<span class="preview-image-name">{entry.name}</span>
-				<span class="preview-meta">{formatSize(entry.size)}</span>
+			<div class="preview-footer">
+				<FileIcon src={icon} size={16} />
+				<span class="preview-filename">{entry.name}</span>
+				<span class="preview-detail">{dirPreviewEntries.length} items</span>
 			</div>
-		{:else if isPdf}
-			{#if previewLoading}
-				<div class="preview-loading">Loading...</div>
-			{:else if previewError}
-				<div class="preview-fallback">
-					<FileIcon src={icon} size={48} />
-					<span class="preview-name">{entry.name}</span>
-					<span class="preview-error">{previewError}</span>
-				</div>
-			{:else if pdfImageUrl}
-				<div class="preview-image">
-					<img src={pdfImageUrl} alt={entry.name} />
-					<span class="preview-image-name">{entry.name}</span>
-					<span class="preview-meta">{pdfPreview?.page_count} page{pdfPreview?.page_count !== 1 ? 's' : ''}</span>
-				</div>
-			{/if}
-		{:else if isText}
-			{#if previewLoading}
-				<div class="preview-loading">Loading...</div>
-			{:else if previewError}
-				<div class="preview-fallback">
-					<FileIcon src={icon} size={48} />
-					<span class="preview-name">{entry.name}</span>
-					<span class="preview-error">{previewError}</span>
-				</div>
-			{:else if previewData?.is_binary}
-				<div class="preview-fallback">
-					<FileIcon src={icon} size={48} />
-					<span class="preview-name">{entry.name}</span>
-					<span class="preview-meta">Binary file</span>
-					<span class="preview-meta">{formatSize(entry.size)}</span>
-				</div>
-			{:else if previewData}
-				<div class="preview-text">
-					<pre><code>{#each lines as line, i}<span class="line-num">{i + 1}</span>{line}
-{/each}</code></pre>
-					{#if previewData.truncated}
-						<div class="preview-truncated">Truncated at {formatSize(previewData.bytes_read)}</div>
-					{/if}
-				</div>
-			{/if}
 		{:else}
-			<div class="preview-fallback">
+			<div class="preview-center">
 				<FileIcon src={icon} size={48} />
-				<span class="preview-name">{entry.name}</span>
-				<span class="preview-meta">{entry.mime_type}</span>
-				<span class="preview-meta">{formatSize(entry.size)}</span>
+			</div>
+			<div class="preview-footer">
+				<FileIcon src={icon} size={16} />
+				<span class="preview-filename">{entry.name}</span>
+				<span class="preview-detail">{entry.mime_type} · {formatSize(entry.size)}</span>
 			</div>
 		{/if}
 	</div>
@@ -182,16 +189,15 @@ function onpointerdown(e: PointerEvent) {
 		min-width: 0;
 	}
 
-	.preview-empty,
-	.preview-fallback,
-	.preview-loading {
+	.preview-center {
+		flex: 1;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		height: 100%;
 		gap: 8px;
 		color: var(--text-muted);
+		min-height: 0;
 	}
 
 	.preview-empty-icon {
@@ -200,89 +206,124 @@ function onpointerdown(e: PointerEvent) {
 		opacity: 0.3;
 	}
 
-	.preview-empty-text {
-		font-size: 13px;
-	}
-
-	.preview-name {
-		font-size: 13px;
-		color: var(--text-primary);
-		word-break: break-all;
-		text-align: center;
-		padding: 0 12px;
-	}
-
-	.preview-meta {
-		font-size: 12px;
-		color: var(--text-muted);
-	}
-
 	.preview-error {
-		font-size: 12px;
 		color: var(--danger);
 	}
 
-	.preview-image {
+	.preview-visual {
+		flex: 1;
 		display: flex;
-		flex-direction: column;
 		align-items: center;
-		height: 100%;
+		justify-content: center;
 		overflow: hidden;
+		min-height: 0;
 	}
 
-	.preview-image img {
-		flex: 1;
-		min-height: 0;
-		width: 100%;
+	.preview-visual img {
+		max-width: 100%;
+		max-height: 100%;
 		object-fit: contain;
 		padding: 8px;
 	}
 
-	.preview-image-name {
+	.preview-dir {
+		flex: 1;
+		overflow: auto;
+		min-height: 0;
+		padding: 4px 0;
+	}
+
+	.dir-entry {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 2px 12px;
 		font-size: 12px;
+		color: var(--text-primary);
+	}
+
+	.dir-entry-name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.dir-entry-name.dir {
+		color: var(--accent);
+	}
+
+	.preview-footer {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 12px;
+		border-top: 1px solid var(--border);
+		background: var(--bg-secondary);
+		flex-shrink: 0;
+	}
+
+	.preview-filename {
+		font-size: 12px;
+		color: var(--text-primary);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.preview-detail {
+		font-size: 11px;
 		color: var(--text-muted);
-		padding: 4px 12px 8px;
-		text-align: center;
-		word-break: break-all;
+		flex-shrink: 0;
 	}
 
 	.preview-text {
 		flex: 1;
+		overflow: hidden;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.code-wrap {
+		flex: 1;
+		display: flex;
 		overflow: auto;
 		min-height: 0;
 	}
 
-	.preview-text pre {
+	.code-wrap::-webkit-scrollbar-corner {
+		background: var(--bg-primary);
+	}
+
+	.code-wrap pre {
 		margin: 0;
-		padding: 8px 0;
 		font-size: 12px;
 		line-height: 1.5;
-		white-space: pre-wrap;
-		word-break: break-all;
+		white-space: pre;
 	}
 
-	.preview-text code {
-		display: block;
-	}
-
-	.line-num {
-		display: inline-block;
-		width: 40px;
+	.gutter {
+		position: sticky;
+		left: 0;
+		flex-shrink: 0;
 		text-align: right;
-		padding-right: 8px;
-		margin-right: 8px;
-		color: var(--text-muted);
-		opacity: 0.5;
+		padding: 8px 3px;
+		color: color-mix(in srgb, var(--text-muted) 50%, transparent);
 		user-select: none;
 		border-right: 1px solid var(--border);
+		background: var(--bg-primary);
+		z-index: 1;
 	}
 
-	.preview-truncated {
-		padding: 6px 12px;
-		font-size: 11px;
-		color: var(--text-muted);
-		background: var(--bg-secondary);
-		text-align: center;
-		border-top: 1px solid var(--border);
+	.code-content {
+		padding: 8px 12px 8px 0;
 	}
+
+	.code-content code {
+		display: block;
+		margin-left: 4px;
+	}
+
 </style>
