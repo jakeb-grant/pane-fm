@@ -7,6 +7,7 @@ import {
 	isTextPreviewable,
 } from "$lib/constants";
 import { getIconForEntry } from "$lib/icons";
+import { overlayFade } from "$lib/transitions";
 import { formatSize } from "$lib/utils";
 import FileIcon from "./FileIcon.svelte";
 
@@ -70,7 +71,7 @@ function onpointerdown(e: PointerEvent) {
 }
 </script>
 
-<div class="preview-panel" style:width="{width}px">
+<div class="preview-panel" style:width="{width}px" transition:overlayFade>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="resize-handle" class:active={dragging} {onpointerdown}></div>
 	<div class="preview-content">

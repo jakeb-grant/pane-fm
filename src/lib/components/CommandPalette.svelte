@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from "svelte";
 import type { Command } from "$lib/commandRegistry";
+import { flyDown, overlayFade } from "$lib/transitions";
 import { fuzzyMatch } from "$lib/utils";
 
 interface Props {
@@ -98,10 +99,10 @@ function onkeydown(e: KeyboardEvent) {
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="overlay" onclick={onclose}>
+<div class="overlay" onclick={onclose} transition:overlayFade>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="palette" onclick={(e) => e.stopPropagation()}>
+	<div class="palette" onclick={(e) => e.stopPropagation()} transition:flyDown>
 		<div class="palette-header">
 			<span class="palette-icon">&gt;</span>
 			<input

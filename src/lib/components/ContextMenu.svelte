@@ -1,5 +1,6 @@
 <script lang="ts">
 import { keybinds, matchesKeybind } from "$lib/keybinds";
+import { menuPop, overlayFade } from "$lib/transitions";
 
 export interface MenuItem {
 	label: string;
@@ -85,13 +86,14 @@ let menuStyle = $derived(() => {
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="context-overlay" onclick={onclose} onwheel={(e) => e.preventDefault()} oncontextmenu={(e) => { e.preventDefault(); onclose(); }}></div>
+<div class="context-overlay" onclick={onclose} onwheel={(e) => e.preventDefault()} oncontextmenu={(e) => { e.preventDefault(); onclose(); }} transition:overlayFade></div>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
 	class="context-menu"
 	style={menuStyle()}
+	transition:menuPop
 	onclick={(e) => e.stopPropagation()}
 >
 	{#each items as item, i (i)}

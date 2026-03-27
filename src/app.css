@@ -82,3 +82,12 @@ kbd {
 ::-webkit-scrollbar-thumb:hover {
 	background: var(--bg-hover);
 }
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0s !important;
+		animation-duration: 0s !important;
+	}
+}

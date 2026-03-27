@@ -1,5 +1,6 @@
 <script lang="ts">
 import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
+import { dialogPop, overlayFade } from "$lib/transitions";
 import { formatSize } from "$lib/utils";
 
 let {
@@ -21,8 +22,8 @@ let {
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="busy-overlay" onwheel={(e) => e.preventDefault()} onclick={(e) => e.stopPropagation()}>
-	<div class="busy-card">
+<div class="busy-overlay" onwheel={(e) => e.preventDefault()} onclick={(e) => e.stopPropagation()} transition:overlayFade>
+	<div class="busy-card" transition:dialogPop>
 		<div class="busy-header">
 			<div class="busy-spinner"></div>
 			<span class="busy-text">{message}</span>

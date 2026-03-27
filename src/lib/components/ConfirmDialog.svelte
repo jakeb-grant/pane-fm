@@ -1,5 +1,6 @@
 <script lang="ts">
 import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
+import { dialogPop, overlayFade } from "$lib/transitions";
 
 let {
 	title,
@@ -25,10 +26,10 @@ let {
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()}>
+<div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()} transition:overlayFade>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="dialog" onclick={(e) => e.stopPropagation()}>
+	<div class="dialog" onclick={(e) => e.stopPropagation()} transition:dialogPop>
 		<h2 class="title">{title}</h2>
 		<p class="message">{message}</p>
 		<div class="footer">

@@ -5,6 +5,7 @@ import { getHomeDir, listDirectory, pathExists } from "$lib/commands";
 import { errorMessage } from "$lib/errors";
 import { getIconForEntry } from "$lib/icons";
 import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
+import { dialogPop, overlayFade } from "$lib/transitions";
 import { parentPath, pathSegments } from "$lib/utils";
 import FileIcon from "./FileIcon.svelte";
 
@@ -97,10 +98,10 @@ onMount(async () => {
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()}>
+<div class="overlay" onclick={onclose} onwheel={(e) => e.preventDefault()} transition:overlayFade>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="dialog" onclick={(e) => e.stopPropagation()}>
+	<div class="dialog" onclick={(e) => e.stopPropagation()} transition:dialogPop>
 		<div class="toolbar">
 			<button class="nav-btn icon" onclick={goUp} disabled={currentDir === "/"} title="Up">
 				{"\uF062"}

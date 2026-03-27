@@ -1,6 +1,7 @@
 <script lang="ts">
 import { tick } from "svelte";
 import { keybinds, matchesKeybind } from "$lib/keybinds";
+import { slideDown } from "$lib/transitions";
 
 interface Props {
 	query: string;
@@ -60,7 +61,7 @@ function onkeydown(e: KeyboardEvent) {
 }
 </script>
 
-<div class="filter-bar">
+<div class="filter-bar" transition:slideDown>
 	<span class="filter-icon">/</span>
 	{#if isGlob}<span class="filter-mode">glob</span>{/if}
 	<input

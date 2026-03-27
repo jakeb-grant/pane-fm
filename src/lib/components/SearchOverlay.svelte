@@ -2,6 +2,7 @@
 import { tick } from "svelte";
 import type { SearchResult } from "$lib/commands";
 import { getIconForEntry } from "$lib/icons";
+import { overlayFade } from "$lib/transitions";
 import { isGlobPattern } from "$lib/utils";
 import FileIcon from "./FileIcon.svelte";
 
@@ -75,7 +76,7 @@ function parentDir(relativePath: string): string {
 }
 </script>
 
-<div class="search-overlay">
+<div class="search-overlay" transition:overlayFade>
 	<div class="search-header">
 		<span class="search-icon">s</span>
 		{#if isGlobPattern(query)}<span class="search-mode">glob</span>{/if}

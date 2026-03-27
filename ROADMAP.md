@@ -231,7 +231,7 @@ Features that make hyprfiles a daily driver.
 - [x] Command palette (Ctrl+Shift+P)
 - [x] Search across subdirectories (recursive find)
 - [x] Remembering last directory per tab (session restore)
-- [ ] Smooth animations and transitions
+- [x] Smooth animations and transitions
 
 ### Distribution
 - [ ] AUR package

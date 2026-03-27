@@ -7,6 +7,7 @@ import {
 	formatName,
 } from "$lib/commandRegistry";
 import { chords, keybinds, matchesKeybind } from "$lib/keybinds";
+import { dialogPop, overlayFade } from "$lib/transitions";
 
 let {
 	onclose,
@@ -33,10 +34,10 @@ let dialogEl = $state<HTMLDivElement | null>(null);
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="overlay" onclick={onclose}>
+<div class="overlay" onclick={onclose} transition:overlayFade>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="dialog" bind:this={dialogEl} onclick={(e) => e.stopPropagation()}>
+	<div class="dialog" bind:this={dialogEl} onclick={(e) => e.stopPropagation()} transition:dialogPop>
 		<div class="header">
 			<h2>Keybinds</h2>
 		</div>

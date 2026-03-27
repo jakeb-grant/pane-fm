@@ -1,6 +1,7 @@
 <script lang="ts">
 import { listDirectory } from "$lib/commands";
 import { DEFAULT_FOLDER } from "$lib/icons";
+import { slideDown } from "$lib/transitions";
 import { pathSegments } from "$lib/utils";
 import FileIcon from "./FileIcon.svelte";
 
@@ -142,7 +143,7 @@ $effect(() => {
 			onblur={() => { setTimeout(() => { if (editing) commit(); }, 150); }}
 		/>
 		{#if suggestions.length > 0}
-			<div class="suggestions">
+			<div class="suggestions" transition:slideDown>
 				{#each suggestions as suggestion, i (suggestion)}
 					<button
 						class="suggestion"
