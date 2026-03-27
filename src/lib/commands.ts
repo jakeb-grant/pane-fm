@@ -144,6 +144,10 @@ export function openDefault(path: string): Promise<void> {
 	return invoke("open_default", { path });
 }
 
+export function openWithEditor(path: string): Promise<void> {
+	return invoke("open_with_editor", { path });
+}
+
 export interface AppEntry {
 	name: string;
 	desktop_id: string;

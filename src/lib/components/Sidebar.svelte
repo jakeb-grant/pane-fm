@@ -9,6 +9,7 @@ let {
 	homeDir,
 	onrefreshdrives,
 	onerror,
+	collapsed = false,
 	isDragging = false,
 	dropTarget = null,
 	ondragover,
@@ -28,6 +29,7 @@ let {
 	homeDir: string;
 	onrefreshdrives: () => void;
 	onerror: (msg: string) => void;
+	collapsed?: boolean;
 	isDragging?: boolean;
 	dropTarget?: string | null;
 	ondragover?: (path: string) => void;
@@ -74,28 +76,29 @@ async function handleMount(drive: { device: string }) {
 }
 </script>
 
-<aside class="sidebar">
+<aside class="sidebar" class:collapsed>
 	<section>
-		<h3 class="section-label">Places</h3>
+		{#if !collapsed}<h3 class="section-label">Places</h3>{/if}
 		{#each places as item (item.path)}
 			<button
 				class="sidebar-item"
 				class:active={currentPath === item.path}
 				class:drop-target={dropTarget === item.path}
+				title={collapsed ? item.label : undefined}
 				onclick={() => onnavigate(item.path)}
 				onmouseenter={() => { if (isDragging) ondragover?.(item.path); }}
 				onmouseleave={() => { if (isDragging) ondragleave?.(); }}
 				onmouseup={(e) => { if (isDragging) ondrop?.(item.path, e.ctrlKey); }}
 			>
 				<span class="item-icon">{item.icon}</span>
-				<span class="item-label">{item.label}</span>
+				{#if !collapsed}<span class="item-label">{item.label}</span>{/if}
 			</button>
 		{/each}
 	</section>
 
 	{#if drives.length > 0}
 		<section>
-			<h3 class="section-label">Drives</h3>
+			{#if !collapsed}<h3 class="section-label">Drives</h3>{/if}
 			{#each drives as drive (drive.device)}
 				<button
 					class="sidebar-item"
@@ -103,15 +106,18 @@ async function handleMount(drive: { device: string }) {
 					class:unmounted={!drive.mounted}
 					class:drop-target={dropTarget === drive.path}
 					disabled={mounting === drive.device}
+					title={collapsed ? drive.name : undefined}
 					onclick={() => drive.mounted ? onnavigate(drive.path) : handleMount(drive)}
 					onmouseenter={() => { if (isDragging && drive.mounted) ondragover?.(drive.path); }}
 					onmouseleave={() => { if (isDragging) ondragleave?.(); }}
 					onmouseup={(e) => { if (isDragging && drive.mounted) ondrop?.(drive.path, e.ctrlKey); }}
 				>
 					<span class="item-icon">{drive.icon}</span>
-					<span class="item-label">{drive.name}</span>
-					{#if !drive.mounted}
-						<span class="item-hint">{drive.size}</span>
+					{#if !collapsed}
+						<span class="item-label">{drive.name}</span>
+						{#if !drive.mounted}
+							<span class="item-hint">{drive.size}</span>
+						{/if}
 					{/if}
 				</button>
 			{/each}
@@ -119,19 +125,20 @@ async function handleMount(drive: { device: string }) {
 	{/if}
 
 	<section>
-		<h3 class="section-label">System</h3>
+		{#if !collapsed}<h3 class="section-label">System</h3>{/if}
 		{#each system as item (item.path)}
 			<button
 				class="sidebar-item"
 				class:active={currentPath === item.path}
 				class:drop-target={dropTarget === item.path}
+				title={collapsed ? item.label : undefined}
 				onclick={() => onnavigate(item.path)}
 				onmouseenter={() => { if (isDragging) ondragover?.(item.path); }}
 				onmouseleave={() => { if (isDragging) ondragleave?.(); }}
 				onmouseup={(e) => { if (isDragging) ondrop?.(item.path, e.ctrlKey); }}
 			>
 				<span class="item-icon">{item.icon}</span>
-				<span class="item-label">{item.label}</span>
+				{#if !collapsed}<span class="item-label">{item.label}</span>{/if}
 			</button>
 		{/each}
 	</section>
@@ -142,6 +149,7 @@ async function handleMount(drive: { device: string }) {
 		width: fit-content;
 		max-width: 200px;
 		flex-shrink: 0;
+		transition: max-width var(--transition-normal), padding var(--transition-normal);
 		background: var(--bg-secondary);
 		border-right: 1px solid var(--border);
 		display: flex;
@@ -151,10 +159,19 @@ async function handleMount(drive: { device: string }) {
 		overflow-y: auto;
 	}
 
+	.sidebar.collapsed {
+		max-width: none;
+		padding: 8px 4px;
+	}
+
 	section {
 		display: flex;
 		flex-direction: column;
 		padding: 0 8px;
+	}
+
+	.collapsed section {
+		padding: 0 4px;
 	}
 
 	section + section {
@@ -171,6 +188,12 @@ async function handleMount(drive: { device: string }) {
 		color: var(--text-muted);
 		padding: 4px 8px 6px;
 		margin: 0;
+	}
+
+	.collapsed .sidebar-item {
+		justify-content: center;
+		padding: 6px;
+		gap: 0;
 	}
 
 	.sidebar-item {

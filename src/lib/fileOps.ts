@@ -11,10 +11,12 @@ import {
 	openDefault,
 	openTerminal,
 	openWithApp,
+	openWithEditor,
 	pasteEntries,
 	renameEntry,
 	restoreTrash,
 } from "$lib/commands";
+import { isTextPreviewable } from "$lib/constants";
 import { errorMessage } from "$lib/errors";
 import type { FileManager } from "$lib/stores/fileManager.svelte";
 import { parentPath } from "$lib/utils";
@@ -25,8 +27,21 @@ export async function handleOpen(fm: FileManager, entry: FileEntry) {
 		return;
 	}
 	try {
-		await openDefault(entry.path);
+		if (isTextPreviewable(entry.mime_type, entry.name)) {
+			await openWithEditor(entry.path);
+		} else {
+			await openDefault(entry.path);
+		}
 	} catch (e) {
+		// Fall back to xdg-open if $EDITOR fails or isn't set
+		if (isTextPreviewable(entry.mime_type, entry.name)) {
+			try {
+				await openDefault(entry.path);
+				return;
+			} catch {
+				// Both failed — show original error
+			}
+		}
 		fm.setError(errorMessage(e) ?? "Failed to open file");
 	}
 }

@@ -30,6 +30,8 @@ let {
 	ondragoverentry,
 	ondragleaveentry,
 	ondragleavewindow,
+	hideModified = false,
+	hideSize = false,
 }: {
 	entries: FileEntry[];
 	cursorPath: string | null;
@@ -55,6 +57,8 @@ let {
 	ondragoverentry?: (entry: FileEntry) => void;
 	ondragleaveentry?: () => void;
 	ondragleavewindow?: () => void;
+	hideModified?: boolean;
+	hideSize?: boolean;
 } = $props();
 
 const edit = createEditLogic({
@@ -294,12 +298,16 @@ $effect(() => {
 				<th class="th-name" onclick={() => onsort("name")}>
 					<span class="th-content">Name {#if sortBy === "name"}<span class="sort-icon">{sortIndicator("name")}</span>{/if}</span>
 				</th>
+				{#if !hideSize}
 				<th class="th-size" onclick={() => onsort("size")}>
 					<span class="th-content">Size {#if sortBy === "size"}<span class="sort-icon">{sortIndicator("size")}</span>{/if}</span>
 				</th>
+				{/if}
+				{#if !hideModified}
 				<th class="th-modified" onclick={() => onsort("modified")}>
 					<span class="th-content">Modified {#if sortBy === "modified"}<span class="sort-icon">{sortIndicator("modified")}</span>{/if}</span>
 				</th>
+				{/if}
 			</tr>
 		</thead>
 		<tbody>
@@ -320,13 +328,13 @@ $effect(() => {
 							onblur={edit.commitCreateEntry}
 						/>
 					</td>
-					<td class="td-size"></td>
-					<td class="td-modified"></td>
+					{#if !hideSize}<td class="td-size"></td>{/if}
+					{#if !hideModified}<td class="td-modified"></td>{/if}
 				</tr>
 			{/if}
 
 			{#if topPad > 0}
-				<tr style="height:{topPad}px" aria-hidden="true"><td colspan="4"></td></tr>
+				<tr style="height:{topPad}px" aria-hidden="true"><td colspan={2 + (hideSize ? 0 : 1) + (hideModified ? 0 : 1)}></td></tr>
 			{/if}
 
 			{#each visibleEntries as entry, vi (entry.path)}
@@ -374,13 +382,13 @@ $effect(() => {
 							{/if}
 						{/if}
 					</td>
-					<td class="td-size">{entry.is_dir ? (entry.children_count != null ? `${entry.children_count} items` : "\u2014") : formatSize(entry.size)}</td>
-					<td class="td-modified">{entry.modified}</td>
+					{#if !hideSize}<td class="td-size">{entry.is_dir ? (entry.children_count != null ? `${entry.children_count} items` : "\u2014") : formatSize(entry.size)}</td>{/if}
+					{#if !hideModified}<td class="td-modified">{entry.modified}</td>{/if}
 				</tr>
 			{/each}
 
 			{#if bottomPad > 0}
-				<tr style="height:{bottomPad}px" aria-hidden="true"><td colspan="4"></td></tr>
+				<tr style="height:{bottomPad}px" aria-hidden="true"><td colspan={2 + (hideSize ? 0 : 1) + (hideModified ? 0 : 1)}></td></tr>
 			{/if}
 		</tbody>
 	</table>

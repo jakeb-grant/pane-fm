@@ -419,6 +419,20 @@ $effect(() => {
 
 let mouseCursorHidden = $state(false);
 let contentEl = $state<HTMLDivElement | null>(null);
+let contentWidth = $state(1200);
+const compact = $derived(contentWidth < 700);
+const narrow = $derived(contentWidth < 500);
+
+$effect(() => {
+	if (!contentEl) return;
+	contentWidth = contentEl.clientWidth;
+	const ro = new ResizeObserver(([e]) => {
+		contentWidth = e.contentRect.width;
+	});
+	ro.observe(contentEl);
+	return () => ro.disconnect();
+});
+
 let lastMousePos = { x: 0, y: 0 };
 let pendingChord = $state<string | null>(null);
 let chordTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1102,7 +1116,7 @@ onDestroy(() => {
 <svelte:window onkeydown={handleWindowKeydown} onmousemove={(e) => { if (e.screenX !== lastMousePos.x || e.screenY !== lastMousePos.y) { lastMousePos = { x: e.screenX, y: e.screenY }; mouseCursorHidden = false; }}} />
 
 <div class="app" class:hide-cursor={mouseCursorHidden}>
-	<Sidebar currentPath={fm.currentPath} onnavigate={(path) => fm.navigate(path)} drives={fm.drives} homeDir={fm.homeDir} onrefreshdrives={() => fm.refreshDrives()} onerror={(msg) => fm.setError(msg)} isDragging={fm.isDragging} dropTarget={fm.dropTarget} ondragover={handleDragOverTarget} ondrop={handleDropOnTarget} ondragleave={handleDragLeaveTarget} />
+	<Sidebar currentPath={fm.currentPath} onnavigate={(path) => fm.navigate(path)} drives={fm.drives} homeDir={fm.homeDir} onrefreshdrives={() => fm.refreshDrives()} onerror={(msg) => fm.setError(msg)} collapsed={narrow} isDragging={fm.isDragging} dropTarget={fm.dropTarget} ondragover={handleDragOverTarget} ondrop={handleDropOnTarget} ondragleave={handleDragLeaveTarget} />
 
 	<div class="main-column">
 		{#if tabs.tabs.length > 1}
@@ -1200,6 +1214,8 @@ onDestroy(() => {
 						dropTarget={fm.dropTarget}
 						sortBy={fm.sortBy}
 						sortAsc={fm.sortAsc}
+						hideModified={compact}
+						hideSize={narrow}
 						onopen={(entry) => ops.handleOpen(fm, entry)}
 						onselect={fm.select}
 						ontoggleselect={fm.toggleSelect}
@@ -1214,7 +1230,7 @@ onDestroy(() => {
 						ondragleaveentry={() => fm.setDropTarget(null)}
 						ondragleavewindow={handleNativeDragOut}
 					/>
-				{#if fm.previewEnabled}
+				{#if fm.previewEnabled && !compact}
 					<PreviewPanel
 						entry={fm.cursorEntry}
 						{previewData}

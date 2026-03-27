@@ -193,7 +193,7 @@ The two features that justify this project's existence.
 - [x] CSS custom properties for all colors, spacing, fonts, radii, etc.
 - [x] Hot-reload themes (watch config/theme files, apply without restart)
 - [x] Ship 3 starter themes: dark minimal, catppuccin, nord
-- [ ] Icon display (nerd font glyphs by default, configurable) — postponed (nerd fonts work fine as-is)
+- [x] ~~Icon display~~ — material/nerd font icons already in place
 
 ### Drag and Drop
 - [x] Internal DnD — drag files to move/copy within the app

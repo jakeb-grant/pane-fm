@@ -20,6 +20,30 @@ pub fn open_default(path: String, app: tauri::AppHandle) -> Result<(), AppError>
 }
 
 #[tauri::command]
+pub fn open_with_editor(path: String) -> Result<(), AppError> {
+    let editor = std::env::var("EDITOR").map_err(|_| AppError::Desktop {
+        message: "$EDITOR is not set".to_string(),
+    })?;
+
+    let parts: Vec<&str> = editor.split_whitespace().collect();
+    let (cmd, args) = parts
+        .split_first()
+        .ok_or_else(|| AppError::Desktop {
+            message: "$EDITOR is empty".to_string(),
+        })?;
+
+    std::process::Command::new(cmd)
+        .args(args.iter())
+        .arg(&path)
+        .spawn()
+        .map_err(|e| AppError::Desktop {
+            message: format!("Failed to open editor: {e}"),
+        })?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn list_apps_for_mime(mime_type: String) -> Vec<AppEntry> {
     let mut apps = Vec::new();
     let mut seen = std::collections::HashSet::new();

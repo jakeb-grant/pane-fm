@@ -45,6 +45,7 @@ pub fn run() {
             commands::trash::restore_trash,
             commands::trash::empty_trash,
             commands::apps::open_default,
+            commands::apps::open_with_editor,
             commands::apps::list_apps_for_mime,
             commands::apps::open_with_app,
             commands::apps::open_terminal,
