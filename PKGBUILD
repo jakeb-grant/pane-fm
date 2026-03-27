@@ -12,12 +12,13 @@ depends=(
     'libsoup3'
 )
 optdepends=(
+    'zstd: .tar.zst archive support'
     'udisks2: drive mounting from sidebar'
     'poppler: PDF preview (pdftoppm)'
     'nerd-fonts: file/folder icons'
     'inter-font: UI font'
 )
-makedepends=('cargo' 'bun' 'git' 'pkgconf' 'zstd' 'xz' 'bzip2')
+makedepends=('cargo' 'bun' 'git')
 provides=('pane-fm')
 conflicts=('pane-fm')
 source=("git+https://github.com/jakeb-grant/pane-fm.git")

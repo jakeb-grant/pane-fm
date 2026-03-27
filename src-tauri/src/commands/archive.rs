@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::progress;
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use tauri::AppHandle;
 
 use super::file_ops::dir_size_and_count;
@@ -82,26 +83,39 @@ fn compress_sync(paths: &[String], dest: &str, app: &AppHandle) -> Result<(), Ap
         .unwrap_or("")
         .to_string();
 
-    // Pre-scan total bytes for progress
-    let total: u64 = paths.iter().map(|p| {
-        let path = PathBuf::from(p);
-        if path.is_dir() {
-            dir_size_and_count(&path).map(|(s, _)| s).unwrap_or(0)
-        } else {
-            std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
-        }
-    }).sum();
-
     let result = if name.ends_with(".zip") {
+        // Pre-scan total bytes for progress (only needed for native formats)
+        let total: u64 = paths
+            .iter()
+            .map(|p| {
+                let path = PathBuf::from(p);
+                if path.is_dir() {
+                    dir_size_and_count(&path).map(|(s, _)| s).unwrap_or(0)
+                } else {
+                    std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
+                }
+            })
+            .sum();
         compress_zip(paths, dest, total, app)
     } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
-        compress_tar(paths, dest, "gz", total, app)
+        let total: u64 = paths
+            .iter()
+            .map(|p| {
+                let path = PathBuf::from(p);
+                if path.is_dir() {
+                    dir_size_and_count(&path).map(|(s, _)| s).unwrap_or(0)
+                } else {
+                    std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
+                }
+            })
+            .sum();
+        compress_tar_gz(paths, dest, total, app)
     } else if name.ends_with(".tar.xz") {
-        compress_tar(paths, dest, "xz", total, app)
+        compress_tar_cmd(paths, dest, "xz")
     } else if name.ends_with(".tar.zst") {
-        compress_tar(paths, dest, "zst", total, app)
+        compress_tar_cmd(paths, dest, "zstd")
     } else if name.ends_with(".tar.bz2") {
-        compress_tar(paths, dest, "bz2", total, app)
+        compress_tar_cmd(paths, dest, "bzip2")
     } else {
         Err(AppError::Archive {
             message: format!("Unsupported archive format: {name}"),
@@ -180,34 +194,12 @@ fn add_dir_to_zip<W: std::io::Write + std::io::Seek>(
     Ok(())
 }
 
-fn compress_tar(paths: &[String], dest: &str, compression: &str, total: u64, app: &AppHandle) -> Result<(), AppError> {
+fn compress_tar_gz(paths: &[String], dest: &str, total: u64, app: &AppHandle) -> Result<(), AppError> {
     let file = std::fs::File::create(dest)
         .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
     let pw = ProgressWriter { inner: file, processed: 0, total, app: app.clone() };
-
-    match compression {
-        "gz" => {
-            let enc = flate2::write::GzEncoder::new(pw, flate2::Compression::default());
-            write_tar(enc, paths)
-        }
-        "xz" => {
-            let enc = xz2::write::XzEncoder::new(pw, 6);
-            write_tar(enc, paths)
-        }
-        "zst" => {
-            let enc = zstd::Encoder::new(pw, 3)
-                .map_err(|e| AppError::Archive { message: e.to_string() })?
-                .auto_finish();
-            write_tar(enc, paths)
-        }
-        "bz2" => {
-            let enc = bzip2::write::BzEncoder::new(pw, bzip2::Compression::default());
-            write_tar(enc, paths)
-        }
-        _ => Err(AppError::Archive {
-            message: format!("Unsupported compression: {compression}"),
-        }),
-    }
+    let enc = flate2::write::GzEncoder::new(pw, flate2::Compression::default());
+    write_tar(enc, paths)
 }
 
 fn write_tar<W: std::io::Write>(writer: W, paths: &[String]) -> Result<(), AppError> {
@@ -258,6 +250,79 @@ fn add_dir_to_tar<W: std::io::Write>(
     Ok(())
 }
 
+// --- Shell-based compression/extraction for xz, zstd, bzip2 ---
+
+fn compress_tar_cmd(paths: &[String], dest: &str, compressor: &str) -> Result<(), AppError> {
+    let mut cmd = Command::new("tar");
+    cmd.arg("-I").arg(compressor).arg("-cf").arg(dest);
+
+    for p in paths {
+        let path = PathBuf::from(p);
+        let parent = path.parent().unwrap_or_else(|| std::path::Path::new("/"));
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        cmd.arg("-C").arg(parent).arg(name);
+    }
+
+    run_cancellable(&mut cmd, compressor)
+}
+
+fn extract_tar_cmd(archive: &str, dest: &str, compressor: &str) -> Result<(), AppError> {
+    std::fs::create_dir_all(dest)
+        .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
+
+    let mut cmd = Command::new("tar");
+    cmd.arg("-I").arg(compressor).arg("-xf").arg(archive).arg("-C").arg(dest);
+
+    run_cancellable(&mut cmd, compressor)
+}
+
+fn run_cancellable(cmd: &mut Command, compressor: &str) -> Result<(), AppError> {
+    let mut child = cmd
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                AppError::Archive {
+                    message: format!("Install {compressor} to work with this archive format"),
+                }
+            } else {
+                AppError::Archive { message: e.to_string() }
+            }
+        })?;
+
+    loop {
+        if progress::is_cancelled() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(AppError::Cancelled);
+        }
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => return Ok(()),
+            Ok(Some(_)) => {
+                let stderr = child
+                    .stderr
+                    .take()
+                    .map(|mut s| {
+                        let mut buf = String::new();
+                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                        buf
+                    })
+                    .unwrap_or_default();
+                return Err(AppError::Archive {
+                    message: if stderr.is_empty() {
+                        format!("{compressor} failed")
+                    } else {
+                        stderr.trim().to_string()
+                    },
+                });
+            }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
+            Err(e) => return Err(AppError::Archive { message: e.to_string() }),
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn extract(archive: String, dest: String, app: AppHandle) -> Result<(), AppError> {
     progress::reset();
@@ -276,34 +341,39 @@ fn extract_sync(archive: &str, dest: &str, app: &AppHandle) -> Result<(), AppErr
         .unwrap_or("")
         .to_string();
 
-    let total = std::fs::metadata(archive)
-        .map(|m| m.len())
-        .unwrap_or(0);
-
-    let dest_path = PathBuf::from(dest);
-    std::fs::create_dir_all(&dest_path)
-        .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
-
-    let file = std::fs::File::open(archive)
-        .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
-    let pr = ProgressReader { inner: file, processed: 0, total, app: app.clone() };
-
     let result = if name.ends_with(".zip") {
+        let total = std::fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
+        let dest_path = PathBuf::from(dest);
+        std::fs::create_dir_all(&dest_path)
+            .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
+        let file = std::fs::File::open(archive)
+            .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
+        let pr = ProgressReader { inner: file, processed: 0, total, app: app.clone() };
         extract_zip(pr, &dest_path)
     } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
+        let total = std::fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
+        let dest_path = PathBuf::from(dest);
+        std::fs::create_dir_all(&dest_path)
+            .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
+        let file = std::fs::File::open(archive)
+            .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
+        let pr = ProgressReader { inner: file, processed: 0, total, app: app.clone() };
         let dec = flate2::read::GzDecoder::new(pr);
         unpack_tar(dec, &dest_path)
     } else if name.ends_with(".tar.xz") {
-        let dec = xz2::read::XzDecoder::new(pr);
-        unpack_tar(dec, &dest_path)
+        extract_tar_cmd(archive, dest, "xz")
     } else if name.ends_with(".tar.zst") {
-        let dec = zstd::Decoder::new(pr)
-            .map_err(|e| AppError::Archive { message: e.to_string() })?;
-        unpack_tar(dec, &dest_path)
+        extract_tar_cmd(archive, dest, "zstd")
     } else if name.ends_with(".tar.bz2") {
-        let dec = bzip2::read::BzDecoder::new(pr);
-        unpack_tar(dec, &dest_path)
+        extract_tar_cmd(archive, dest, "bzip2")
     } else if name.ends_with(".tar") {
+        let total = std::fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
+        let dest_path = PathBuf::from(dest);
+        std::fs::create_dir_all(&dest_path)
+            .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
+        let file = std::fs::File::open(archive)
+            .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
+        let pr = ProgressReader { inner: file, processed: 0, total, app: app.clone() };
         unpack_tar(pr, &dest_path)
     } else {
         Err(AppError::Archive {
@@ -357,6 +427,15 @@ mod tests {
         assert_eq!(fs::read_to_string(&nested).unwrap(), "Nested content");
     }
 
+    fn has_command(name: &str) -> bool {
+        Command::new(name)
+            .arg("--version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok()
+    }
+
     #[test]
     fn zip_roundtrip() {
         let tmp = TempDir::new().unwrap();
@@ -365,7 +444,6 @@ mod tests {
 
         let archive = tmp.path().join("test.zip");
 
-        // Test add_dir_to_zip directly (compress_zip needs AppHandle for ProgressWriter)
         {
             use zip::write::SimpleFileOptions;
             let file = fs::File::create(&archive).unwrap();
@@ -376,7 +454,6 @@ mod tests {
             zip.finish().unwrap();
         }
 
-        // Extract
         let extract_dir = tmp.path().join("extracted");
         fs::create_dir_all(&extract_dir).unwrap();
         {
@@ -396,14 +473,12 @@ mod tests {
         let archive = tmp.path().join("test.tar.gz");
         let paths = vec![src.to_string_lossy().to_string()];
 
-        // Compress
         {
             let file = fs::File::create(&archive).unwrap();
             let enc = flate2::write::GzEncoder::new(file, flate2::Compression::default());
             write_tar(enc, &paths).unwrap();
         }
 
-        // Extract
         let extract_dir = tmp.path().join("extracted");
         fs::create_dir_all(&extract_dir).unwrap();
         {
@@ -417,6 +492,9 @@ mod tests {
 
     #[test]
     fn tar_xz_roundtrip() {
+        if !has_command("xz") {
+            return;
+        }
         let tmp = TempDir::new().unwrap();
         let src = tmp.path().join("source");
         create_test_dir(&src);
@@ -424,25 +502,19 @@ mod tests {
         let archive = tmp.path().join("test.tar.xz");
         let paths = vec![src.to_string_lossy().to_string()];
 
-        {
-            let file = fs::File::create(&archive).unwrap();
-            let enc = xz2::write::XzEncoder::new(file, 6);
-            write_tar(enc, &paths).unwrap();
-        }
+        compress_tar_cmd(&paths, archive.to_str().unwrap(), "xz").unwrap();
 
         let extract_dir = tmp.path().join("extracted");
-        fs::create_dir_all(&extract_dir).unwrap();
-        {
-            let file = fs::File::open(&archive).unwrap();
-            let dec = xz2::read::XzDecoder::new(file);
-            unpack_tar(dec, &extract_dir).unwrap();
-        }
+        extract_tar_cmd(archive.to_str().unwrap(), extract_dir.to_str().unwrap(), "xz").unwrap();
 
         assert_test_dir_contents(&extract_dir, "source");
     }
 
     #[test]
     fn tar_zst_roundtrip() {
+        if !has_command("zstd") {
+            return;
+        }
         let tmp = TempDir::new().unwrap();
         let src = tmp.path().join("source");
         create_test_dir(&src);
@@ -450,25 +522,19 @@ mod tests {
         let archive = tmp.path().join("test.tar.zst");
         let paths = vec![src.to_string_lossy().to_string()];
 
-        {
-            let file = fs::File::create(&archive).unwrap();
-            let enc = zstd::Encoder::new(file, 3).unwrap().auto_finish();
-            write_tar(enc, &paths).unwrap();
-        }
+        compress_tar_cmd(&paths, archive.to_str().unwrap(), "zstd").unwrap();
 
         let extract_dir = tmp.path().join("extracted");
-        fs::create_dir_all(&extract_dir).unwrap();
-        {
-            let file = fs::File::open(&archive).unwrap();
-            let dec = zstd::Decoder::new(file).unwrap();
-            unpack_tar(dec, &extract_dir).unwrap();
-        }
+        extract_tar_cmd(archive.to_str().unwrap(), extract_dir.to_str().unwrap(), "zstd").unwrap();
 
         assert_test_dir_contents(&extract_dir, "source");
     }
 
     #[test]
     fn tar_bz2_roundtrip() {
+        if !has_command("bzip2") {
+            return;
+        }
         let tmp = TempDir::new().unwrap();
         let src = tmp.path().join("source");
         create_test_dir(&src);
@@ -476,19 +542,10 @@ mod tests {
         let archive = tmp.path().join("test.tar.bz2");
         let paths = vec![src.to_string_lossy().to_string()];
 
-        {
-            let file = fs::File::create(&archive).unwrap();
-            let enc = bzip2::write::BzEncoder::new(file, bzip2::Compression::default());
-            write_tar(enc, &paths).unwrap();
-        }
+        compress_tar_cmd(&paths, archive.to_str().unwrap(), "bzip2").unwrap();
 
         let extract_dir = tmp.path().join("extracted");
-        fs::create_dir_all(&extract_dir).unwrap();
-        {
-            let file = fs::File::open(&archive).unwrap();
-            let dec = bzip2::read::BzDecoder::new(file);
-            unpack_tar(dec, &extract_dir).unwrap();
-        }
+        extract_tar_cmd(archive.to_str().unwrap(), extract_dir.to_str().unwrap(), "bzip2").unwrap();
 
         assert_test_dir_contents(&extract_dir, "source");
     }
@@ -508,13 +565,9 @@ mod tests {
             write_tar(enc, &paths).unwrap();
         }
 
-        // The archive should be created successfully even with an empty dir.
-        // Note: write_tar uses add_dir_to_tar which only adds contents,
-        // so the empty dir itself won't have entries but the archive is valid.
         assert!(archive.exists());
         assert!(fs::metadata(&archive).unwrap().len() > 0);
 
-        // Extraction should succeed without errors
         let extract_dir = tmp.path().join("extracted");
         fs::create_dir_all(&extract_dir).unwrap();
         {
@@ -531,7 +584,6 @@ mod tests {
         fs::create_dir_all(&src).unwrap();
         fs::write(src.join("real.txt"), "real file").unwrap();
 
-        // Create a symlink
         #[cfg(unix)]
         std::os::unix::fs::symlink(src.join("real.txt"), src.join("link.txt")).unwrap();
 
@@ -546,7 +598,6 @@ mod tests {
             zip.finish().unwrap();
         }
 
-        // Extract and verify symlink was skipped
         let extract_dir = tmp.path().join("extracted");
         fs::create_dir_all(&extract_dir).unwrap();
         {
@@ -565,7 +616,6 @@ mod tests {
         let src = tmp.path().join("source");
         create_test_dir(&src);
 
-        // Create archive
         let archive = tmp.path().join("test.tar.gz");
         let paths = vec![src.to_string_lossy().to_string()];
         {
@@ -574,7 +624,6 @@ mod tests {
             write_tar(enc, &paths).unwrap();
         }
 
-        // Extract to a directory that already exists with some content
         let extract_dir = tmp.path().join("existing");
         fs::create_dir_all(&extract_dir).unwrap();
         fs::write(extract_dir.join("preexisting.txt"), "already here").unwrap();
@@ -585,7 +634,6 @@ mod tests {
             unpack_tar(dec, &extract_dir).unwrap();
         }
 
-        // Both old and new content should exist
         assert!(extract_dir.join("preexisting.txt").exists());
         assert_test_dir_contents(&extract_dir, "source");
     }
