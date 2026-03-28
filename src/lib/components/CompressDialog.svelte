@@ -1,6 +1,6 @@
 <script lang="ts">
 import { tick } from "svelte";
-import { keybindLabel, keybinds, matchesKeybind } from "$lib/keybinds";
+import { keybinds, matchesKeybind } from "$lib/keybinds";
 import { dialogPop, overlayFade } from "$lib/transitions";
 
 let {
@@ -42,9 +42,16 @@ function handleSubmit() {
 </script>
 
 <svelte:window onkeydown={(e) => {
+	if (matchesKeybind(e, keybinds.escape)) { onclose(); return; }
+	if (e.key === "Enter") { e.preventDefault(); handleSubmit(); return; }
 	const inInput = (e.target as HTMLElement)?.tagName === "INPUT";
-	if (matchesKeybind(e, keybinds.escape)) onclose();
-	else if (!inInput && matchesKeybind(e, keybinds.confirm)) handleSubmit();
+	if (!inInput && matchesKeybind(e, keybinds.confirm)) { handleSubmit(); return; }
+	const idx = Number.parseInt(e.key, 10) - 1;
+	if (idx >= 0 && idx < formats.length) {
+		e.preventDefault();
+		selectedFormat = formats[idx].ext;
+		nameInput?.focus();
+	}
 }} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -64,7 +71,6 @@ function handleSubmit() {
 						type="text"
 						bind:value={baseName}
 						bind:this={nameInput}
-						onkeydown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSubmit(); } }}
 					/>
 					<span class="ext-label">.{selectedFormat}</span>
 				</div>
@@ -77,10 +83,16 @@ function handleSubmit() {
 						<button
 							class="format-btn"
 							class:active={selectedFormat === fmt.ext}
-							onclick={() => selectedFormat = fmt.ext}
+							tabindex={-1}
+							onclick={() => { selectedFormat = fmt.ext; nameInput?.focus(); }}
 						>
 							{fmt.label}
 						</button>
+					{/each}
+				</div>
+				<div class="format-keys">
+					{#each formats as _, i}
+						<span class="format-key">{i + 1}</span>
 					{/each}
 				</div>
 			</div>
@@ -92,8 +104,8 @@ function handleSubmit() {
 		</div>
 
 		<div class="footer">
-			<button class="btn cancel" onclick={onclose}>Cancel <kbd>{keybindLabel(keybinds.escape)}</kbd></button>
-			<button class="btn confirm" onclick={handleSubmit} disabled={!baseName.trim()}>Compress <kbd>Enter/{keybindLabel(keybinds.confirm)}</kbd></button>
+			<button class="btn cancel" tabindex={-1} onclick={onclose}>Cancel <kbd>Esc</kbd></button>
+			<button class="btn confirm" tabindex={-1} onclick={handleSubmit} disabled={!baseName.trim()}>Compress <kbd>Enter</kbd></button>
 		</div>
 	</div>
 </div>
@@ -210,6 +222,20 @@ function handleSubmit() {
 	.format-btn.active {
 		color: var(--accent);
 		background: var(--bg-surface);
+	}
+
+	.format-keys {
+		display: flex;
+	}
+
+	.format-key {
+		flex: 1;
+		text-align: center;
+		font-size: 9px;
+		font-family: var(--font-mono);
+		color: var(--text-muted);
+		opacity: 0.4;
+		padding-top: 2px;
 	}
 
 	.preview {

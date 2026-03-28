@@ -20,10 +20,14 @@ pub fn open_default(path: String, app: tauri::AppHandle) -> Result<(), AppError>
 }
 
 #[tauri::command]
-pub fn open_with_editor(path: String) -> Result<(), AppError> {
-    let editor = std::env::var("EDITOR").map_err(|_| AppError::Desktop {
-        message: "$EDITOR is not set".to_string(),
-    })?;
+pub fn open_with_editor(path: String, editor: Option<String>) -> Result<(), AppError> {
+    let editor = editor
+        .filter(|s| !s.is_empty())
+        .or_else(|| std::env::var("VISUAL").ok())
+        .or_else(|| std::env::var("EDITOR").ok())
+        .ok_or_else(|| AppError::Desktop {
+            message: "No editor configured — set 'editor' in config.toml or $EDITOR".to_string(),
+        })?;
 
     let parts: Vec<&str> = editor.split_whitespace().collect();
     let (cmd, args) = parts

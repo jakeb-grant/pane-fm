@@ -83,6 +83,7 @@ import { isGlobPattern, parentPath } from "$lib/utils";
 let themeUnlisten: UnlistenFn | null = null;
 let searchUnlisten: UnlistenFn | null = null;
 let searchDebounce: ReturnType<typeof setTimeout> | undefined;
+let editorApp: string | null = null;
 let terminalApp: string | null = null;
 let customActions: CustomAction[] = [];
 let dirWatchUnlisten: UnlistenFn | null = null;
@@ -116,6 +117,7 @@ async function applyConfig(config: AppConfig) {
 	for (const tab of tabs.tabs) {
 		tab.fm.applyConfigDefaults();
 	}
+	editorApp = config.general.editor ?? null;
 	terminalApp = config.general.terminal ?? null;
 	customActions = config.actions ?? [];
 	setIconMode(config.general.light_icons ? "light" : "dark");
@@ -459,6 +461,9 @@ function executeChord(name: ChordName) {
 		case "goTop":
 			fm.selectByIndex(0);
 			break;
+		case "goBottom":
+			fm.selectByIndex(fm.filteredEntries.length - 1);
+			break;
 		case "goHome":
 			fm.navigate(fm.homeDir);
 			break;
@@ -652,19 +657,13 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.selectRelative(-1);
 	} else if (matchesKeybind(e, keybinds.open)) {
 		e.preventDefault();
-		if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry);
+		if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry, editorApp);
 	} else if (matchesKeybind(e, keybinds.enterDir)) {
 		e.preventDefault();
 		if (fm.cursorEntry?.is_dir) fm.navigate(fm.cursorEntry.path);
 	} else if (matchesKeybind(e, keybinds.goParent)) {
 		e.preventDefault();
 		fm.goUp();
-	} else if (matchesKeybind(e, keybinds.goTop)) {
-		e.preventDefault();
-		fm.selectByIndex(0);
-	} else if (matchesKeybind(e, keybinds.goBottom)) {
-		e.preventDefault();
-		fm.selectByIndex(fm.filteredEntries.length - 1);
 	} else if (matchesKeybind(e, keybinds.toggleHidden)) {
 		fm.toggleHidden();
 	} else if (matchesKeybind(e, keybinds.yank)) {
@@ -726,8 +725,12 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 			await tick();
 			searchOverlay?.focusInput();
 		}
+	} else if (matchesKeybind(e, keybinds.openInEditor)) {
+		if (fm.cursorEntry)
+			ops.handleOpenInEditor(fm, fm.cursorEntry.path, editorApp);
 	} else if (matchesKeybind(e, keybinds.openTerminal)) {
 		if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
+		else fm.setError("No terminal configured — set 'terminal' in config.toml");
 	} else if (e.key === "?") {
 		e.preventDefault();
 		dlg.openHelp();
@@ -783,7 +786,7 @@ function buildCommands(): Command[] {
 		moveDown: () => fm.selectRelative(1),
 		moveUp: () => fm.selectRelative(-1),
 		open: () => {
-			if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry);
+			if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry, editorApp);
 		},
 		enterDir: () => {
 			if (fm.cursorEntry?.is_dir) fm.navigate(fm.cursorEntry.path);
@@ -840,8 +843,14 @@ function buildCommands(): Command[] {
 				}
 			}
 		},
+		openInEditor: () => {
+			if (fm.cursorEntry)
+				ops.handleOpenInEditor(fm, fm.cursorEntry.path, editorApp);
+		},
 		openTerminal: () => {
 			if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
+			else
+				fm.setError("No terminal configured — set 'terminal' in config.toml");
 		},
 		togglePreview: () => fm.togglePreview(),
 		search: () => {
@@ -875,7 +884,7 @@ function buildCommands(): Command[] {
 // --- Context menu wiring ---
 
 const menuActions: ContextMenuActions = {
-	open: (entry) => ops.handleOpen(fm, entry),
+	open: (entry) => ops.handleOpen(fm, entry, editorApp),
 	openWith: (entry, pos) =>
 		ops.handleOpenWith(fm, entry, pos, (menu) =>
 			dlg.openContextMenu(menu.x, menu.y, menu.entry),
@@ -901,8 +910,10 @@ const menuActions: ContextMenuActions = {
 	launchApp: (filePath, desktopId) =>
 		ops.launchOpenWithApp(fm, filePath, desktopId),
 	createSymlink: () => ops.handleCreateSymlink(fm),
+	openInEditor: (path: string) => ops.handleOpenInEditor(fm, path, editorApp),
 	openTerminal: () => {
 		if (terminalApp) ops.handleOpenTerminal(fm, terminalApp);
+		else fm.setError("No terminal configured — set 'terminal' in config.toml");
 	},
 	runCustomAction: async (action) => {
 		const entry = dlg.contextMenu?.entry;
@@ -1099,7 +1110,6 @@ onMount(async () => {
 			dirRefreshTimer = setTimeout(() => fm.refresh(), 300);
 		}
 	});
-
 });
 
 onDestroy(() => {
@@ -1198,7 +1208,7 @@ onDestroy(() => {
 						onclose={handleFilterClose}
 						onmovedown={() => fm.selectRelative(1)}
 						onmoveup={() => fm.selectRelative(-1)}
-						onopen={() => { if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry); }}
+						onopen={() => { if (fm.cursorEntry) ops.handleOpen(fm, fm.cursorEntry, editorApp); }}
 						onaccept={() => { filterBarVisible = false; }}
 					/>
 				{/if}
@@ -1219,7 +1229,7 @@ onDestroy(() => {
 						sortAsc={fm.sortAsc}
 						hideModified={compact}
 						hideSize={narrow}
-						onopen={(entry) => ops.handleOpen(fm, entry)}
+						onopen={(entry) => ops.handleOpen(fm, entry, editorApp)}
 						onselect={fm.select}
 						ontoggleselect={fm.toggleSelect}
 						onselectrange={(entry) => { if (fm.cursorEntry) fm.selectRange(fm.cursorEntry, entry); else fm.select(entry); }}

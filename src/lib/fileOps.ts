@@ -21,14 +21,18 @@ import { errorMessage } from "$lib/errors";
 import type { FileManager } from "$lib/stores/fileManager.svelte";
 import { parentPath } from "$lib/utils";
 
-export async function handleOpen(fm: FileManager, entry: FileEntry) {
+export async function handleOpen(
+	fm: FileManager,
+	entry: FileEntry,
+	editor?: string | null,
+) {
 	if (entry.is_dir) {
 		fm.navigate(entry.path);
 		return;
 	}
 	try {
 		if (isTextPreviewable(entry.mime_type, entry.name)) {
-			await openWithEditor(entry.path);
+			await openWithEditor(entry.path, editor);
 		} else {
 			await openDefault(entry.path);
 		}
@@ -308,6 +312,18 @@ export async function handleCreateSymlink(fm: FileManager) {
 		await fm.refresh();
 	} catch (e) {
 		fm.setError(errorMessage(e) ?? "Failed to create symlink");
+	}
+}
+
+export async function handleOpenInEditor(
+	fm: FileManager,
+	path: string,
+	editor?: string | null,
+) {
+	try {
+		await openWithEditor(path, editor);
+	} catch (e) {
+		fm.setError(errorMessage(e) ?? "Failed to open in editor");
 	}
 }
 

@@ -17,8 +17,6 @@ export const categories: { label: string; keys: string[] }[] = [
 			"open",
 			"enterDir",
 			"goParent",
-			"goTop",
-			"goBottom",
 			"halfPageUp",
 			"halfPageDown",
 			"historyBack",
@@ -53,6 +51,7 @@ export const categories: { label: string; keys: string[] }[] = [
 			"filterPrev",
 			"properties",
 			"openMenu",
+			"openInEditor",
 			"openTerminal",
 			"togglePreview",
 			"search",
@@ -68,7 +67,7 @@ export const categories: { label: string; keys: string[] }[] = [
 export const chordCategories: { label: string; keys: string[] }[] = [
 	{
 		label: "Go To",
-		keys: ["goTop", "goHome", "goDownloads", "goTrash", "nextTab", "prevTab"],
+		keys: ["goTop", "goBottom", "goHome", "goDownloads", "goTrash", "nextTab", "prevTab"],
 	},
 	{
 		label: "Sort",

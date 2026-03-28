@@ -34,6 +34,7 @@ pub struct GeneralConfig {
     pub sort_ascending: Option<bool>,
     pub theme: Option<String>,
     pub light_icons: Option<bool>,
+    pub editor: Option<String>,
     pub terminal: Option<String>,
 }
 

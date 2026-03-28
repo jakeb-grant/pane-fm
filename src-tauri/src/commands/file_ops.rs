@@ -6,21 +6,27 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 
 #[tauri::command]
-pub fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>, AppError> {
-    let path = PathBuf::from(&path);
-    if !path.is_dir() {
-        return Err(AppError::NotFound {
-            path: path.display().to_string(),
-        });
-    }
+pub async fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let path = PathBuf::from(&path);
+        if !path.is_dir() {
+            return Err(AppError::NotFound {
+                path: path.display().to_string(),
+            });
+        }
 
-    let entries = fs_ops::read_directory(&path)?;
+        let entries = fs_ops::read_directory(&path)?;
 
-    if show_hidden {
-        Ok(entries)
-    } else {
-        Ok(entries.into_iter().filter(|e| !e.hidden).collect())
-    }
+        if show_hidden {
+            Ok(entries)
+        } else {
+            Ok(entries.into_iter().filter(|e| !e.hidden).collect())
+        }
+    })
+    .await
+    .map_err(|e| AppError::Desktop {
+        message: format!("Task join error: {e}"),
+    })?
 }
 
 #[tauri::command]

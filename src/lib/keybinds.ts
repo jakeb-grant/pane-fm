@@ -14,6 +14,7 @@ export interface ChordDef {
 
 export type ChordName =
 	| "goTop"
+	| "goBottom"
 	| "goHome"
 	| "goDownloads"
 	| "goTrash"
@@ -27,6 +28,7 @@ export type ChordName =
 
 export const chords: Record<string, ChordDef> = {
 	goTop: { keys: ["g", "g"] },
+	goBottom: { keys: ["g", "G"] },
 	goHome: { keys: ["g", "h"] },
 	goDownloads: { keys: ["g", "d"] },
 	goTrash: { keys: ["g", "x"] },
@@ -50,8 +52,6 @@ export const keybinds: Record<string, KeybindDef> = {
 	open: ["l", "Enter"],
 	enterDir: "ArrowRight",
 	goParent: ["h", "ArrowLeft"],
-	goTop: "Home",
-	goBottom: ["G", "End"],
 	toggleHidden: ".",
 	toggleSelect: " ",
 	selectAll: { key: "a", ctrl: true },
@@ -79,6 +79,7 @@ export const keybinds: Record<string, KeybindDef> = {
 	newTab: "t",
 	closeTab: "q",
 
+	openInEditor: "e",
 	openTerminal: "`",
 	togglePreview: "P",
 	search: "s",

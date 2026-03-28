@@ -40,6 +40,7 @@ export interface ContextMenuActions {
 	toggleHidden: () => void;
 	launchApp: (filePath: string, desktopId: string) => void;
 	createSymlink: () => void;
+	openInEditor: (path: string) => void;
 	openTerminal: () => void;
 	runCustomAction: (action: CustomAction) => void;
 }
@@ -130,6 +131,10 @@ function buildEntryItems(
 			{
 				label: "Open With\u2026",
 				action: () => actions.openWith(entry, { x: ctx.x, y: ctx.y }),
+			},
+			{
+				label: "Open in Editor",
+				action: () => actions.openInEditor(entry.path),
 			},
 			{ separator: true },
 		);

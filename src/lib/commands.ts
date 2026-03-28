@@ -144,8 +144,11 @@ export function openDefault(path: string): Promise<void> {
 	return invoke("open_default", { path });
 }
 
-export function openWithEditor(path: string): Promise<void> {
-	return invoke("open_with_editor", { path });
+export function openWithEditor(
+	path: string,
+	editor?: string | null,
+): Promise<void> {
+	return invoke("open_with_editor", { path, editor });
 }
 
 export interface AppEntry {
@@ -210,6 +213,7 @@ export interface GeneralConfig {
 	sort_ascending?: boolean;
 	theme?: string;
 	light_icons?: boolean;
+	editor?: string;
 	terminal?: string;
 }
 
