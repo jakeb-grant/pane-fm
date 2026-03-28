@@ -79,6 +79,8 @@ export const keybinds: Record<string, KeybindDef> = {
 	newTab: "t",
 	closeTab: "q",
 
+	previewGrow: "[",
+	previewShrink: "]",
 	openInEditor: "e",
 	openTerminal: "`",
 	togglePreview: "P",

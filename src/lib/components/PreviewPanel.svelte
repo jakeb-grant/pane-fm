@@ -39,15 +39,65 @@ const pdfImageUrl = $derived(
 	isPdf && pdfPreview ? convertFileSrc(pdfPreview.image_path) : null,
 );
 const MAX_PREVIEW_LINES = 200;
-const hlines = $derived.by(() => {
-	if (!highlightedHtml)
-		return { html: "", gutter: "", count: 0, capped: false };
+const LINE_HEIGHT = 18; // 12px font * 1.5 line-height
+const OVERSCAN = 5;
+
+const splitLines = $derived.by(() => {
+	if (!highlightedHtml) return { lines: [] as string[], capped: false };
 	const lines = highlightedHtml.split("\n");
 	const capped = lines.length > MAX_PREVIEW_LINES;
-	const visible = capped ? lines.slice(0, MAX_PREVIEW_LINES) : lines;
-	const count = visible.length;
-	const gutter = Array.from({ length: count }, (_, i) => i + 1).join("\n");
-	return { html: visible.join("\n"), gutter, count, capped };
+	return { lines: capped ? lines.slice(0, MAX_PREVIEW_LINES) : lines, capped };
+});
+
+let codeWrapEl = $state<HTMLDivElement>();
+let scrollTop = $state(0);
+let viewHeight = $state(300);
+
+function onCodeScroll() {
+	if (!codeWrapEl) return;
+	scrollTop = codeWrapEl.scrollTop;
+	viewHeight = codeWrapEl.clientHeight;
+}
+
+// Reset scroll when preview changes
+$effect(() => {
+	splitLines.lines;
+	if (codeWrapEl) {
+		codeWrapEl.scrollTop = 0;
+		scrollTop = 0;
+		viewHeight = codeWrapEl.clientHeight || 300;
+	}
+});
+
+const visibleRange = $derived.by(() => {
+	const total = splitLines.lines.length;
+	if (total === 0) return { start: 0, end: 0, total: 0 };
+	const start = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - OVERSCAN);
+	const end = Math.min(
+		total,
+		Math.ceil((scrollTop + viewHeight) / LINE_HEIGHT) + OVERSCAN,
+	);
+	return { start, end, total };
+});
+
+let gutterEl = $state<HTMLPreElement>();
+let codeEl = $state<HTMLElement>();
+
+$effect(() => {
+	const { start, end } = visibleRange;
+	const lines = splitLines.lines;
+	if (!lines.length) {
+		if (codeEl) codeEl.innerHTML = "";
+		if (gutterEl) gutterEl.textContent = "";
+		return;
+	}
+	const slice = lines.slice(start, end);
+	if (codeEl) codeEl.innerHTML = slice.join("\n");
+	if (gutterEl) {
+		const nums: string[] = [];
+		for (let i = start; i < end; i++) nums.push(String(i + 1));
+		gutterEl.textContent = nums.join("\n");
+	}
 });
 
 let dragging = $state(false);
@@ -117,17 +167,22 @@ function onpointerdown(e: PointerEvent) {
 				<span class="preview-filename">{entry.name}</span>
 				<span class="preview-detail">{pdfPreview?.page_count} page{pdfPreview?.page_count !== 1 ? 's' : ''}</span>
 			</div>
-		{:else if previewData && !previewData.is_binary && hlines.count > 0}
+		{:else if previewData && !previewData.is_binary && splitLines.lines.length > 0}
 			<div class="preview-text">
-				<div class="code-wrap">
-					<pre class="gutter">{hlines.gutter}</pre>
-					<pre class="code-content"><code>{@html hlines.html}</code></pre>
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div class="code-wrap" bind:this={codeWrapEl} onscroll={onCodeScroll}>
+					<div class="code-virtual" style:height="{splitLines.lines.length * LINE_HEIGHT + 16}px">
+						<div class="code-visible" style:transform="translateY({visibleRange.start * LINE_HEIGHT + 8}px)">
+							<pre class="gutter" bind:this={gutterEl}></pre>
+							<pre class="code-content"><code bind:this={codeEl}></code></pre>
+						</div>
+					</div>
 				</div>
 			</div>
 			<div class="preview-footer">
 				<FileIcon src={icon} size={16} />
 				<span class="preview-filename">{entry.name}</span>
-				<span class="preview-detail">{formatSize(entry.size)}{#if previewData.truncated || hlines.capped} (truncated){/if}</span>
+				<span class="preview-detail">{formatSize(entry.size)}{#if previewData.truncated || splitLines.capped} (truncated){/if}</span>
 			</div>
 		{:else if dirPreviewEntries}
 			{@const maxDirEntries = 100}
@@ -298,7 +353,6 @@ function onpointerdown(e: PointerEvent) {
 
 	.code-wrap {
 		flex: 1;
-		display: flex;
 		overflow: auto;
 		min-height: 0;
 	}
@@ -307,10 +361,19 @@ function onpointerdown(e: PointerEvent) {
 		background: var(--bg-primary);
 	}
 
-	.code-wrap pre {
+	.code-virtual {
+		position: relative;
+	}
+
+	.code-visible {
+		display: flex;
+		will-change: transform;
+	}
+
+	.code-visible pre {
 		margin: 0;
 		font-size: 12px;
-		line-height: 1.5;
+		line-height: 18px;
 		white-space: pre;
 	}
 
@@ -319,7 +382,7 @@ function onpointerdown(e: PointerEvent) {
 		left: 0;
 		flex-shrink: 0;
 		text-align: right;
-		padding: 8px 3px;
+		padding: 0 3px;
 		color: color-mix(in srgb, var(--text-muted) 50%, transparent);
 		user-select: none;
 		border-right: 1px solid var(--border);
@@ -328,13 +391,12 @@ function onpointerdown(e: PointerEvent) {
 	}
 
 	.code-content {
-		padding: 8px 12px 8px 0;
+		padding: 0 12px 0 0;
 	}
 
 	.code-content code {
 		display: block;
 		margin-left: 4px;
-		content-visibility: auto;
 	}
 
 </style>

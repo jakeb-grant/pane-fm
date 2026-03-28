@@ -74,6 +74,9 @@ export function isTextPreviewable(mime: string, filename?: string): boolean {
 		if (textExtensions.has(ext)) return true;
 		const base = filename.toLowerCase();
 		if (textExtensions.has(base)) return true;
+		// Extensionless files with unknown MIME — likely text (PKGBUILD, LICENSE, etc.)
+		if (mime === "application/octet-stream" && !filename.includes("."))
+			return true;
 	}
 	return false;
 }

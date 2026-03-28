@@ -37,7 +37,8 @@
 #   yank, cut, paste, trash, permanent_delete
 #   rename, new_file, new_folder, cancel_clipboard
 #   toggle_hidden, filter, filter_next, filter_prev
-#   properties, open_menu, open_in_editor, open_terminal, toggle_preview
+#   properties, open_menu, open_in_editor, open_terminal
+#   toggle_preview, preview_shrink, preview_grow
 #   search, command_palette
 #   new_tab, close_tab, confirm, deny
 

@@ -186,6 +186,17 @@ let dirPreviewEntries = $state<FileEntry[] | null>(null);
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
 let previewGen = 0;
 
+const MAX_HIGHLIGHT_LINES = 200;
+function truncateForHighlight(code: string): string {
+	let pos = 0;
+	for (let i = 0; i < MAX_HIGHLIGHT_LINES && pos < code.length; i++) {
+		const nl = code.indexOf("\n", pos);
+		if (nl === -1) return code;
+		pos = nl + 1;
+	}
+	return code.slice(0, pos);
+}
+
 let prefetchGen = 0;
 const pendingPrefetch = new Map<
 	number,
@@ -292,7 +303,7 @@ function prefetchAdjacent(current: FileEntry) {
 						data,
 					});
 					hlWorker.postMessage({
-						code: data.content,
+						code: truncateForHighlight(data.content),
 						filename: adj.name,
 						gen: pgen,
 					});
@@ -347,7 +358,11 @@ async function loadPreview(entry: FileEntry, gen: number) {
 				previewCache.set(path, entry.modified, { type: "none" });
 			} else {
 				activePreviewEntry = entry;
-				hlWorker.postMessage({ code: data.content, filename: name, gen });
+				hlWorker.postMessage({
+					code: truncateForHighlight(data.content),
+					filename: name,
+					gen,
+				});
 				return; // Worker callback handles previewLoading + caching
 			}
 		} catch (e) {
@@ -718,6 +733,10 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 		fm.goForward();
 	} else if (matchesKeybind(e, keybinds.togglePreview)) {
 		fm.togglePreview();
+	} else if (matchesKeybind(e, keybinds.previewShrink)) {
+		fm.setPreviewWidth(Math.max(150, fm.previewWidth - 15));
+	} else if (matchesKeybind(e, keybinds.previewGrow)) {
+		fm.setPreviewWidth(Math.min(800, fm.previewWidth + 15));
 	} else if (matchesKeybind(e, keybinds.search)) {
 		e.preventDefault();
 		if (!fm.searchOpen) {
@@ -843,6 +862,9 @@ function buildCommands(): Command[] {
 				}
 			}
 		},
+		previewShrink: () =>
+			fm.setPreviewWidth(Math.max(150, fm.previewWidth - 15)),
+		previewGrow: () => fm.setPreviewWidth(Math.min(800, fm.previewWidth + 15)),
 		openInEditor: () => {
 			if (fm.cursorEntry)
 				ops.handleOpenInEditor(fm, fm.cursorEntry.path, editorApp);

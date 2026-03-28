@@ -132,8 +132,12 @@ pub async fn delete_entries_permanently(
 }
 
 #[tauri::command]
-pub fn read_file_preview(path: String, max_bytes: usize) -> Result<FilePreview, AppError> {
-    fs_ops::read_file_preview(&PathBuf::from(path), max_bytes)
+pub async fn read_file_preview(path: String, max_bytes: usize) -> Result<FilePreview, AppError> {
+    tokio::task::spawn_blocking(move || fs_ops::read_file_preview(&PathBuf::from(path), max_bytes))
+        .await
+        .map_err(|e| AppError::Desktop {
+            message: format!("Task join error: {e}"),
+        })?
 }
 
 #[tauri::command]
