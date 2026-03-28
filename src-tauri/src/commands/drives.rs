@@ -156,7 +156,7 @@ fn partition_to_drive(part: &LsblkDevice, parent: &LsblkDevice) -> Option<DriveE
 pub async fn mount_drive(device: String) -> Result<String, AppError> {
     let output = tokio::task::spawn_blocking(move || {
         std::process::Command::new("udisksctl")
-            .args(["mount", "-b", &device, "--no-interaction"])
+            .args(["mount", "-b", &device, "--no-user-interaction"])
             .output()
     })
     .await
