@@ -90,6 +90,32 @@ let dirWatchUnlisten: UnlistenFn | null = null;
 let configUnlisten: UnlistenFn | null = null;
 let currentThemeName: string | null = null;
 
+function applyBgOpacity(css: string): string {
+	const opacityMatch = css.match(/--bg-opacity:\s*([\d.]+)%/);
+	if (!opacityMatch) return css;
+	const opacity = opacityMatch[1];
+	if (opacity === "100") return css;
+
+	const bgVars = [
+		"--bg-primary",
+		"--bg-secondary",
+		"--bg-surface",
+		"--bg-hover",
+	];
+	const overrides: string[] = [];
+	for (const v of bgVars) {
+		const re = new RegExp(`${v}:\\s*(#[0-9a-fA-F]{6})(?![0-9a-fA-F-])`);
+		const m = css.match(re);
+		if (m) {
+			overrides.push(
+				`${v}: color-mix(in srgb, ${m[1]} ${opacity}%, transparent)`,
+			);
+		}
+	}
+	if (overrides.length === 0) return css;
+	return `${css}\n:root {\n\t${overrides.join(";\n\t")};\n}`;
+}
+
 function applyThemeCss(css: string) {
 	let el = document.getElementById("pane-fm-theme");
 	if (!el) {
@@ -97,7 +123,7 @@ function applyThemeCss(css: string) {
 		el.id = "pane-fm-theme";
 		document.head.appendChild(el);
 	}
-	el.textContent = css;
+	el.textContent = applyBgOpacity(css);
 }
 
 async function applyConfig(config: AppConfig) {

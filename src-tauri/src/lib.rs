@@ -27,6 +27,22 @@ fn theme_bg_color() -> tauri::window::Color {
     parse_bg_primary(&css).unwrap_or(default)
 }
 
+fn parse_bg_opacity(css: &str) -> u8 {
+    let Some(idx) = css.find("--bg-opacity:") else {
+        return 255;
+    };
+    let rest = &css[idx..];
+    // Extract the numeric value before '%'
+    let Some(pct_pos) = rest.find('%') else {
+        return 255;
+    };
+    let between = rest["--bg-opacity:".len()..pct_pos].trim();
+    between
+        .parse::<f64>()
+        .map(|p| (p / 100.0 * 255.0).round() as u8)
+        .unwrap_or(255)
+}
+
 fn parse_bg_primary(css: &str) -> Option<tauri::window::Color> {
     // Match --bg-primary: #rrggbb
     let idx = css.find("--bg-primary")?;
@@ -39,7 +55,13 @@ fn parse_bg_primary(css: &str) -> Option<tauri::window::Color> {
     let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
     let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
     let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-    Some(tauri::window::Color(r, g, b, 255))
+    let a = parse_bg_opacity(css);
+    if a < 255 {
+        // Fully transparent window — let CSS color-mix handle the visual background
+        Some(tauri::window::Color(0, 0, 0, 0))
+    } else {
+        Some(tauri::window::Color(r, g, b, 255))
+    }
 }
 
 #[tauri::command]

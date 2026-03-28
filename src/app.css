@@ -1,4 +1,5 @@
 :root {
+	--bg-opacity: 100%;
 	--bg-primary: #1e1e2e;
 	--bg-secondary: #181825;
 	--bg-surface: #313244;

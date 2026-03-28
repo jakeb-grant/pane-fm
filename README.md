@@ -95,6 +95,8 @@ Three starter themes are installed to `~/.config/pane-fm/themes/` on first launc
 
 Theme files are watched at runtime — edits apply instantly.
 
+**Window transparency:** Add `--bg-opacity: 85%;` to your theme for transparent backgrounds. Works out of the box on Hyprland and other Wayland compositors with transparency support.
+
 <details>
 <summary>All theme properties</summary>
 
@@ -117,6 +119,7 @@ Theme files are watched at runtime — edits apply instantly.
 | `--overlay-bg` | `rgba(0,0,0,0.5)` | Dialog overlay backdrop |
 | `--shadow-sm` | `0 4px 12px rgba(0,0,0,0.3)` | Small shadow (menus) |
 | `--shadow-lg` | `0 8px 32px rgba(0,0,0,0.4)` | Large shadow (dialogs) |
+| `--bg-opacity` | `100%` | Background transparency (`85%` = 15% transparent) |
 | `--scrollbar-width` | `8px` | Scrollbar width |
 | `--transition-fast` | `0.1s` | Fast transitions |
 | `--transition-normal` | `0.15s` | Normal transitions |
