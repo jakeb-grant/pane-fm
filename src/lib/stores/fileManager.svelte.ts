@@ -51,6 +51,7 @@ export function createFileManager() {
 	const MAX_PREFETCH_CHILDREN = 10000;
 	const PREFETCH_CONCURRENCY = 4;
 	const SIBLING_CACHE_TTL = 30000;
+	const MAX_DIR_CACHE_ENTRIES = 200;
 	const dirCache = new Map<
 		string,
 		{ entries: FileEntry[]; showHid: boolean; time: number; ancestor: boolean }
@@ -76,6 +77,17 @@ export function createFileManager() {
 			time: Date.now(),
 			ancestor: ancestor || (existing?.ancestor ?? false),
 		});
+
+		if (dirCache.size > MAX_DIR_CACHE_ENTRIES) {
+			for (const [key, val] of dirCache) {
+				if (dirCache.size <= MAX_DIR_CACHE_ENTRIES) break;
+				if (!val.ancestor) dirCache.delete(key);
+			}
+			for (const [key] of dirCache) {
+				if (dirCache.size <= MAX_DIR_CACHE_ENTRIES) break;
+				dirCache.delete(key);
+			}
+		}
 	}
 
 	// biome-ignore lint/suspicious/noEmptyBlockStatements: prefetch failures are intentionally ignored

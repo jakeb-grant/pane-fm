@@ -586,7 +586,11 @@ fn cached_path(
     Ok((out, fresh))
 }
 
-pub fn render_pdf_preview(path: &Path) -> Result<PdfPreview, AppError> {
+pub fn render_pdf_preview(
+    path: &Path,
+    gen: u64,
+    is_stale: &dyn Fn(u64) -> bool,
+) -> Result<PdfPreview, AppError> {
     let path_str = path.display().to_string();
     let (output_png, fresh) = cached_path(path, "pdf", "png", "")?;
     let output_prefix = output_png.with_extension("");
@@ -597,6 +601,10 @@ pub fn render_pdf_preview(path: &Path) -> Result<PdfPreview, AppError> {
             image_path: output_png.display().to_string(),
             page_count,
         });
+    }
+
+    if is_stale(gen) {
+        return Err(AppError::Cancelled);
     }
 
     // Render first page to PNG
@@ -672,26 +680,76 @@ pub struct ImageThumbnail {
     pub height: u32,
 }
 
-pub fn generate_thumbnail(path: &Path, max_dim: u32) -> Result<ImageThumbnail, AppError> {
+pub fn generate_thumbnail(
+    path: &Path,
+    max_dim: u32,
+    gen: u64,
+    is_stale: &dyn Fn(u64) -> bool,
+    limits: &crate::config::PreviewConfig,
+) -> Result<ImageThumbnail, AppError> {
     let path_str = path.display().to_string();
-    let (output_png, fresh) = cached_path(path, "thumbs", "png", &max_dim.to_string())?;
+    let (output_path, fresh) = cached_path(path, "thumbs", "jpg", &max_dim.to_string())?;
 
     if fresh {
-        // Dimensions encoded in cached filename would be ideal, but parsing the
-        // PNG header via image_dimensions is a single small read — acceptable.
         let (width, height) =
-            image::image_dimensions(&output_png).map_err(|e| AppError::Desktop {
+            image::image_dimensions(&output_path).map_err(|e| AppError::Desktop {
                 message: format!("Failed to read cached thumbnail: {e}"),
             })?;
         return Ok(ImageThumbnail {
-            image_path: output_png.display().to_string(),
+            image_path: output_path.display().to_string(),
             width,
             height,
         });
     }
 
-    let img = image::open(path)
+    if is_stale(gen) {
+        return Err(AppError::Cancelled);
+    }
+
+    // Single file open: get dimensions + orientation from decoder, then decode.
+    use image::ImageDecoder;
+    let reader = image::ImageReader::open(path)
+        .and_then(|r| r.with_guessed_format())
+        .map_err(|e| AppError::io_with_path(e, path_str.clone()))?;
+    let mut decoder = reader.into_decoder().map_err(|e| AppError::Desktop {
+        message: format!("Failed to decode image: {e}"),
+    })?;
+
+    let (w, h) = decoder.dimensions();
+    if w > limits.max_dimension || h > limits.max_dimension {
+        return Err(AppError::Desktop {
+            message: format!(
+                "Image too large ({w}×{h}), max {}×{}",
+                limits.max_dimension, limits.max_dimension
+            ),
+        });
+    }
+    if (w as u64) * (h as u64) * 4 > limits.max_alloc_mb * 1024 * 1024 {
+        return Err(AppError::Desktop {
+            message: format!(
+                "Image would exceed {} MB memory budget ({w}×{h})",
+                limits.max_alloc_mb
+            ),
+        });
+    }
+
+    let orientation = decoder
+        .orientation()
+        .unwrap_or(image::metadata::Orientation::NoTransforms);
+    let needs_orientation = orientation != image::metadata::Orientation::NoTransforms;
+
+    // Skip full decode if image already fits and has no EXIF rotation
+    if w.max(h) <= max_dim && !needs_orientation {
+        return Ok(ImageThumbnail {
+            image_path: path_str,
+            width: w,
+            height: h,
+        });
+    }
+
+    let mut img = image::DynamicImage::from_decoder(decoder)
         .map_err(|e| AppError::io_with_path(std::io::Error::other(e), path_str))?;
+    img.apply_orientation(orientation);
 
     let (orig_w, orig_h) = (img.width(), img.height());
     let scale = f64::from(max_dim) / f64::from(orig_w.max(orig_h));
@@ -706,12 +764,25 @@ pub fn generate_thumbnail(path: &Path, max_dim: u32) -> Result<ImageThumbnail, A
 
     let thumb = img.resize_exact(new_w, new_h, image::imageops::FilterType::Triangle);
 
-    thumb.save(&output_png).map_err(|e| AppError::Desktop {
-        message: format!("Failed to save thumbnail: {e}"),
-    })?;
+    if is_stale(gen) {
+        return Err(AppError::Cancelled);
+    }
+
+    let quality = limits.image_quality.clamp(50, 90);
+    let out_file = std::io::BufWriter::new(
+        fs::File::create(&output_path)
+            .map_err(|e| AppError::io_with_path(e, output_path.display().to_string()))?,
+    );
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(out_file, quality);
+    thumb
+        .to_rgb8()
+        .write_with_encoder(encoder)
+        .map_err(|e| AppError::Desktop {
+            message: format!("Failed to save thumbnail: {e}"),
+        })?;
 
     Ok(ImageThumbnail {
-        image_path: output_png.display().to_string(),
+        image_path: output_path.display().to_string(),
         width: thumb.width(),
         height: thumb.height(),
     })

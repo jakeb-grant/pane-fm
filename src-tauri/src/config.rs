@@ -24,6 +24,8 @@ pub struct AppConfig {
     pub chords: HashMap<String, Vec<String>>,
     #[serde(default)]
     pub actions: Vec<CustomAction>,
+    #[serde(default)]
+    pub preview: PreviewConfig,
     pub warning: Option<String>,
 }
 
@@ -36,6 +38,39 @@ pub struct GeneralConfig {
     pub light_icons: Option<bool>,
     pub editor: Option<String>,
     pub terminal: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreviewConfig {
+    /// JPEG quality for thumbnails (50–90)
+    #[serde(default = "default_image_quality")]
+    pub image_quality: u8,
+    /// Reject images with either dimension exceeding this
+    #[serde(default = "default_max_dimension")]
+    pub max_dimension: u32,
+    /// Reject images whose decoded RGBA would exceed this many MB
+    #[serde(default = "default_max_alloc_mb")]
+    pub max_alloc_mb: u64,
+}
+
+impl Default for PreviewConfig {
+    fn default() -> Self {
+        Self {
+            image_quality: default_image_quality(),
+            max_dimension: default_max_dimension(),
+            max_alloc_mb: default_max_alloc_mb(),
+        }
+    }
+}
+
+fn default_image_quality() -> u8 {
+    75
+}
+fn default_max_dimension() -> u32 {
+    10_000
+}
+fn default_max_alloc_mb() -> u64 {
+    512
 }
 
 pub fn resolve_theme_path(theme: &str) -> Option<std::path::PathBuf> {
@@ -90,6 +125,7 @@ pub fn load_config() -> AppConfig {
                 keybinds,
                 chords: raw.chords,
                 actions: raw.actions,
+                preview: raw.preview,
                 warning: None,
             }
         }
@@ -120,4 +156,6 @@ struct RawConfig {
     chords: HashMap<String, Vec<String>>,
     #[serde(default)]
     actions: Vec<CustomAction>,
+    #[serde(default)]
+    preview: PreviewConfig,
 }

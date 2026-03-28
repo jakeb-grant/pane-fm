@@ -24,6 +24,7 @@ import {
 	readPdfPreview,
 	runCustomAction,
 	searchFiles,
+	setPreviewGen,
 	showWindow,
 	unwatchDirectory,
 	watchConfig,
@@ -295,7 +296,7 @@ function applyCachedPreview(cached: CachedPreview) {
 // biome-ignore lint/suspicious/noEmptyBlockStatements: prefetch failures are intentionally ignored
 const noop = () => {};
 
-function prefetchAdjacent(current: FileEntry) {
+function prefetchAdjacent(current: FileEntry, gen: number) {
 	const list = fm.filteredEntries;
 	const idx = list.findIndex((e) => e.path === current.path);
 	if (idx < 0) return;
@@ -340,7 +341,7 @@ function prefetchAdjacent(current: FileEntry) {
 				const url = convertFileSrc(adj.path);
 				previewCache.set(adj.path, adj.modified, { type: "image", url });
 			} else {
-				generateThumbnail(adj.path)
+				generateThumbnail(adj.path, undefined, gen)
 					.then((thumb) => {
 						const url = convertFileSrc(thumb.image_path);
 						previewCache.set(adj.path, adj.modified, {
@@ -353,7 +354,7 @@ function prefetchAdjacent(current: FileEntry) {
 					.catch(noop);
 			}
 		} else if (isPdfPreviewable(adj.mime_type)) {
-			readPdfPreview(adj.path)
+			readPdfPreview(adj.path, gen)
 				.then((data) =>
 					previewCache.set(adj.path, adj.modified, { type: "pdf", data }),
 				)
@@ -402,7 +403,7 @@ async function loadPreview(entry: FileEntry, gen: number) {
 			url = convertFileSrc(path);
 		} else {
 			try {
-				const thumb = await generateThumbnail(path);
+				const thumb = await generateThumbnail(path, undefined, gen);
 				if (gen !== previewGen) return;
 				url = convertFileSrc(thumb.image_path);
 			} catch {
@@ -414,7 +415,7 @@ async function loadPreview(entry: FileEntry, gen: number) {
 		previewCache.set(path, entry.modified, { type: "image", url });
 	} else if (isPdfPreviewable(mime)) {
 		try {
-			const data = await readPdfPreview(path);
+			const data = await readPdfPreview(path, gen);
 			if (gen !== previewGen) return;
 			pdfPreview = data;
 			previewCache.set(path, entry.modified, { type: "pdf", data });
@@ -432,6 +433,7 @@ $effect(() => {
 	const enabled = fm.previewEnabled;
 	clearTimeout(previewTimer);
 	const gen = ++previewGen;
+	setPreviewGen(gen);
 
 	if (!enabled || !entry) {
 		clearPreviewState();
@@ -444,7 +446,7 @@ $effect(() => {
 	if (cached) {
 		applyCachedPreview(cached);
 		activePreviewEntry = entry;
-		prefetchAdjacent(entry);
+		prefetchAdjacent(entry, gen);
 		return;
 	}
 
@@ -454,7 +456,7 @@ $effect(() => {
 
 	previewTimer = setTimeout(() => {
 		loadPreview(entry, gen).then(() => {
-			if (gen === previewGen) prefetchAdjacent(entry);
+			if (gen === previewGen) prefetchAdjacent(entry, gen);
 		});
 	}, 250);
 

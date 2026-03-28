@@ -131,6 +131,7 @@ pub fn run() {
             commands::theme::watch_theme,
             commands::search::search_files,
             commands::search::cancel_search,
+            commands::file_ops::set_preview_gen,
             commands::watcher::watch_directory,
             commands::watcher::unwatch_directory,
             show_window,

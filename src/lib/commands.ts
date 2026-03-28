@@ -83,8 +83,8 @@ export interface PdfPreview {
 	page_count: number;
 }
 
-export function readPdfPreview(path: string): Promise<PdfPreview> {
-	return invoke("read_pdf_preview", { path });
+export function readPdfPreview(path: string, gen = 0): Promise<PdfPreview> {
+	return invoke("read_pdf_preview", { path, gen });
 }
 
 export interface ImageThumbnail {
@@ -96,8 +96,13 @@ export interface ImageThumbnail {
 export function generateThumbnail(
 	path: string,
 	maxDim = 800,
+	gen = 0,
 ): Promise<ImageThumbnail> {
-	return invoke("generate_thumbnail", { path, maxDim });
+	return invoke("generate_thumbnail", { path, maxDim, gen });
+}
+
+export function setPreviewGen(gen: number): Promise<void> {
+	return invoke("set_preview_gen", { gen });
 }
 
 export interface DriveEntry {

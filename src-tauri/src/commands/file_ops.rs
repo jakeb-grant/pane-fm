@@ -1,9 +1,44 @@
+use crate::config::{self, PreviewConfig};
 use crate::error::AppError;
 use crate::fs_ops::{self, FileEntry, FilePreview};
 use crate::progress;
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::RwLock;
 use tauri::{AppHandle, Emitter, Manager};
+
+static PREVIEW_GEN: AtomicU64 = AtomicU64::new(0);
+static PREVIEW_CONFIG: RwLock<Option<PreviewConfig>> = RwLock::new(None);
+
+fn is_preview_stale(gen: u64) -> bool {
+    gen != 0 && gen != PREVIEW_GEN.load(Ordering::Relaxed)
+}
+
+fn get_preview_config() -> PreviewConfig {
+    if let Ok(guard) = PREVIEW_CONFIG.read() {
+        if let Some(cfg) = guard.as_ref() {
+            return cfg.clone();
+        }
+    }
+    let cfg = config::load_config().preview;
+    if let Ok(mut guard) = PREVIEW_CONFIG.write() {
+        *guard = Some(cfg.clone());
+    }
+    cfg
+}
+
+/// Called when config file changes to refresh the cached preview config.
+pub fn refresh_preview_config(preview: PreviewConfig) {
+    if let Ok(mut guard) = PREVIEW_CONFIG.write() {
+        *guard = Some(preview);
+    }
+}
+
+#[tauri::command]
+pub fn set_preview_gen(gen: u64) {
+    PREVIEW_GEN.store(gen, Ordering::Relaxed);
+}
 
 #[tauri::command]
 pub async fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileEntry>, AppError> {
@@ -141,26 +176,32 @@ pub async fn read_file_preview(path: String, max_bytes: usize) -> Result<FilePre
 }
 
 #[tauri::command]
-pub async fn read_pdf_preview(path: String) -> Result<fs_ops::PdfPreview, AppError> {
+pub async fn read_pdf_preview(path: String, gen: u64) -> Result<fs_ops::PdfPreview, AppError> {
     let path = PathBuf::from(path);
-    tokio::task::spawn_blocking(move || fs_ops::render_pdf_preview(&path))
-        .await
-        .map_err(|e| AppError::Desktop {
-            message: format!("Task join error: {e}"),
-        })?
+    tokio::task::spawn_blocking(move || {
+        fs_ops::render_pdf_preview(&path, gen, &is_preview_stale)
+    })
+    .await
+    .map_err(|e| AppError::Desktop {
+        message: format!("Task join error: {e}"),
+    })?
 }
 
 #[tauri::command]
 pub async fn generate_thumbnail(
     path: String,
     max_dim: u32,
+    gen: u64,
 ) -> Result<fs_ops::ImageThumbnail, AppError> {
     let path = PathBuf::from(path);
-    tokio::task::spawn_blocking(move || fs_ops::generate_thumbnail(&path, max_dim))
-        .await
-        .map_err(|e| AppError::Desktop {
-            message: format!("Task join error: {e}"),
-        })?
+    let preview_cfg = get_preview_config();
+    tokio::task::spawn_blocking(move || {
+        fs_ops::generate_thumbnail(&path, max_dim, gen, &is_preview_stale, &preview_cfg)
+    })
+    .await
+    .map_err(|e| AppError::Desktop {
+        message: format!("Task join error: {e}"),
+    })?
 }
 
 #[tauri::command]

@@ -13,7 +13,7 @@ interface CacheEntry {
 	byteSize: number;
 }
 
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = 20 * 1024 * 1024;
 
 function estimateSize(preview: CachedPreview): number {
 	switch (preview.type) {
@@ -22,9 +22,9 @@ function estimateSize(preview: CachedPreview): number {
 		case "dir":
 			return preview.entries.length * 200;
 		case "image":
-			return preview.url.length;
+			return 500_000;
 		case "pdf":
-			return 100;
+			return 500_000;
 		case "none":
 			return 50;
 	}

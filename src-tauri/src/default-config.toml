@@ -23,6 +23,16 @@
 # sort_by = "name"
 # sort_ascending = true
 
+[preview]
+# JPEG quality for cached thumbnails (50–90)
+# image_quality = 75
+
+# Reject images with either dimension exceeding this (pixels)
+# max_dimension = 10000
+
+# Reject images whose decoded size would exceed this (MB)
+# max_alloc_mb = 512
+
 [keybinds]
 # Override any keybind. Use snake_case names.
 # Single key:       move_down = "j"

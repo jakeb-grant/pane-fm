@@ -34,10 +34,13 @@ pub fn watch_config(app: AppHandle) -> Result<(), AppError> {
         match event.kind {
             EventKind::Create(_) | EventKind::Modify(_) => {
                 let config = load_config();
+                super::file_ops::refresh_preview_config(config.preview.clone());
                 let _ = emitter.emit("config-changed", &config);
             }
             EventKind::Remove(_) => {
-                let _ = emitter.emit("config-changed", &AppConfig::default());
+                let defaults = AppConfig::default();
+                super::file_ops::refresh_preview_config(defaults.preview.clone());
+                let _ = emitter.emit("config-changed", &defaults);
             }
             _ => {}
         }
