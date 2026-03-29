@@ -29,7 +29,9 @@ pub fn open_with_editor(path: String, editor: Option<String>) -> Result<(), AppE
             message: "No editor configured — set 'editor' in config.toml or $EDITOR".to_string(),
         })?;
 
-    let parts: Vec<&str> = editor.split_whitespace().collect();
+    let parts = shlex::split(&editor).ok_or_else(|| AppError::Desktop {
+        message: format!("Invalid editor command syntax: {editor}"),
+    })?;
     let (cmd, args) = parts
         .split_first()
         .ok_or_else(|| AppError::Desktop {
@@ -105,12 +107,15 @@ pub fn open_with_app(path: String, desktop_id: String) -> Result<(), AppError> {
         message: format!("Could not find Exec in {desktop_id}"),
     })?;
 
-    // Replace field codes with the file path
+    // Shell-escape the path so spaces/quotes don't break the command
+    let escaped = shlex::try_quote(&path).unwrap_or(std::borrow::Cow::Borrowed(&path));
+
+    // Replace field codes with the escaped file path
     let cmd = exec
-        .replace("%f", &path)
-        .replace("%F", &path)
-        .replace("%u", &path)
-        .replace("%U", &path)
+        .replace("%f", &escaped)
+        .replace("%F", &escaped)
+        .replace("%u", &escaped)
+        .replace("%U", &escaped)
         .replace("%i", "")
         .replace("%c", "")
         .replace("%k", "");
@@ -121,19 +126,21 @@ pub fn open_with_app(path: String, desktop_id: String) -> Result<(), AppError> {
         && !exec.contains("%u")
         && !exec.contains("%U")
     {
-        format!("{cmd} {path}")
+        format!("{cmd} {escaped}")
     } else {
         cmd
     };
 
-    let parts: Vec<&str> = cmd.split_whitespace().collect();
+    let parts = shlex::split(&cmd).ok_or_else(|| AppError::Desktop {
+        message: format!("Invalid Exec syntax in {desktop_id}"),
+    })?;
     if parts.is_empty() {
         return Err(AppError::Desktop {
             message: "Empty Exec line".to_string(),
         });
     }
 
-    std::process::Command::new(parts[0])
+    std::process::Command::new(&parts[0])
         .args(&parts[1..])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -160,14 +167,16 @@ pub fn open_terminal(path: String, terminal: String) -> Result<(), AppError> {
 
 #[tauri::command]
 pub async fn run_custom_action(command: String, cwd: String, wait: bool) -> Result<(), AppError> {
-    let parts: Vec<&str> = command.split_whitespace().collect();
+    let parts = shlex::split(&command).ok_or_else(|| AppError::Desktop {
+        message: format!("Invalid command syntax: {command}"),
+    })?;
     if parts.is_empty() {
         return Err(AppError::Desktop {
             message: "Empty command".to_string(),
         });
     }
 
-    let mut child = std::process::Command::new(parts[0])
+    let mut child = std::process::Command::new(&parts[0])
         .args(&parts[1..])
         .current_dir(&cwd)
         .stdout(std::process::Stdio::null())

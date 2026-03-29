@@ -24,7 +24,7 @@ function estimateSize(preview: CachedPreview): number {
 		case "image":
 			return 500_000;
 		case "pdf":
-			return 500_000;
+			return preview.data.text.length + 100;
 		case "none":
 			return 50;
 	}

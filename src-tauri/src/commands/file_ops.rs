@@ -237,18 +237,28 @@ pub fn delete_entry(path: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-pub fn permanent_delete(path: String) -> Result<(), AppError> {
-    fs_ops::permanent_delete(&PathBuf::from(path))
+pub async fn permanent_delete(path: String) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || fs_ops::permanent_delete(&PathBuf::from(path)))
+        .await
+        .unwrap()
 }
 
 #[tauri::command]
-pub fn copy_entry(from: String, to: String) -> Result<(), AppError> {
-    fs_ops::copy_entry(&PathBuf::from(from), &PathBuf::from(to))
+pub async fn copy_entry(from: String, to: String) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        fs_ops::copy_entry(&PathBuf::from(from), &PathBuf::from(to))
+    })
+    .await
+    .unwrap()
 }
 
 #[tauri::command]
-pub fn move_entry(from: String, to: String) -> Result<(), AppError> {
-    fs_ops::move_entry(&PathBuf::from(from), &PathBuf::from(to))
+pub async fn move_entry(from: String, to: String) -> Result<(), AppError> {
+    tokio::task::spawn_blocking(move || {
+        fs_ops::move_entry(&PathBuf::from(from), &PathBuf::from(to))
+    })
+    .await
+    .unwrap()
 }
 
 #[tauri::command]

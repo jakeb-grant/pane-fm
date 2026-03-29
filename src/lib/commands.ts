@@ -98,7 +98,7 @@ export function readFilePreview(
 }
 
 export interface PdfPreview {
-	image_path: string;
+	text: string;
 	page_count: number;
 }
 
@@ -117,7 +117,7 @@ export interface ImageThumbnail {
 
 export function generateThumbnail(
 	path: string,
-	maxDim = 800,
+	maxDim = 400,
 	previewPath = "",
 ): Promise<ImageThumbnail> {
 	return invoke("generate_thumbnail", { path, maxDim, previewPath });

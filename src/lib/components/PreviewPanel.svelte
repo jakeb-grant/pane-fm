@@ -1,5 +1,4 @@
 <script lang="ts">
-import { convertFileSrc } from "@tauri-apps/api/core";
 import type { FileEntry, FilePreview, PdfPreview } from "$lib/commands";
 import { isPdfPreviewable } from "$lib/constants";
 import { getIconForEntry } from "$lib/icons";
@@ -35,8 +34,8 @@ const icon = $derived(entry ? getIconForEntry(entry) : "");
 const isPdf = $derived(
 	entry && !entry.is_dir ? isPdfPreviewable(entry.mime_type) : false,
 );
-const pdfImageUrl = $derived(
-	isPdf && pdfPreview ? convertFileSrc(pdfPreview.image_path) : null,
+const hasPdfText = $derived(
+	isPdf && pdfPreview ? pdfPreview.text.trim().length > 0 : false,
 );
 const MAX_PREVIEW_LINES = 200;
 const LINE_HEIGHT = 18; // 12px font * 1.5 line-height
@@ -158,14 +157,23 @@ function onpointerdown(e: PointerEvent) {
 				<span class="preview-filename">{entry.name}</span>
 				<span class="preview-detail">{formatSize(entry.size)}</span>
 			</div>
-		{:else if pdfImageUrl}
-			<div class="preview-visual">
-				<img src={pdfImageUrl} alt={entry.name} decoding="async" />
-			</div>
+		{:else if isPdf && pdfPreview}
+			{#if hasPdfText}
+				<div class="preview-text">
+					<div class="code-wrap">
+						<pre class="pdf-text">{pdfPreview.text}</pre>
+					</div>
+				</div>
+			{:else}
+				<div class="preview-center">
+					<FileIcon src={icon} size={48} />
+					<span class="preview-detail">Scanned PDF</span>
+				</div>
+			{/if}
 			<div class="preview-footer">
 				<FileIcon src={icon} size={16} />
 				<span class="preview-filename">{entry.name}</span>
-				<span class="preview-detail">{pdfPreview?.page_count} page{pdfPreview?.page_count !== 1 ? 's' : ''}</span>
+				<span class="preview-detail">{pdfPreview.page_count} page{pdfPreview.page_count !== 1 ? 's' : ''}</span>
 			</div>
 		{:else if previewData && !previewData.is_binary && splitLines.lines.length > 0}
 			<div class="preview-text">
@@ -397,6 +405,16 @@ function onpointerdown(e: PointerEvent) {
 	.code-content code {
 		display: block;
 		margin-left: 4px;
+	}
+
+	.pdf-text {
+		margin: 0;
+		padding: 8px 12px;
+		font-size: 12px;
+		line-height: 18px;
+		white-space: pre-wrap;
+		word-break: break-word;
+		color: var(--text-primary);
 	}
 
 </style>

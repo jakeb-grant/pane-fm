@@ -400,15 +400,20 @@ pub fn move_entries_with_progress(
     app: &AppHandle,
 ) -> Result<(), AppError> {
     // Try rename first for each source (instant on same filesystem)
-    let mut needs_copy: Vec<&PathBuf> = Vec::new();
+    let mut needs_copy: Vec<(&PathBuf, u64)> = Vec::new();
     for src in sources {
         let name = src.file_name().unwrap_or_default();
         let dest = unique_dest_path(&dest_dir.join(name));
         match fs::rename(src, &dest) {
             Ok(()) => {}
             Err(e) if e.raw_os_error() == Some(18) => {
-                // EXDEV: cross-device move, need copy+delete
-                needs_copy.push(src);
+                // EXDEV: cross-device move — pre-compute bytes to avoid a second tree walk
+                let bytes = if src.is_dir() {
+                    dir_total_bytes(src)
+                } else {
+                    fs::metadata(src).map(|m| m.len()).unwrap_or(0)
+                };
+                needs_copy.push((src, bytes));
             }
             Err(e) => {
                 return Err(AppError::io_with_path(e, src.display().to_string()));
@@ -421,9 +426,9 @@ pub fn move_entries_with_progress(
     }
 
     // Fall back to copy + delete for cross-device entries
-    let total = prescan_bytes(&needs_copy);
+    let total: u64 = needs_copy.iter().map(|(_, b)| *b).sum();
     let mut processed = 0u64;
-    for src in &needs_copy {
+    for (src, _) in &needs_copy {
         let name = src.file_name().unwrap_or_default();
         let dest = unique_dest_path(&dest_dir.join(name));
         let copy_result = if src.is_dir() {
@@ -535,7 +540,7 @@ pub fn read_file_preview(path: &Path, max_bytes: usize) -> Result<FilePreview, A
 
 #[derive(Debug, Serialize, Clone)]
 pub struct PdfPreview {
-    pub image_path: String,
+    pub text: String,
     pub page_count: u32,
 }
 
@@ -573,86 +578,43 @@ pub fn render_pdf_preview(
     path: &Path,
     is_stale: &dyn Fn() -> bool,
 ) -> Result<PdfPreview, AppError> {
-    let path_str = path.display().to_string();
-    let (output_png, fresh) = cached_path(path, "pdf", "png", "")?;
-    let output_prefix = output_png.with_extension("");
-
-    if fresh {
-        let page_count = get_pdf_page_count(path);
-        return Ok(PdfPreview {
-            image_path: output_png.display().to_string(),
-            page_count,
-        });
-    }
+    use pdf_oxide::document::PdfDocument;
 
     if is_stale() {
         return Err(AppError::Cancelled);
     }
 
-    // Render first page to PNG
-    let result = std::process::Command::new("pdftoppm")
-        .args([
-            "-png",
-            "-f",
-            "1",
-            "-l",
-            "1",
-            "-singlefile",
-            "-r",
-            "200",
-            &path_str,
-            &output_prefix.display().to_string(),
-        ])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .output();
+    let mut doc = PdfDocument::open(path).map_err(|e| AppError::Desktop {
+        message: format!("Failed to open PDF: {e}"),
+    })?;
 
-    match result {
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Err(AppError::Desktop {
-                message: "PDF preview requires poppler-utils (pacman -S poppler)".to_string(),
-            });
+    let page_count = doc.page_count().unwrap_or(0) as u32;
+
+    // Extract text from first 2 pages
+    let max_pages = page_count.min(2) as usize;
+    let mut text = String::new();
+    for i in 0..max_pages {
+        if is_stale() {
+            return Err(AppError::Cancelled);
         }
-        Err(e) => {
-            return Err(AppError::io_with_path(e, path_str));
+        if let Ok(page_text) = doc.extract_text(i) {
+            if !text.is_empty() && !page_text.is_empty() {
+                text.push('\n');
+            }
+            text.push_str(&page_text);
         }
-        Ok(output) if !output.status.success() => {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(AppError::Desktop {
-                message: format!("Failed to render PDF: {stderr}"),
-            });
-        }
-        Ok(_) => {}
     }
 
-    if !output_png.exists() {
-        return Err(AppError::Desktop {
-            message: "PDF rendering produced no output".to_string(),
-        });
+    // Truncate to ~10KB to match text preview limits
+    if text.len() > 10_000 {
+        text.truncate(10_000);
+        // Don't cut mid-char
+        while !text.is_char_boundary(text.len()) {
+            text.pop();
+        }
     }
 
-    let page_count = get_pdf_page_count(path);
-
-    Ok(PdfPreview {
-        image_path: output_png.display().to_string(),
-        page_count,
-    })
-}
-
-fn get_pdf_page_count(path: &Path) -> u32 {
-    let output = std::process::Command::new("pdfinfo")
-        .arg(path.display().to_string())
-        .output()
-        .ok();
-    output
-        .and_then(|o| {
-            let stdout = String::from_utf8_lossy(&o.stdout);
-            stdout
-                .lines()
-                .find(|l| l.starts_with("Pages:"))
-                .and_then(|l| l.split_whitespace().last()?.parse().ok())
-        })
-        .unwrap_or(0)
+    Ok(PdfPreview { text, page_count })
 }
 
 #[derive(Debug, Serialize, Clone)]
