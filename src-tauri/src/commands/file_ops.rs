@@ -8,11 +8,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
 use tauri::{AppHandle, Emitter, Manager};
 
-static PREVIEW_GEN: AtomicU64 = AtomicU64::new(0);
+static PREVIEW_PATH: RwLock<String> = RwLock::new(String::new());
 static PREVIEW_CONFIG: RwLock<Option<PreviewConfig>> = RwLock::new(None);
 
-fn is_preview_stale(gen: u64) -> bool {
-    gen != 0 && gen != PREVIEW_GEN.load(Ordering::Relaxed)
+fn is_preview_stale(path: &str) -> bool {
+    PREVIEW_PATH
+        .read()
+        .map(|current| *current != path)
+        .unwrap_or(false)
 }
 
 fn get_preview_config() -> PreviewConfig {
@@ -36,8 +39,136 @@ pub fn refresh_preview_config(preview: PreviewConfig) {
 }
 
 #[tauri::command]
-pub fn set_preview_gen(gen: u64) {
-    PREVIEW_GEN.store(gen, Ordering::Relaxed);
+pub fn set_preview_path(path: String) {
+    if let Ok(mut guard) = PREVIEW_PATH.write() {
+        *guard = path;
+    }
+}
+
+// --- Directory streaming ---
+
+static DIR_STREAM_GEN: AtomicU64 = AtomicU64::new(0);
+
+const DIR_BATCH_SIZE: usize = 100;
+const DIR_EMIT_THROTTLE_MS: u64 = 50;
+
+#[derive(Clone, Serialize)]
+struct DirStreamBatch {
+    entries: Vec<FileEntry>,
+    done: bool,
+    gen: u64,
+    path: String,
+}
+
+struct DirStreamState {
+    batch: Vec<FileEntry>,
+    last_emit_ms: u64,
+    gen: u64,
+    path: String,
+}
+
+impl DirStreamState {
+    fn new(gen: u64, path: String) -> Self {
+        Self {
+            batch: Vec::new(),
+            last_emit_ms: 0,
+            gen,
+            path,
+        }
+    }
+
+    fn is_stale(&self) -> bool {
+        self.gen != DIR_STREAM_GEN.load(Ordering::Relaxed)
+    }
+
+    fn flush(&mut self, app: &AppHandle, done: bool) {
+        if self.is_stale() {
+            return;
+        }
+        if self.batch.is_empty() && !done {
+            return;
+        }
+        let _ = app.emit(
+            "dir-stream-batch",
+            DirStreamBatch {
+                entries: std::mem::take(&mut self.batch),
+                done,
+                gen: self.gen,
+                path: self.path.clone(),
+            },
+        );
+        self.last_emit_ms = progress::now_ms();
+    }
+
+    fn maybe_flush(&mut self, app: &AppHandle) {
+        let should_flush = self.batch.len() >= DIR_BATCH_SIZE
+            || (progress::now_ms().saturating_sub(self.last_emit_ms) >= DIR_EMIT_THROTTLE_MS
+                && !self.batch.is_empty());
+        if should_flush {
+            self.flush(app, false);
+        }
+    }
+
+    fn push(&mut self, entry: FileEntry, app: &AppHandle) {
+        self.batch.push(entry);
+        self.maybe_flush(app);
+    }
+}
+
+#[tauri::command]
+pub async fn stream_directory(
+    app: AppHandle,
+    path: String,
+    show_hidden: bool,
+    gen: u64,
+) -> Result<(), AppError> {
+    let dir_path = PathBuf::from(&path);
+    if !dir_path.is_dir() {
+        return Err(AppError::NotFound {
+            path: path.clone(),
+        });
+    }
+
+    DIR_STREAM_GEN.store(gen, Ordering::Relaxed);
+
+    tokio::task::spawn_blocking(move || {
+        let mut state = DirStreamState::new(gen, path);
+
+        let entries = match std::fs::read_dir(&dir_path) {
+            Ok(e) => e,
+            Err(e) => {
+                return Err(AppError::io_with_path(e, dir_path.display().to_string()));
+            }
+        };
+
+        for entry in entries {
+            if state.is_stale() {
+                break;
+            }
+            let Some(file_entry) = entry.ok().and_then(|e| fs_ops::dir_entry_to_file_entry(&e))
+            else {
+                continue;
+            };
+            if !show_hidden && file_entry.hidden {
+                continue;
+            }
+            state.push(file_entry, &app);
+        }
+
+        state.flush(&app, true);
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Desktop {
+        message: format!("Task join error: {e}"),
+    })??;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn cancel_stream_directory() {
+    DIR_STREAM_GEN.store(0, Ordering::Relaxed);
 }
 
 #[tauri::command]
@@ -176,10 +307,13 @@ pub async fn read_file_preview(path: String, max_bytes: usize) -> Result<FilePre
 }
 
 #[tauri::command]
-pub async fn read_pdf_preview(path: String, gen: u64) -> Result<fs_ops::PdfPreview, AppError> {
+pub async fn read_pdf_preview(
+    path: String,
+    preview_path: String,
+) -> Result<fs_ops::PdfPreview, AppError> {
     let path = PathBuf::from(path);
     tokio::task::spawn_blocking(move || {
-        fs_ops::render_pdf_preview(&path, gen, &is_preview_stale)
+        fs_ops::render_pdf_preview(&path, &|| is_preview_stale(&preview_path))
     })
     .await
     .map_err(|e| AppError::Desktop {
@@ -191,12 +325,17 @@ pub async fn read_pdf_preview(path: String, gen: u64) -> Result<fs_ops::PdfPrevi
 pub async fn generate_thumbnail(
     path: String,
     max_dim: u32,
-    gen: u64,
+    preview_path: String,
 ) -> Result<fs_ops::ImageThumbnail, AppError> {
     let path = PathBuf::from(path);
     let preview_cfg = get_preview_config();
     tokio::task::spawn_blocking(move || {
-        fs_ops::generate_thumbnail(&path, max_dim, gen, &is_preview_stale, &preview_cfg)
+        fs_ops::generate_thumbnail(
+            &path,
+            max_dim,
+            &|| is_preview_stale(&preview_path),
+            &preview_cfg,
+        )
     })
     .await
     .map_err(|e| AppError::Desktop {

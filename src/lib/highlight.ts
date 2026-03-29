@@ -94,12 +94,12 @@ hljs.registerLanguage("yaml", langYaml);
 export interface HighlightRequest {
 	code: string;
 	filename: string;
-	gen: number;
+	path: string;
 }
 
 export interface HighlightResponse {
 	html: string;
-	gen: number;
+	path: string;
 }
 
 export const extToLang: Record<string, string> = {

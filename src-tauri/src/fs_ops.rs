@@ -32,113 +32,96 @@ pub struct DriveEntry {
     pub size: String,
 }
 
-pub fn read_directory(path: &Path) -> Result<Vec<FileEntry>, AppError> {
-    let entries = fs::read_dir(path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+pub fn dir_entry_to_file_entry(entry: &fs::DirEntry) -> Option<FileEntry> {
+    // DirEntry::file_type uses d_type from readdir (no stat syscall).
+    let ft = entry.file_type().ok()?;
 
-    let mut files: Vec<FileEntry> = Vec::new();
+    // Skip device files, sockets, FIFOs — stat/lstat can block on these.
+    if !ft.is_file() && !ft.is_dir() && !ft.is_symlink() {
+        return None;
+    }
 
-    for entry in entries {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
+    let name = entry.file_name().to_string_lossy().to_string();
+    let path_buf = entry.path();
+    let is_symlink = ft.is_symlink();
 
-        // DirEntry::file_type uses d_type from readdir (no stat syscall).
-        let ft = match entry.file_type() {
-            Ok(ft) => ft,
-            Err(_) => continue,
-        };
+    // For symlinks, lstat can block on special targets (e.g. /dev/stderr
+    // -> /proc/self/fd/2). Build a minimal entry without stat.
+    if is_symlink {
+        let target_meta = fs::metadata(&path_buf).ok();
+        let target_is_dir = target_meta.as_ref().is_some_and(|m| m.is_dir());
+        let size = target_meta.as_ref().map_or(0, |m| m.len());
 
-        // Skip device files, sockets, FIFOs — stat/lstat can block on these.
-        if !ft.is_file() && !ft.is_dir() && !ft.is_symlink() {
-            continue;
-        }
-
-        let name = entry.file_name().to_string_lossy().to_string();
-        let path_buf = entry.path();
-        let is_symlink = ft.is_symlink();
-
-        // For symlinks, lstat can block on special targets (e.g. /dev/stderr
-        // -> /proc/self/fd/2). Build a minimal entry without stat.
-        // For regular files/dirs, symlink_metadata (lstat) is safe.
-        if is_symlink {
-            // Resolve symlink target metadata for is_dir/size (stat is safe,
-            // only file reads block on special targets like /proc/self/fd/*).
-            let target_meta = fs::metadata(&path_buf).ok();
-            let target_is_dir = target_meta.as_ref().is_some_and(|m| m.is_dir());
-            let size = target_meta.as_ref().map_or(0, |m| m.len());
-
-            let mime_type = if target_is_dir {
-                "inode/directory".to_string()
-            } else {
-                // Extension-only mime guess — never open the file,
-                // as the target may be a device/pipe that blocks on read.
-                mime_guess::from_path(&path_buf)
-                    .first()
-                    .map(|m| m.to_string())
-                    .unwrap_or_else(|| "application/octet-stream".to_string())
-            };
-
-            files.push(FileEntry {
-                name: name.clone(),
-                path: path_buf.to_string_lossy().to_string(),
-                is_dir: target_is_dir,
-                is_symlink: true,
-                size,
-                modified: String::new(),
-                mime_type,
-                permissions: 0,
-                hidden: name.starts_with('.'),
-                children_count: None,
-            });
-            continue;
-        }
-
-        let metadata = match fs::symlink_metadata(&path_buf) {
-            Ok(m) => m,
-            Err(_) => continue,
-        };
-
-        let modified = metadata
-            .modified()
-            .ok()
-            .map(|t| {
-                let dt: DateTime<Local> = t.into();
-                dt.format("%Y-%m-%d %H:%M").to_string()
-            })
-            .unwrap_or_default();
-
-        let mime_type = if metadata.is_dir() {
+        let mime_type = if target_is_dir {
             "inode/directory".to_string()
         } else {
-            guess_mime(&path_buf)
+            mime_guess::from_path(&path_buf)
+                .first()
+                .map(|m| m.to_string())
+                .unwrap_or_else(|| "application/octet-stream".to_string())
         };
 
-        #[cfg(unix)]
-        let permissions = {
-            use std::os::unix::fs::PermissionsExt;
-            metadata.permissions().mode()
-        };
-        #[cfg(not(unix))]
-        let permissions = 0u32;
-
-        let hidden = name.starts_with('.');
-
-        files.push(FileEntry {
-            name,
+        return Some(FileEntry {
+            name: name.clone(),
             path: path_buf.to_string_lossy().to_string(),
-            is_dir: metadata.is_dir(),
-            is_symlink: false,
-            size: metadata.len(),
-            modified,
+            is_dir: target_is_dir,
+            is_symlink: true,
+            size,
+            modified: String::new(),
             mime_type,
-            permissions,
-            hidden,
+            permissions: 0,
+            hidden: name.starts_with('.'),
             children_count: None,
         });
     }
 
-    Ok(files)
+    let metadata = fs::symlink_metadata(&path_buf).ok()?;
+
+    let modified = metadata
+        .modified()
+        .ok()
+        .map(|t| {
+            let dt: DateTime<Local> = t.into();
+            dt.format("%Y-%m-%d %H:%M").to_string()
+        })
+        .unwrap_or_default();
+
+    let mime_type = if metadata.is_dir() {
+        "inode/directory".to_string()
+    } else {
+        guess_mime(&path_buf)
+    };
+
+    #[cfg(unix)]
+    let permissions = {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode()
+    };
+    #[cfg(not(unix))]
+    let permissions = 0u32;
+
+    let hidden = name.starts_with('.');
+
+    Some(FileEntry {
+        name,
+        path: path_buf.to_string_lossy().to_string(),
+        is_dir: metadata.is_dir(),
+        is_symlink: false,
+        size: metadata.len(),
+        modified,
+        mime_type,
+        permissions,
+        hidden,
+        children_count: None,
+    })
+}
+
+pub fn read_directory(path: &Path) -> Result<Vec<FileEntry>, AppError> {
+    let entries =
+        fs::read_dir(path).map_err(|e| AppError::io_with_path(e, path.display().to_string()))?;
+    Ok(entries
+        .filter_map(|e| e.ok().and_then(|e| dir_entry_to_file_entry(&e)))
+        .collect())
 }
 
 /// Count children for a batch of directory paths.
@@ -588,8 +571,7 @@ fn cached_path(
 
 pub fn render_pdf_preview(
     path: &Path,
-    gen: u64,
-    is_stale: &dyn Fn(u64) -> bool,
+    is_stale: &dyn Fn() -> bool,
 ) -> Result<PdfPreview, AppError> {
     let path_str = path.display().to_string();
     let (output_png, fresh) = cached_path(path, "pdf", "png", "")?;
@@ -603,7 +585,7 @@ pub fn render_pdf_preview(
         });
     }
 
-    if is_stale(gen) {
+    if is_stale() {
         return Err(AppError::Cancelled);
     }
 
@@ -683,8 +665,7 @@ pub struct ImageThumbnail {
 pub fn generate_thumbnail(
     path: &Path,
     max_dim: u32,
-    gen: u64,
-    is_stale: &dyn Fn(u64) -> bool,
+    is_stale: &dyn Fn() -> bool,
     limits: &crate::config::PreviewConfig,
 ) -> Result<ImageThumbnail, AppError> {
     let path_str = path.display().to_string();
@@ -702,7 +683,7 @@ pub fn generate_thumbnail(
         });
     }
 
-    if is_stale(gen) {
+    if is_stale() {
         return Err(AppError::Cancelled);
     }
 
@@ -751,20 +732,12 @@ pub fn generate_thumbnail(
         .map_err(|e| AppError::io_with_path(std::io::Error::other(e), path_str))?;
     img.apply_orientation(orientation);
 
-    let (orig_w, orig_h) = (img.width(), img.height());
-    let scale = f64::from(max_dim) / f64::from(orig_w.max(orig_h));
-    let (new_w, new_h) = if scale >= 1.0 {
-        (orig_w, orig_h)
-    } else {
-        (
-            (f64::from(orig_w) * scale).round() as u32,
-            (f64::from(orig_h) * scale).round() as u32,
-        )
-    };
+    // thumbnail() first does a cheap integer-ratio nearest-neighbor downsample,
+    // then applies a quality filter only on the small remaining step.
+    // Much faster than resize_exact(Triangle) on the full-resolution image.
+    let thumb = img.thumbnail(max_dim, max_dim);
 
-    let thumb = img.resize_exact(new_w, new_h, image::imageops::FilterType::Triangle);
-
-    if is_stale(gen) {
+    if is_stale() {
         return Err(AppError::Cancelled);
     }
 

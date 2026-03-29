@@ -20,6 +20,25 @@ export function listDirectory(
 	return invoke("list_directory", { path, showHidden });
 }
 
+export interface DirStreamBatch {
+	entries: FileEntry[];
+	done: boolean;
+	gen: number;
+	path: string;
+}
+
+export function streamDirectory(
+	path: string,
+	showHidden: boolean,
+	gen: number,
+): Promise<void> {
+	return invoke("stream_directory", { path, showHidden, gen });
+}
+
+export function cancelStreamDirectory(): Promise<void> {
+	return invoke("cancel_stream_directory");
+}
+
 export function getDragIcon(): Promise<string> {
 	return invoke("get_drag_icon");
 }
@@ -83,8 +102,11 @@ export interface PdfPreview {
 	page_count: number;
 }
 
-export function readPdfPreview(path: string, gen = 0): Promise<PdfPreview> {
-	return invoke("read_pdf_preview", { path, gen });
+export function readPdfPreview(
+	path: string,
+	previewPath = "",
+): Promise<PdfPreview> {
+	return invoke("read_pdf_preview", { path, previewPath });
 }
 
 export interface ImageThumbnail {
@@ -96,13 +118,13 @@ export interface ImageThumbnail {
 export function generateThumbnail(
 	path: string,
 	maxDim = 800,
-	gen = 0,
+	previewPath = "",
 ): Promise<ImageThumbnail> {
-	return invoke("generate_thumbnail", { path, maxDim, gen });
+	return invoke("generate_thumbnail", { path, maxDim, previewPath });
 }
 
-export function setPreviewGen(gen: number): Promise<void> {
-	return invoke("set_preview_gen", { gen });
+export function setPreviewPath(path: string): Promise<void> {
+	return invoke("set_preview_path", { path });
 }
 
 export interface DriveEntry {

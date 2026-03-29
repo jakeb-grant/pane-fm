@@ -1,4 +1,5 @@
 import {
+	cancelStreamDirectory,
 	type FileEntry,
 	getChildrenCounts,
 	getHomeDir,
@@ -6,6 +7,7 @@ import {
 	listDrives,
 	listTrash,
 	type SearchResult,
+	streamDirectory,
 } from "$lib/commands";
 import { errorMessage } from "$lib/errors";
 import { fuzzyMatch, globMatch, isGlobPattern, parentPath } from "$lib/utils";
@@ -37,6 +39,8 @@ export function savePreference(key: string, value: unknown): void {
 }
 
 export function createFileManager() {
+	let driveIntervalId: ReturnType<typeof setInterval> | undefined;
+
 	// Navigation state
 	let currentPath = $state("/");
 	let history = $state<string[]>([]);
@@ -177,6 +181,11 @@ export function createFileManager() {
 		loadPreference("showHidden", configDefaults.showHidden ?? false),
 	);
 
+	// Streaming directory state
+	let streaming = $state(false);
+	let streamGen = $state(0);
+	let pendingSelectAfter: string | null = null;
+
 	// Cursor state (the focused/highlighted entry)
 	let cursorPath = $state<string | null>(null);
 	let cursorEntry = $state<FileEntry | null>(null);
@@ -227,6 +236,8 @@ export function createFileManager() {
 
 	// Derived
 	const sortedEntries = $derived.by(() => {
+		if (streaming) return entries;
+
 		const nameCmp = (a: FileEntry, b: FileEntry) =>
 			a.name.toLowerCase().localeCompare(b.name.toLowerCase());
 
@@ -340,6 +351,13 @@ export function createFileManager() {
 			cursorMemory.set(currentPath, cursorPath);
 		}
 
+		// Cancel any in-progress stream
+		if (streaming) {
+			streamGen++;
+			streaming = false;
+			cancelStreamDirectory().catch(noopCatch);
+		}
+
 		cursorPath = null;
 		cursorEntry = null;
 		selectedPaths = new Set();
@@ -357,22 +375,68 @@ export function createFileManager() {
 			return;
 		}
 
-		// Cache miss — full load with loading state
+		// Trash has its own listing, no streaming
+		if (path === "trash://") {
+			loading = true;
+			try {
+				const list = await listTrash();
+				cacheListing(path, list, true);
+				applyEntries(path, list, addToHistory, selectAfter);
+			} catch (e) {
+				error = errorMessage(e) ?? String(e);
+			} finally {
+				loading = false;
+			}
+			return;
+		}
+
+		// Join an in-flight prefetch if one exists (avoids redundant streaming)
+		const inflight = inFlight.get(path);
+		if (inflight) {
+			loading = true;
+			try {
+				const list = await inflight;
+				cacheListing(path, list, true);
+				applyEntries(path, list, addToHistory, selectAfter);
+				prefetchSubdirectories(list, path);
+			} catch (e) {
+				error = errorMessage(e) ?? String(e);
+			} finally {
+				loading = false;
+			}
+			return;
+		}
+
+		// Cache miss — stream directory entries
 		loading = true;
+		streaming = true;
+		const gen = ++streamGen;
+		pendingSelectAfter = selectAfter;
+
+		const prevPath = currentPath;
+		const prevHistoryLen = history.length;
+		const prevHistoryIdx = historyIndex;
+
+		entries = [];
+		currentPath = path;
+		if (addToHistory) {
+			history = [...history.slice(0, historyIndex + 1), path];
+			historyIndex = history.length - 1;
+		}
 
 		try {
-			// Join an in-flight prefetch if one exists, otherwise start a new fetch
-			const list =
-				path === "trash://"
-					? await listTrash()
-					: await (inFlight.get(path) ?? listDirectory(path, showHidden));
-			cacheListing(path, list, true);
-			applyEntries(path, list, addToHistory, selectAfter);
-			prefetchSubdirectories(list, path);
+			await streamDirectory(path, showHidden, gen);
 		} catch (e) {
-			error = errorMessage(e) ?? String(e);
-		} finally {
+			if (streamGen !== gen) return;
+			streaming = false;
 			loading = false;
+			error = errorMessage(e) ?? String(e);
+			// Roll back history on error
+			if (addToHistory) {
+				history = history.slice(0, prevHistoryLen);
+				historyIndex = prevHistoryIdx;
+			}
+			currentPath = prevPath;
 		}
 	}
 
@@ -552,7 +616,7 @@ export function createFileManager() {
 		}
 
 		await refreshDrives();
-		setInterval(refreshDrives, 8000);
+		driveIntervalId = setInterval(refreshDrives, 8000);
 	}
 
 	async function refreshDrives() {
@@ -597,6 +661,9 @@ export function createFileManager() {
 		},
 		get loading() {
 			return loading;
+		},
+		get streaming() {
+			return streaming;
 		},
 		get error() {
 			return error;
@@ -743,6 +810,32 @@ export function createFileManager() {
 			if (gen !== searchGen) return;
 			searchDone = true;
 		},
+		appendDirStream(gen: number, batch: FileEntry[], path: string) {
+			if (gen !== streamGen || path !== currentPath) return;
+			entries = [...entries, ...batch];
+		},
+		markDirStreamDone(gen: number, path: string) {
+			if (gen !== streamGen || path !== currentPath) return;
+			streaming = false;
+			loading = false;
+			cacheListing(path, entries, true);
+			// Restore cursor
+			const target = pendingSelectAfter
+				? entries.find((e) => e.path === pendingSelectAfter)
+				: null;
+			const remembered = cursorMemory.get(path);
+			const cursor =
+				target ??
+				(remembered ? entries.find((e) => e.path === remembered) : null) ??
+				entries[0] ??
+				null;
+			if (cursor) select(cursor);
+			pendingSelectAfter = null;
+			// Fetch children counts + prefetch
+			const dirPaths = entries.filter((e) => e.is_dir).map((e) => e.path);
+			if (dirPaths.length > 0) fetchChildrenCounts(path, dirPaths);
+			prefetchSubdirectories(entries, path);
+		},
 		resetSearchResults() {
 			searchGen++;
 			searchResults = [];
@@ -808,6 +901,9 @@ export function createFileManager() {
 				"showHidden",
 				configDefaults.showHidden ?? false,
 			);
+		},
+		destroy() {
+			clearInterval(driveIntervalId);
 		},
 	};
 }

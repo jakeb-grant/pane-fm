@@ -79,7 +79,9 @@ export function createTabManager() {
 			tabs[0].fm.navigate(tabs[0].fm.homeDir);
 			return;
 		}
-		const clipboard = tabs[index].fm.clipboard;
+		const closing = tabs[index];
+		const clipboard = closing.fm.clipboard;
+		closing.fm.destroy();
 		tabs = tabs.filter((_, i) => i !== index);
 		if (activeIndex >= tabs.length) {
 			activeIndex = tabs.length - 1;

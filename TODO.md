@@ -17,7 +17,7 @@ Optimizations identified from comparative analysis with yazi's caching system.
 
 - [x] **Skip decode when image fits within max_dim** — Header-only dimension check: if `max(w, h) <= max_dim`, return original file path directly without any decode/resize/cache.
 
-- [ ] **Streaming directory reads** — Large directories (10K+ entries) block until fully loaded. Yazi chunks reads (50K entries, 500ms timeout) and streams results to the UI. Consider Tauri event-based streaming for `list_directory`.
+- [x] **Streaming directory reads** — New `stream_directory` command emits batches (500 entries / 100ms) via Tauri events. Frontend accumulates unsorted during streaming, sorts on completion. Cancellable via `AtomicBool` when navigating away. Existing `list_directory` kept for prefetch.
 
 ## Medium Impact
 
