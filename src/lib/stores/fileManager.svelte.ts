@@ -22,11 +22,30 @@ export function setConfigDefaults(opts: typeof configDefaults): void {
 	configDefaults = opts;
 }
 
-export function loadPreference<T>(key: string, fallback: T): T {
-	if (typeof window === "undefined") return fallback;
-	const stored = localStorage.getItem(`pane-fm.${key}`);
-	if (stored === null) return fallback;
+let storageAvailable = true;
+
+export function checkLocalStorage(): void {
+	if (typeof window === "undefined") return;
 	try {
+		const key = "pane-fm.__healthcheck";
+		localStorage.setItem(key, "1");
+		localStorage.removeItem(key);
+	} catch {
+		console.warn("localStorage corrupted — clearing and continuing");
+		try {
+			localStorage.clear();
+		} catch {
+			// Can't even clear — give up on localStorage entirely
+		}
+		storageAvailable = false;
+	}
+}
+
+export function loadPreference<T>(key: string, fallback: T): T {
+	if (!storageAvailable || typeof window === "undefined") return fallback;
+	try {
+		const stored = localStorage.getItem(`pane-fm.${key}`);
+		if (stored === null) return fallback;
 		return JSON.parse(stored) as T;
 	} catch {
 		return fallback;
@@ -34,8 +53,12 @@ export function loadPreference<T>(key: string, fallback: T): T {
 }
 
 export function savePreference(key: string, value: unknown): void {
-	if (typeof window === "undefined") return;
-	localStorage.setItem(`pane-fm.${key}`, JSON.stringify(value));
+	if (!storageAvailable || typeof window === "undefined") return;
+	try {
+		localStorage.setItem(`pane-fm.${key}`, JSON.stringify(value));
+	} catch {
+		// Storage full or corrupted — silently ignore
+	}
 }
 
 export function createFileManager() {

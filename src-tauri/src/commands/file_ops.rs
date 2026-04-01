@@ -244,24 +244,6 @@ pub async fn permanent_delete(path: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-pub async fn copy_entry(from: String, to: String) -> Result<(), AppError> {
-    tokio::task::spawn_blocking(move || {
-        fs_ops::copy_entry(&PathBuf::from(from), &PathBuf::from(to))
-    })
-    .await
-    .unwrap()
-}
-
-#[tauri::command]
-pub async fn move_entry(from: String, to: String) -> Result<(), AppError> {
-    tokio::task::spawn_blocking(move || {
-        fs_ops::move_entry(&PathBuf::from(from), &PathBuf::from(to))
-    })
-    .await
-    .unwrap()
-}
-
-#[tauri::command]
 pub fn create_symlink(target: String, link: String) -> Result<(), AppError> {
     fs_ops::create_symlink(&PathBuf::from(target), &PathBuf::from(link))
 }

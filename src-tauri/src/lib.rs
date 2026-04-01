@@ -6,6 +6,57 @@ mod error;
 mod fs_ops;
 pub mod progress;
 
+/// Check localStorage SQLite files for corruption before WebKit opens them.
+/// WebKit's localStorage uses SQLite with WAL mode. If the app is killed during
+/// a write (e.g. USB disconnect, OOM kill), the WAL can become corrupted or
+/// unreplayable, causing WebKit to hang on any localStorage access.
+/// We detect this by checking if the WAL file is disproportionately large
+/// relative to the main DB, and delete all three files to let WebKit start fresh.
+fn repair_localstorage(app: &tauri::App) {
+    let Ok(data_dir) = app.path().app_data_dir() else {
+        return;
+    };
+    let ls_dir = data_dir.join("localstorage");
+    if !ls_dir.is_dir() {
+        return;
+    }
+
+    let Ok(entries) = std::fs::read_dir(&ls_dir) else {
+        return;
+    };
+
+    // Find .localstorage files (the main SQLite DBs)
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !name.ends_with(".localstorage") || name.contains("-shm") || name.contains("-wal") {
+            continue;
+        }
+
+        let wal_path = path.with_extension("localstorage-wal");
+        let shm_path = path.with_extension("localstorage-shm");
+
+        let db_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        let wal_size = std::fs::metadata(&wal_path).map(|m| m.len()).unwrap_or(0);
+
+        // Heuristic: WAL > 50KB with a small DB means writes weren't checkpointed.
+        // Normal operation keeps WAL near zero between checkpoints.
+        if wal_size > 50_000 && wal_size > db_size * 5 {
+            eprintln!(
+                "pane-fm: localStorage corrupted (db={}B, wal={}B), resetting: {}",
+                db_size,
+                wal_size,
+                name
+            );
+            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::remove_file(&wal_path);
+            let _ = std::fs::remove_file(&shm_path);
+        }
+    }
+}
+
 /// Read the user's theme CSS and extract --bg-primary color.
 /// Falls back to Catppuccin Mocha dark (#1e1e2e) if anything fails.
 fn theme_bg_color() -> tauri::window::Color {
@@ -80,6 +131,7 @@ pub fn run() {
         .setup(|app| {
             config::install_default_config();
             commands::theme::install_default_themes();
+            repair_localstorage(app);
 
             if let Some(window) = app.get_webview_window("main") {
                 // Set window background to theme's --bg-primary to prevent white flash
@@ -98,8 +150,6 @@ pub fn run() {
             commands::file_ops::rename_entry,
             commands::file_ops::delete_entry,
             commands::file_ops::permanent_delete,
-            commands::file_ops::copy_entry,
-            commands::file_ops::move_entry,
             commands::file_ops::create_symlink,
             commands::file_ops::chmod_entry,
             commands::file_ops::read_file_preview,
@@ -113,6 +163,7 @@ pub fn run() {
             commands::file_ops::get_dir_stats,
             commands::drives::list_drives,
             commands::drives::mount_drive,
+            commands::drives::unmount_drive,
             commands::trash::list_trash,
             commands::trash::restore_trash,
             commands::trash::empty_trash,

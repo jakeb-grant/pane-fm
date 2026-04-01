@@ -64,7 +64,10 @@ import {
 } from "$lib/keybinds";
 import { createPreviewManager } from "$lib/previewManager.svelte";
 import { createDialogManager } from "$lib/stores/dialogs.svelte";
-import { setConfigDefaults } from "$lib/stores/fileManager.svelte";
+import {
+	checkLocalStorage,
+	setConfigDefaults,
+} from "$lib/stores/fileManager.svelte";
 import { createTabManager } from "$lib/stores/tabs.svelte";
 import { isGlobPattern, parentPath } from "$lib/utils";
 
@@ -159,6 +162,7 @@ async function applyConfig(config: AppConfig) {
 	}
 }
 
+checkLocalStorage();
 const tabs = createTabManager();
 const dlg = createDialogManager(() => fm);
 let fm = $derived(tabs.activeFm);

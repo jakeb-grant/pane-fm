@@ -192,3 +192,46 @@ pub async fn mount_drive(device: String) -> Result<String, AppError> {
 
     Ok(mount_point)
 }
+
+#[tauri::command]
+pub async fn unmount_drive(device: String) -> Result<(), AppError> {
+    // Unmount the filesystem
+    let dev = device.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        std::process::Command::new("udisksctl")
+            .args(["unmount", "-b", &dev, "--no-user-interaction"])
+            .output()
+    })
+    .await
+    .map_err(|e| AppError::Desktop {
+        message: format!("Task join error: {e}"),
+    })?
+    .map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            AppError::Desktop {
+                message: "Unmounting requires udisks2 (pacman -S udisks2)".to_string(),
+            }
+        } else {
+            AppError::Desktop {
+                message: format!("Failed to run udisksctl: {e}"),
+            }
+        }
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Desktop {
+            message: format!("Unmount failed: {stderr}"),
+        });
+    }
+
+    // Power off the drive (best-effort — fails silently for non-removable)
+    let _ = tokio::task::spawn_blocking(move || {
+        std::process::Command::new("udisksctl")
+            .args(["power-off", "-b", &device, "--no-user-interaction"])
+            .output()
+    })
+    .await;
+
+    Ok(())
+}

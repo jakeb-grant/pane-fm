@@ -1,5 +1,5 @@
 <script lang="ts">
-import { mountDrive, pathExists } from "$lib/commands";
+import { mountDrive, pathExists, unmountDrive } from "$lib/commands";
 import { errorMessage } from "$lib/errors";
 
 let {
@@ -61,6 +61,8 @@ $effect(() => {
 
 const system = [{ label: "Trash", icon: "\uF1F8", path: "trash://" }];
 
+let ejecting = $state<string | null>(null);
+
 async function handleMount(drive: { device: string }) {
 	if (mounting) return;
 	mounting = drive.device;
@@ -72,6 +74,26 @@ async function handleMount(drive: { device: string }) {
 		onerror(errorMessage(e) ?? "Mount failed");
 	} finally {
 		mounting = null;
+	}
+}
+
+async function handleEject(
+	e: MouseEvent,
+	drive: { device: string; path: string },
+) {
+	e.stopPropagation();
+	if (ejecting) return;
+	ejecting = drive.device;
+	try {
+		if (drive.path && currentPath.startsWith(drive.path)) {
+			onnavigate(homeDir);
+		}
+		await unmountDrive(drive.device);
+		onrefreshdrives();
+	} catch (err) {
+		onerror(errorMessage(err) ?? "Eject failed");
+	} finally {
+		ejecting = null;
 	}
 }
 </script>
@@ -100,26 +122,39 @@ async function handleMount(drive: { device: string }) {
 		<section>
 			{#if !collapsed}<h3 class="section-label">Drives</h3>{/if}
 			{#each drives as drive (drive.device)}
-				<button
-					class="sidebar-item"
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="drive-row"
 					class:active={drive.mounted && currentPath === drive.path}
 					class:unmounted={!drive.mounted}
 					class:drop-target={dropTarget === drive.path}
-					disabled={mounting === drive.device}
-					title={collapsed ? drive.name : undefined}
-					onclick={() => drive.mounted ? onnavigate(drive.path) : handleMount(drive)}
 					onmouseenter={() => { if (isDragging && drive.mounted) ondragover?.(drive.path); }}
 					onmouseleave={() => { if (isDragging) ondragleave?.(); }}
 					onmouseup={(e) => { if (isDragging && drive.mounted) ondrop?.(drive.path, e.ctrlKey); }}
 				>
-					<span class="item-icon">{drive.icon}</span>
-					{#if !collapsed}
-						<span class="item-label">{drive.name}</span>
-						{#if !drive.mounted}
-							<span class="item-hint">{drive.size}</span>
+					<button
+						class="sidebar-item drive-item"
+						disabled={mounting === drive.device || ejecting === drive.device}
+						title={collapsed ? drive.name : undefined}
+						onclick={() => drive.mounted ? onnavigate(drive.path) : handleMount(drive)}
+					>
+						<span class="item-icon">{drive.icon}</span>
+						{#if !collapsed}
+							<span class="item-label">{drive.name}</span>
+							{#if !drive.mounted}
+								<span class="item-hint">{drive.size}</span>
+							{/if}
 						{/if}
+					</button>
+					{#if drive.mounted && !collapsed}
+						<button
+							class="eject-btn"
+							title="Safely remove"
+							disabled={ejecting === drive.device}
+							onclick={(e) => handleEject(e, drive)}
+						>{"\uF052"}</button>
 					{/if}
-				</button>
+				</div>
 			{/each}
 		</section>
 	{/if}
@@ -223,14 +258,6 @@ async function handleMount(drive: { device: string }) {
 		color: var(--accent);
 	}
 
-	.sidebar-item.unmounted {
-		opacity: 0.5;
-	}
-
-	.sidebar-item.unmounted:hover:not(:disabled) {
-		opacity: 0.8;
-	}
-
 	.sidebar-item.drop-target {
 		background: color-mix(in srgb, var(--accent) 20%, transparent);
 	}
@@ -260,5 +287,72 @@ async function handleMount(drive: { device: string }) {
 		font-size: 11px;
 		color: var(--text-muted);
 		flex-shrink: 0;
+	}
+
+	.drive-row {
+		display: flex;
+		align-items: center;
+		border-radius: var(--radius);
+		transition: background var(--transition-fast);
+	}
+
+	.drive-row:hover {
+		background: var(--bg-surface);
+	}
+
+	.drive-row.active {
+		background: var(--bg-surface);
+	}
+
+	.drive-row.unmounted {
+		opacity: 0.5;
+	}
+
+	.drive-row.unmounted:hover {
+		opacity: 0.8;
+	}
+
+	.drive-row.drop-target {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
+	}
+
+	.drive-item {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.drive-row:hover .sidebar-item {
+		background: none;
+	}
+
+	.drive-row.active .sidebar-item {
+		background: none;
+		color: var(--accent);
+	}
+
+	.eject-btn {
+		background: none;
+		border: none;
+		padding: 2px 6px 2px 0;
+		font-family: var(--font-icon);
+		font-size: 12px;
+		color: var(--text-muted);
+		cursor: pointer;
+		flex-shrink: 0;
+		opacity: 0;
+		transition: opacity var(--transition-fast), color var(--transition-fast);
+	}
+
+	.drive-row:hover .eject-btn {
+		opacity: 1;
+	}
+
+	.eject-btn:hover {
+		color: var(--text-primary);
+	}
+
+	.eject-btn:disabled {
+		opacity: 0.35;
+		cursor: default;
 	}
 </style>

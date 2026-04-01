@@ -219,63 +219,6 @@ pub fn unique_dest_path(to: &Path) -> std::path::PathBuf {
     to.to_path_buf()
 }
 
-pub fn copy_entry(from: &Path, to: &Path) -> Result<(), AppError> {
-    let dest = unique_dest_path(to);
-    if from.is_dir() {
-        copy_dir_recursive(from, &dest)
-    } else {
-        fs::copy(from, &dest)
-            .map(|_| ())
-            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))
-    }
-}
-
-fn copy_dir_recursive(from: &Path, to: &Path) -> Result<(), AppError> {
-    fs::create_dir_all(to).map_err(|e| AppError::io_with_path(e, to.display().to_string()))?;
-
-    let entries =
-        fs::read_dir(from).map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
-
-    for entry in entries {
-        let entry = entry?;
-        let dest = to.join(entry.file_name());
-
-        if entry.path().is_dir() {
-            copy_dir_recursive(&entry.path(), &dest)?;
-        } else {
-            fs::copy(entry.path(), &dest)
-                .map_err(|e| AppError::io_with_path(e, entry.path().display().to_string()))?;
-        }
-    }
-
-    Ok(())
-}
-
-pub fn move_entry(from: &Path, to: &Path) -> Result<(), AppError> {
-    let dest = unique_dest_path(to);
-    // Try rename first (same filesystem, instant)
-    if fs::rename(from, &dest).is_ok() {
-        return Ok(());
-    }
-    // Fall back to copy + delete (cross-filesystem)
-    // copy_entry already calls unique_dest_path, but dest is already unique here
-    if from.is_dir() {
-        copy_dir_recursive(from, &dest)?;
-    } else {
-        fs::copy(from, &dest)
-            .map(|_| ())
-            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
-    }
-    if from.is_dir() {
-        fs::remove_dir_all(from)
-            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
-    } else {
-        fs::remove_file(from)
-            .map_err(|e| AppError::io_with_path(e, from.display().to_string()))?;
-    }
-    Ok(())
-}
-
 pub fn create_symlink(target: &Path, link: &Path) -> Result<(), AppError> {
     let dest = unique_dest_path(link);
     std::os::unix::fs::symlink(target, &dest)
@@ -854,56 +797,6 @@ mod tests {
     }
 
     #[test]
-    fn copy_entry_file() {
-        let tmp = TempDir::new().unwrap();
-        let from = tmp.path().join("src.txt");
-        let to = tmp.path().join("dst.txt");
-
-        fs::write(&from, "content").unwrap();
-        copy_entry(&from, &to).unwrap();
-
-        assert!(from.exists()); // source still exists
-        assert!(to.exists());
-        assert_eq!(fs::read_to_string(&to).unwrap(), "content");
-    }
-
-    #[test]
-    fn copy_entry_directory() {
-        let tmp = TempDir::new().unwrap();
-        let from = tmp.path().join("srcdir");
-        let to = tmp.path().join("dstdir");
-
-        fs::create_dir(&from).unwrap();
-        fs::write(from.join("file.txt"), "hello").unwrap();
-        fs::create_dir(from.join("sub")).unwrap();
-        fs::write(from.join("sub/nested.txt"), "world").unwrap();
-
-        copy_entry(&from, &to).unwrap();
-
-        assert!(to.join("file.txt").exists());
-        assert_eq!(fs::read_to_string(to.join("file.txt")).unwrap(), "hello");
-        assert!(to.join("sub/nested.txt").exists());
-        assert_eq!(
-            fs::read_to_string(to.join("sub/nested.txt")).unwrap(),
-            "world"
-        );
-    }
-
-    #[test]
-    fn move_entry_file() {
-        let tmp = TempDir::new().unwrap();
-        let from = tmp.path().join("src.txt");
-        let to = tmp.path().join("dst.txt");
-
-        fs::write(&from, "content").unwrap();
-        move_entry(&from, &to).unwrap();
-
-        assert!(!from.exists()); // source removed
-        assert!(to.exists());
-        assert_eq!(fs::read_to_string(&to).unwrap(), "content");
-    }
-
-    #[test]
     fn unique_dest_path_no_conflict() {
         let tmp = TempDir::new().unwrap();
         let target = tmp.path().join("file.txt");
@@ -939,20 +832,6 @@ mod tests {
 
         let result = unique_dest_path(&target);
         assert_eq!(result, tmp.path().join("folder (2)"));
-    }
-
-    #[test]
-    fn copy_entry_same_dir_auto_renames() {
-        let tmp = TempDir::new().unwrap();
-        let file = tmp.path().join("test.txt");
-        fs::write(&file, "original").unwrap();
-
-        copy_entry(&file, &file).unwrap();
-
-        assert!(file.exists());
-        let copy = tmp.path().join("test (2).txt");
-        assert!(copy.exists());
-        assert_eq!(fs::read_to_string(&copy).unwrap(), "original");
     }
 
     #[test]

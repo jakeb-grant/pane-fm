@@ -70,7 +70,7 @@ export function createTabManager() {
 		tabs = [...tabs, tab];
 		activeIndex = tabs.length - 1;
 		enterTab(clipboard);
-		fm.navigate(currentDir);
+		fm.init(currentDir);
 	}
 
 	function closeTab(index: number) {
@@ -114,7 +114,11 @@ export function createTabManager() {
 		const savedPaths = loadPreference<string[]>("tabs", []);
 		const savedActive = loadPreference<number>("activeTab", 0);
 
-		if (savedPaths.length > 0) {
+		if (
+			Array.isArray(savedPaths) &&
+			savedPaths.length > 0 &&
+			savedPaths.every((p) => typeof p === "string")
+		) {
 			await tabs[0].fm.init(savedPaths[0]);
 
 			for (let i = 1; i < savedPaths.length; i++) {
@@ -123,7 +127,10 @@ export function createTabManager() {
 				await fm.init(savedPaths[i]);
 			}
 
-			activeIndex = Math.min(savedActive, tabs.length - 1);
+			activeIndex = Math.min(
+				typeof savedActive === "number" ? savedActive : 0,
+				tabs.length - 1,
+			);
 		} else {
 			await tabs[0].fm.init();
 		}

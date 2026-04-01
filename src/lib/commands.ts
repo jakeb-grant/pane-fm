@@ -145,6 +145,10 @@ export function mountDrive(device: string): Promise<string> {
 	return invoke("mount_drive", { device });
 }
 
+export function unmountDrive(device: string): Promise<void> {
+	return invoke("unmount_drive", { device });
+}
+
 export function pathExists(path: string): Promise<boolean> {
 	return invoke("path_exists", { path });
 }
