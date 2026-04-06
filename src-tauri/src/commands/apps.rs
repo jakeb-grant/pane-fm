@@ -154,8 +154,28 @@ pub fn open_with_app(path: String, desktop_id: String) -> Result<(), AppError> {
 
 #[tauri::command]
 pub fn open_terminal(path: String, terminal: String) -> Result<(), AppError> {
-    std::process::Command::new(&terminal)
-        .current_dir(&path)
+    let binary = terminal.split('/').last().unwrap_or(&terminal);
+    let mut cmd = std::process::Command::new(&terminal);
+
+    // Most terminals ignore the parent process's cwd and need an explicit flag
+    match binary {
+        "kitty" => { cmd.arg("--directory").arg(&path); }
+        "alacritty" | "foot" => { cmd.arg("--working-directory").arg(&path); }
+        "ghostty" | "gnome-terminal" | "xfce4-terminal" | "mate-terminal"
+        | "tilix" | "terminator" | "lxterminal" | "sakura" => {
+            cmd.arg(format!("--working-directory={path}"));
+        }
+        "wezterm" | "wezterm-gui" => { cmd.args(["start", "--cwd"]).arg(&path); }
+        "konsole" | "qterminal" | "cool-retro-term" => { cmd.arg("--workdir").arg(&path); }
+        "urxvt" | "urxvt256c" => { cmd.arg("-cd").arg(&path); }
+        "rio" | "tilda" => { cmd.arg("--working-dir").arg(&path); }
+        "deepin-terminal" => { cmd.arg("--work-directory").arg(&path); }
+        "terminology" => { cmd.arg(format!("--current-directory={path}")); }
+        // xterm, st, hyper, tabby, yakuake etc. have no cwd flag — fallback only
+        _ => { cmd.current_dir(&path); }
+    }
+
+    cmd.current_dir(&path)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
