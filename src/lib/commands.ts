@@ -43,6 +43,10 @@ export function getDragIcon(): Promise<string> {
 	return invoke("get_drag_icon");
 }
 
+export function resetDragSource(): Promise<void> {
+	return invoke("reset_drag_source");
+}
+
 export function getHomeDir(): Promise<string> {
 	return invoke("get_home_dir");
 }

@@ -3121,11 +3121,12 @@ dependencies = [
 
 [[package]]
 name = "pane-fm"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "chrono",
  "dirs",
  "flate2",
+ "gtk",
  "image 0.25.10",
  "infer",
  "mime_guess",

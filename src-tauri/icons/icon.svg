@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="folder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b4befe"/>
+      <stop offset="100%" stop-color="#9399e6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Folder shape: wider but shorter tab -->
+  <path d="
+    M 96 128
+    Q 72 128 72 152
+    L 72 400
+    Q 72 424 96 424
+    L 416 424
+    Q 440 424 440 400
+    L 440 192
+    Q 440 168 416 168
+    L 224 168
+    L 198 136
+    Q 190 128 180 128
+    Z
+  " fill="url(#folder)"/>
+
+  <!-- Pane divider: straight vertical line, centered in body -->
+  <rect x="252" y="168" width="8" height="256" fill="#1e1e2e" opacity="0.35"/>
+
+  <!-- Left pane: file listing lines -->
+  <rect x="106" y="212" width="112" height="7" rx="3.5" fill="#1e1e2e" opacity="0.2"/>
+  <rect x="106" y="238" width="90" height="7" rx="3.5" fill="#1e1e2e" opacity="0.2"/>
+  <rect x="106" y="264" width="104" height="7" rx="3.5" fill="#1e1e2e" opacity="0.2"/>
+  <rect x="106" y="290" width="76" height="7" rx="3.5" fill="#1e1e2e" opacity="0.2"/>
+  <rect x="106" y="316" width="96" height="7" rx="3.5" fill="#1e1e2e" opacity="0.2"/>
+
+  <!-- Right pane: preview area -->
+  <rect x="294" y="212" width="112" height="76" rx="6" fill="#1e1e2e" opacity="0.15"/>
+  <rect x="294" y="304" width="112" height="7" rx="3.5" fill="#1e1e2e" opacity="0.15"/>
+  <rect x="294" y="328" width="84" height="7" rx="3.5" fill="#1e1e2e" opacity="0.15"/>
+</svg>

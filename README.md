@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src-tauri/icons/icon.png" width="128" height="128" alt="pane-fm icon">
+</p>
+
 # pane-fm
 
 A themeable file manager for Hyprland. Built with Tauri, Svelte, and Rust.

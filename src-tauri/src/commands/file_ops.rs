@@ -195,6 +195,15 @@ pub async fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileE
     })?
 }
 
+#[cfg(target_os = "linux")]
+#[tauri::command]
+pub fn reset_drag_source(window: tauri::WebviewWindow) {
+    use gtk::prelude::WidgetExt;
+    if let Ok(gtk_window) = window.gtk_window() {
+        gtk_window.drag_source_unset();
+    }
+}
+
 #[tauri::command]
 pub fn get_drag_icon(app: AppHandle) -> Result<String, AppError> {
     app.path()

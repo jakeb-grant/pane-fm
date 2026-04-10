@@ -15,6 +15,7 @@ import {
 	cancelSearch,
 	getConfig,
 	getDragIcon,
+	resetDragSource,
 	loadThemeCss,
 	runCustomAction,
 	searchFiles,
@@ -52,7 +53,7 @@ import {
 } from "$lib/contextMenu";
 import { errorMessage } from "$lib/errors";
 import * as ops from "$lib/fileOps";
-import { setIconMode } from "$lib/icons";
+import { getIconForEntry, setIconMode } from "$lib/icons";
 import {
 	applyKeybindOverrides,
 	type ChordName,
@@ -769,19 +770,66 @@ function handleDragStart(draggedEntries: FileEntry[]) {
 
 let nativeDragPending = false;
 
+const dragIconCache = new Map<string, string>();
+
+function renderDragIcon(svgSrc: string, size = 32): Promise<string> {
+	const cached = dragIconCache.get(svgSrc);
+	if (cached) return Promise.resolve(cached);
+	return new Promise((resolve, reject) => {
+		const img = new Image();
+		img.onload = () => {
+			const canvas = document.createElement("canvas");
+			canvas.width = size;
+			canvas.height = size;
+			const ctx = canvas.getContext("2d")!;
+			ctx.drawImage(img, 0, 0, size, size);
+			const dataUrl = canvas.toDataURL("image/png");
+			dragIconCache.set(svgSrc, dataUrl);
+			resolve(dataUrl);
+		};
+		img.onerror = reject;
+		img.src = svgSrc;
+	});
+}
+
 function handleNativeDragOut() {
 	if (!fm.isDragging || !dragIconPath || nativeDragPending) return;
 	nativeDragPending = true;
-	const paths = fm.dragEntries.map((en) => en.path);
+	const entries = fm.dragEntries;
+	const paths = entries.map((en) => en.path);
+	const iconSvg = getIconForEntry(entries[0]);
 	fileList?.cancelDrag();
 	fm.endDrag();
 	setTimeout(() => {
-		startDrag({ item: paths, icon: dragIconPath }, () => {
-			nativeDragPending = false;
-			fm.refresh();
-		}).catch(() => {
-			nativeDragPending = false;
-		});
+		let settled = false;
+		renderDragIcon(iconSvg)
+			.catch(() => dragIconPath)
+			.then((icon) =>
+				startDrag({ item: paths, icon }, () => {
+					if (settled) return;
+					settled = true;
+					nativeDragPending = false;
+					resetDragSource().catch(() => {});
+					fm.refresh();
+				}),
+			)
+			.then(() => {
+				// The plugin's drag_begin returns immediately while the
+				// drag is in-flight.  Unset the GTK drag-source now so
+				// that BUTTON1_MASK no longer intercepts clicks — this
+				// is safe because the in-flight drag is owned by the
+				// GdkDragContext, not the widget's drag-source config.
+				if (!settled) {
+					nativeDragPending = false;
+					fm.refresh();
+				}
+				resetDragSource().catch(() => {});
+			})
+			.catch(() => {
+				settled = true;
+				nativeDragPending = false;
+				resetDragSource().catch(() => {});
+			});
 	}, 0);
 }
 

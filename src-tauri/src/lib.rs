@@ -141,9 +141,28 @@ pub fn run() {
             }
             Ok(())
         })
+        .on_window_event(|window, event| {
+            // Work around a RefCell borrow conflict in tauri-runtime-wry on
+            // Linux: the close event handler holds a mutable borrow on an
+            // internal RefCell while GTK destroys signal handlers that need
+            // the same RefCell, causing a panic.  We prevent the in-line
+            // close, hide the window for immediate visual feedback, then
+            // defer the real exit to the next main-loop iteration when the
+            // borrow has been released.
+            #[cfg(target_os = "linux")]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+                let handle = window.app_handle().clone();
+                gtk::glib::idle_add_once(move || {
+                    handle.exit(0);
+                });
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::file_ops::list_directory,
             commands::file_ops::get_drag_icon,
+            commands::file_ops::reset_drag_source,
             commands::file_ops::get_home_dir,
             commands::file_ops::create_directory,
             commands::file_ops::create_file,

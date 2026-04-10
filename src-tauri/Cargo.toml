@@ -1,6 +1,6 @@
 [package]
 name = "pane-fm"
-version = "0.1.7"
+version = "0.1.8"
 description = "A themeable file manager built with Tauri and Svelte"
 authors = ["you"]
 edition = "2021"
@@ -29,6 +29,9 @@ tar = "0.4"
 toml = "0.8"
 notify = "7"
 tauri-plugin-drag = "2.1.0"
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
+gtk = "0.18.2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "avif", "bmp"] }
 shlex = "1"
 pdf_oxide = "0.3"
