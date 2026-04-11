@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build and release (e.g. v0.1.8)'
+        required: true
 
 permissions:
   contents: write
@@ -11,8 +16,12 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Install system dependencies
         run: |
@@ -39,17 +48,17 @@ jobs:
       - name: Build release binary
         run: bun run tauri build
 
-      - name: Create tarball
-        run: |
-          tar -czvf pane-fm-${{ github.ref_name }}-x86_64-linux.tar.gz \
-            -C src-tauri/target/release pane-fm
-
       - name: Collect artifacts
         run: |
-          cp src-tauri/target/release/bundle/deb/*.deb . 2>/dev/null || true
-          cp src-tauri/target/release/bundle/appimage/*.AppImage . 2>/dev/null || true
+          mkdir -p release-artifacts
+          tar -czvf release-artifacts/pane-fm-${{ env.RELEASE_TAG }}-x86_64-linux.tar.gz \
+            -C src-tauri/target/release pane-fm
+          cp src-tauri/target/release/bundle/deb/*.deb release-artifacts/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/appimage/*.AppImage release-artifacts/ 2>/dev/null || true
 
-      - name: Create GitHub Release
-        run: gh release create ${{ github.ref_name }} *.tar.gz *.deb *.AppImage --generate-notes
+      - name: Create or update GitHub Release
+        run: |
+          gh release create ${{ env.RELEASE_TAG }} release-artifacts/* --generate-notes ||
+          gh release upload ${{ env.RELEASE_TAG }} release-artifacts/* --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
