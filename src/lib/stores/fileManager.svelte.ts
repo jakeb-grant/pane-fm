@@ -244,9 +244,13 @@ export function createFileManager() {
 	let searchDone = $state(true);
 	let searchGen = $state(0);
 
-	// Preview panel state
+	// Preview panel state. Width is stored as a fraction of the available
+	// content area (file list + preview), so the panel keeps its share of the
+	// window as it resizes. The actual pixel width is derived in +page.svelte.
 	let previewEnabled = $state(loadPreference("previewEnabled", false));
-	let previewWidth = $state(loadPreference("previewWidth", 300));
+	let previewWidthFraction = $state(
+		loadPreference("previewWidthFraction", 0.35),
+	);
 	let previewWidthSaveTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// Open With state
@@ -749,8 +753,8 @@ export function createFileManager() {
 		get previewEnabled() {
 			return previewEnabled;
 		},
-		get previewWidth() {
-			return previewWidth;
+		get previewWidthFraction() {
+			return previewWidthFraction;
 		},
 		get isDragging() {
 			return isDragging;
@@ -905,11 +909,11 @@ export function createFileManager() {
 			previewEnabled = !previewEnabled;
 			savePreference("previewEnabled", previewEnabled);
 		},
-		setPreviewWidth(w: number) {
-			previewWidth = w;
+		setPreviewWidthFraction(f: number) {
+			previewWidthFraction = Math.max(0.15, Math.min(f, 0.65));
 			clearTimeout(previewWidthSaveTimer);
 			previewWidthSaveTimer = setTimeout(
-				() => savePreference("previewWidth", w),
+				() => savePreference("previewWidthFraction", previewWidthFraction),
 				300,
 			);
 		},

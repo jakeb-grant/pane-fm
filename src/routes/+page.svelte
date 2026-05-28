@@ -15,8 +15,8 @@ import {
 	cancelSearch,
 	getConfig,
 	getDragIcon,
-	resetDragSource,
 	loadThemeCss,
+	resetDragSource,
 	runCustomAction,
 	searchFiles,
 	showWindow,
@@ -214,6 +214,30 @@ $effect(() => {
 	ro.observe(contentEl);
 	return () => ro.disconnect();
 });
+
+// Preview panel width is stored as a fraction of the content area and
+// recomputed to pixels here, so it scales proportionally as the window
+// resizes — clamped to a sane px range that always leaves the file list usable.
+const PREVIEW_MIN_PX = 200;
+const PREVIEW_MAX_PX = 800;
+const FILELIST_MIN_PX = 280;
+function clampPreviewPx(px: number): number {
+	const upper = Math.max(
+		PREVIEW_MIN_PX,
+		Math.min(PREVIEW_MAX_PX, contentWidth - FILELIST_MIN_PX),
+	);
+	return Math.max(PREVIEW_MIN_PX, Math.min(px, upper));
+}
+const previewPx = $derived(
+	clampPreviewPx(fm.previewWidthFraction * contentWidth),
+);
+function handlePreviewResize(px: number) {
+	if (contentWidth <= 0) return;
+	fm.setPreviewWidthFraction(clampPreviewPx(px) / contentWidth);
+}
+function nudgePreviewWidth(deltaPx: number) {
+	handlePreviewResize(previewPx + deltaPx);
+}
 
 let lastMousePos = { x: 0, y: 0 };
 let pendingChord = $state<string | null>(null);
@@ -498,9 +522,9 @@ async function handleWindowKeydown(e: KeyboardEvent) {
 	} else if (matchesKeybind(e, keybinds.togglePreview)) {
 		fm.togglePreview();
 	} else if (matchesKeybind(e, keybinds.previewShrink)) {
-		fm.setPreviewWidth(Math.max(150, fm.previewWidth - 15));
+		nudgePreviewWidth(-15);
 	} else if (matchesKeybind(e, keybinds.previewGrow)) {
-		fm.setPreviewWidth(Math.min(800, fm.previewWidth + 15));
+		nudgePreviewWidth(15);
 	} else if (matchesKeybind(e, keybinds.search)) {
 		e.preventDefault();
 		if (!fm.searchOpen) {
@@ -626,9 +650,8 @@ function buildCommands(): Command[] {
 				}
 			}
 		},
-		previewShrink: () =>
-			fm.setPreviewWidth(Math.max(150, fm.previewWidth - 15)),
-		previewGrow: () => fm.setPreviewWidth(Math.min(800, fm.previewWidth + 15)),
+		previewShrink: () => nudgePreviewWidth(-15),
+		previewGrow: () => nudgePreviewWidth(15),
 		openInEditor: () => {
 			if (fm.cursorEntry)
 				ops.handleOpenInEditor(fm, fm.cursorEntry.path, editorApp);
@@ -1096,8 +1119,8 @@ onDestroy(() => {
 						highlightedHtml={preview.highlightedHtml}
 						imagePreviewUrl={preview.imagePreviewUrl}
 						dirPreviewEntries={preview.dirPreviewEntries}
-						width={fm.previewWidth}
-						onresize={(w) => fm.setPreviewWidth(w)}
+						width={previewPx}
+						onresize={handlePreviewResize}
 					/>
 				{/if}
 				</div>
