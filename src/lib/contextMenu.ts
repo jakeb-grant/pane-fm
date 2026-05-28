@@ -1,6 +1,6 @@
 import type { CustomAction, FileEntry } from "$lib/commands";
 import type { MenuEntry } from "$lib/components/ContextMenu.svelte";
-import { archiveExtensions } from "$lib/constants";
+import { isArchiveFile } from "$lib/constants";
 
 // --- Discriminated union for context menu context ---
 
@@ -60,7 +60,7 @@ export interface ContextMenuState {
 // --- Builders ---
 
 function isArchive(entry: FileEntry): boolean {
-	return !entry.is_dir && archiveExtensions.test(entry.name);
+	return !entry.is_dir && isArchiveFile(entry.name, entry.mime_type);
 }
 
 function mimeMatches(pattern: string, mimeType: string): boolean {

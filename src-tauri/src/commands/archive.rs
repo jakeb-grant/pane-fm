@@ -333,52 +333,102 @@ pub async fn extract(archive: String, dest: String, app: AppHandle) -> Result<()
         })?
 }
 
+/// Archive formats pane-fm can extract.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum ArchiveFormat {
+    Zip,
+    TarGz,
+    TarXz,
+    TarZst,
+    TarBz2,
+    Tar,
+}
+
+/// Detect format from the filename extension (case-insensitive). The extension
+/// is preferred because it disambiguates the tar.* compression subtypes, which
+/// share the same outer container.
+fn format_from_extension(name: &str) -> Option<ArchiveFormat> {
+    let lower = name.to_lowercase();
+    if lower.ends_with(".zip") {
+        Some(ArchiveFormat::Zip)
+    } else if lower.ends_with(".tar.gz") || lower.ends_with(".tgz") {
+        Some(ArchiveFormat::TarGz)
+    } else if lower.ends_with(".tar.xz") {
+        Some(ArchiveFormat::TarXz)
+    } else if lower.ends_with(".tar.zst") {
+        Some(ArchiveFormat::TarZst)
+    } else if lower.ends_with(".tar.bz2") {
+        Some(ArchiveFormat::TarBz2)
+    } else if lower.ends_with(".tar") {
+        Some(ArchiveFormat::Tar)
+    } else {
+        None
+    }
+}
+
+/// Detect format by sniffing magic bytes, for archives whose extension we don't
+/// recognize (e.g. `.skill` and `.vsix`, which are zip containers).
+fn format_from_magic(path: &str) -> Option<ArchiveFormat> {
+    match infer::get_from_path(path) {
+        Ok(Some(kind)) => match kind.mime_type() {
+            "application/zip" => Some(ArchiveFormat::Zip),
+            "application/x-tar" => Some(ArchiveFormat::Tar),
+            "application/gzip" => Some(ArchiveFormat::TarGz),
+            "application/x-xz" => Some(ArchiveFormat::TarXz),
+            "application/zstd" => Some(ArchiveFormat::TarZst),
+            "application/x-bzip2" => Some(ArchiveFormat::TarBz2),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn open_progress_reader(
+    archive: &str,
+    app: &AppHandle,
+) -> Result<ProgressReader<std::fs::File>, AppError> {
+    let total = std::fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
+    let file = std::fs::File::open(archive)
+        .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
+    Ok(ProgressReader { inner: file, processed: 0, total, app: app.clone() })
+}
+
+fn prepare_dest(dest: &str) -> Result<PathBuf, AppError> {
+    let dest_path = PathBuf::from(dest);
+    std::fs::create_dir_all(&dest_path)
+        .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
+    Ok(dest_path)
+}
+
 fn extract_sync(archive: &str, dest: &str, app: &AppHandle) -> Result<(), AppError> {
-    let archive_path = PathBuf::from(archive);
-    let name = archive_path
+    let name = PathBuf::from(archive)
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("")
         .to_string();
 
-    let result = if name.ends_with(".zip") {
-        let total = std::fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
-        let dest_path = PathBuf::from(dest);
-        std::fs::create_dir_all(&dest_path)
-            .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
-        let file = std::fs::File::open(archive)
-            .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
-        let pr = ProgressReader { inner: file, processed: 0, total, app: app.clone() };
-        extract_zip(pr, &dest_path)
-    } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
-        let total = std::fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
-        let dest_path = PathBuf::from(dest);
-        std::fs::create_dir_all(&dest_path)
-            .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
-        let file = std::fs::File::open(archive)
-            .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
-        let pr = ProgressReader { inner: file, processed: 0, total, app: app.clone() };
-        let dec = flate2::read::GzDecoder::new(pr);
-        unpack_tar(dec, &dest_path)
-    } else if name.ends_with(".tar.xz") {
-        extract_tar_cmd(archive, dest, "xz")
-    } else if name.ends_with(".tar.zst") {
-        extract_tar_cmd(archive, dest, "zstd")
-    } else if name.ends_with(".tar.bz2") {
-        extract_tar_cmd(archive, dest, "bzip2")
-    } else if name.ends_with(".tar") {
-        let total = std::fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
-        let dest_path = PathBuf::from(dest);
-        std::fs::create_dir_all(&dest_path)
-            .map_err(|e| AppError::io_with_path(e, dest.to_string()))?;
-        let file = std::fs::File::open(archive)
-            .map_err(|e| AppError::io_with_path(e, archive.to_string()))?;
-        let pr = ProgressReader { inner: file, processed: 0, total, app: app.clone() };
-        unpack_tar(pr, &dest_path)
-    } else {
-        Err(AppError::Archive {
+    let format = format_from_extension(&name).or_else(|| format_from_magic(archive));
+
+    let result = match format {
+        Some(ArchiveFormat::Zip) => {
+            let dest_path = prepare_dest(dest)?;
+            extract_zip(open_progress_reader(archive, app)?, &dest_path)
+        }
+        Some(ArchiveFormat::TarGz) => {
+            let dest_path = prepare_dest(dest)?;
+            let dec = flate2::read::GzDecoder::new(open_progress_reader(archive, app)?);
+            unpack_tar(dec, &dest_path)
+        }
+        Some(ArchiveFormat::TarXz) => extract_tar_cmd(archive, dest, "xz"),
+        Some(ArchiveFormat::TarZst) => extract_tar_cmd(archive, dest, "zstd"),
+        Some(ArchiveFormat::TarBz2) => extract_tar_cmd(archive, dest, "bzip2"),
+        Some(ArchiveFormat::Tar) => {
+            let dest_path = prepare_dest(dest)?;
+            unpack_tar(open_progress_reader(archive, app)?, &dest_path)
+        }
+        None => Err(AppError::Archive {
             message: format!("Unsupported archive format: {name}"),
-        })
+        }),
     };
 
     if result.is_err() && progress::is_cancelled() {
@@ -608,6 +658,51 @@ mod tests {
         assert!(extract_dir.join("source/real.txt").exists());
         #[cfg(unix)]
         assert!(!extract_dir.join("source/link.txt").exists());
+    }
+
+    #[test]
+    fn format_from_extension_matches_known_types() {
+        assert_eq!(format_from_extension("a.zip"), Some(ArchiveFormat::Zip));
+        assert_eq!(format_from_extension("a.ZIP"), Some(ArchiveFormat::Zip));
+        assert_eq!(format_from_extension("a.tgz"), Some(ArchiveFormat::TarGz));
+        assert_eq!(format_from_extension("a.tar.gz"), Some(ArchiveFormat::TarGz));
+        assert_eq!(format_from_extension("a.tar.zst"), Some(ArchiveFormat::TarZst));
+        assert_eq!(format_from_extension("a.tar"), Some(ArchiveFormat::Tar));
+        assert_eq!(format_from_extension("a.skill"), None);
+        assert_eq!(format_from_extension("a.txt"), None);
+    }
+
+    #[test]
+    fn misnamed_zip_detected_and_extracted_by_magic() {
+        let tmp = TempDir::new().unwrap();
+        let src = tmp.path().join("source");
+        create_test_dir(&src);
+
+        // A real zip, but with an extension we don't recognize.
+        let archive = tmp.path().join("my-tool.skill");
+        {
+            use zip::write::SimpleFileOptions;
+            let file = fs::File::create(&archive).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            add_dir_to_zip(&mut zip, &src, &src, options).unwrap();
+            zip.finish().unwrap();
+        }
+
+        // The extension tells us nothing, but content sniffing recognizes the zip.
+        assert_eq!(format_from_extension("my-tool.skill"), None);
+        assert_eq!(
+            format_from_magic(archive.to_str().unwrap()),
+            Some(ArchiveFormat::Zip)
+        );
+
+        // And it extracts correctly.
+        let extract_dir = tmp.path().join("extracted");
+        fs::create_dir_all(&extract_dir).unwrap();
+        let file = fs::File::open(&archive).unwrap();
+        extract_zip(file, &extract_dir).unwrap();
+        assert_test_dir_contents(&extract_dir, "source");
     }
 
     #[test]

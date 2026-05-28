@@ -3,6 +3,16 @@ import { extToLang, nameToLang } from "$lib/highlight";
 export const archiveExtensions =
 	/\.(zip|tar|tar\.gz|tgz|tar\.xz|tar\.bz2|tar\.zst)$/i;
 
+// Container formats the backend can always extract once recognized by magic
+// bytes, even when the extension is non-standard (e.g. .skill and .vsix are
+// zips). The mime_type already comes from content sniffing for unknown
+// extensions, so this surfaces "Extract" for them.
+const archiveMimeTypes = new Set(["application/zip", "application/x-tar"]);
+
+export function isArchiveFile(name: string, mime: string): boolean {
+	return archiveExtensions.test(name) || archiveMimeTypes.has(mime);
+}
+
 const textAppMimes = new Set([
 	"application/json",
 	"application/xml",
